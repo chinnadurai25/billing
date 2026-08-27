@@ -41,12 +41,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve Frontend Static Files (pointing to the frontend/dist folder in your Git repo)
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
+// Serve Frontend Static Files (pointing to the dist folder inside backend)
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // Catch-all route to serve the React app for any non-API URL
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // Port Fallback & Server Startup
