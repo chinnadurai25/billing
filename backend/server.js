@@ -1,7 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initDB, isConnected } from './config/db.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import authRoutes from './routes/auth.js';
 import customerRoutes from './routes/customers.js';
@@ -34,6 +39,14 @@ app.get('/api/health', (req, res) => {
     mysql: isConnected() ? 'connected (taxpulse_db)' : 'memory-fallback-active',
     timestamp: new Date().toISOString()
   });
+});
+
+// Serve Frontend Static Files (pointing to the frontend/dist folder in your Git repo)
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// Catch-all route to serve the React app for any non-API URL
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
 });
 
 // Port Fallback & Server Startup
