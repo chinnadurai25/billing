@@ -27,18 +27,26 @@ export const api = {
   // 1. REGISTRATION ( CUSTOMER )
   getCustomers: () => request('/customers'),
   registerCustomer: (custData) => request('/customers', { method: 'POST', body: JSON.stringify(custData) }),
+  updateCustomer: (id, custData) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(custData) }),
+  deleteCustomer: (id) => request(`/customers/${id}`, { method: 'DELETE' }),
 
   // 2. REGISTRATION ( BANK / CASH )
   getBankAccounts: () => request('/bank-accounts'),
   registerBankCash: (bankData) => request('/bank-accounts', { method: 'POST', body: JSON.stringify(bankData) }),
+  updateBankAccount: (id, bankData) => request(`/bank-accounts/${id}`, { method: 'PUT', body: JSON.stringify(bankData) }),
+  deleteBankAccount: (id) => request(`/bank-accounts/${id}`, { method: 'DELETE' }),
 
   // 3. REGISTRATION ( SALES / SERVICES )
   getProducts: () => request('/products'),
   registerSalesService: (itemData) => request('/products', { method: 'POST', body: JSON.stringify(itemData) }),
+  updateProduct: (id, itemData) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(itemData) }),
+  deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
 
   // Invoices
   getInvoices: () => request('/invoices'),
   createInvoice: (invoiceData) => request('/invoices', { method: 'POST', body: JSON.stringify(invoiceData) }),
+  updateInvoice: (id, invoiceData) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoiceData) }),
+  deleteInvoice: (id) => request(`/invoices/${id}`, { method: 'DELETE' }),
 
   // Admin Registered Users
   getAdminUsers: () => request('/admin/users'),

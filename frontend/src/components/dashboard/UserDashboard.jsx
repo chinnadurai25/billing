@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Receipt, DollarSign, FileText, PieChart, Users, ShoppingBag, 
   CreditCard, TrendingUp, Clock, CheckCircle2, AlertCircle, 
   Plus, Search, Filter, Download, ArrowUpRight, ChevronRight, Eye, ShieldCheck,
-  Building, Landmark, Package, X, Check
+  Building, Landmark, Package, X, Check, Pencil, Trash2, Edit3, AlertTriangle
 } from 'lucide-react';
 import { 
   AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell, 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { useToast } from '../../context/ToastContext';
+import { api } from '../../services/api';
 
 export const UserDashboard = ({ 
   activeTab, 
@@ -20,6 +21,8 @@ export const UserDashboard = ({
   setCustomers, 
   products, 
   setProducts,
+  bankAccounts,
+  setBankAccounts,
   monthlyRevenueData,
   taxBreakdownData,
   onQuickCreateInvoice,
@@ -34,6 +37,19 @@ export const UserDashboard = ({
   const [showBankModal, setShowBankModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
 
+  // Edit states
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editingBank, setEditingBank] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+
+  // Delete Confirmation Modal state
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null
+  });
+
   // View Invoice Detail Modal state
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
@@ -45,31 +61,32 @@ export const UserDashboard = ({
     gstNo: '',
     pan: '',
     mobile: '',
-    email: ''
+    email: '',
+    city: 'Chennai',
+    state: 'Tamil Nadu'
   });
 
-  // 2. REGISTRATION ( BANK / CASH ) Form State & Accounts List
-  const [bankAccounts, setBankAccounts] = useState([
-    { id: 'BANK-001', bankType: 'Bank Account', accountName: 'Durai Tax Advisory Operating A/C', accountNumber: '50100234901234', bankName: 'HDFC Bank Ltd', ifscCode: 'HDFC0001234', address: 'Anna Salai, Chennai Branch', balance: 450000 },
-    { id: 'BANK-002', bankType: 'Bank Account', accountName: 'Durai Tax Collection Reserve', accountNumber: '000405012345', bankName: 'ICICI Bank Ltd', ifscCode: 'ICIC0000004', address: 'Nungambakkam, Chennai Branch', balance: 280000 },
-    { id: 'BANK-003', bankType: 'Cash in Hand', accountName: 'Main Petty Cash Ledger', accountNumber: 'CASH-LEDGER-01', bankName: 'Cash Chest', ifscCode: 'N/A', address: 'Office Safe', balance: 35000 }
-  ]);
-
+  // 2. REGISTRATION ( BANK / CASH ) Form State
+  // bankAccounts & setBankAccounts come from App.jsx props (MySQL-sourced)
   const [bankForm, setBankForm] = useState({
     bankType: 'Bank Account',
     accountName: '',
     accountNumber: '',
     bankName: '',
     ifscCode: '',
-    address: ''
+    address: '',
+    balance: 150000
   });
 
   // 3. REGISTRATION ( SALES / SERVICES ) Form State
   const [itemForm, setItemForm] = useState({
     itemName: '',
-    unit: 'Pices', // Pices / Number
+    unit: 'Pices', // Pices / Number / Hours / Months
     hsnCode: '',
-    openingStock: '100'
+    openingStock: '100',
+    rate: '12500',
+    taxPercent: '18',
+    category: 'Sales / Service Item'
   });
 
   // Auto-fill PAN when GSTIN is typed in Customer Form
@@ -87,112 +104,393 @@ export const UserDashboard = ({
     });
   };
 
-  // 1. Submit Customer Registration
-  const handleRegisterCustomer = (e) => {
+  // ----------------------------------------------------
+  // 1. CUSTOMER HANDLERS (Create, Edit, Update, Delete)
+  // ----------------------------------------------------
+  const handleOpenNewCustomer = () => {
+    setEditingCustomer(null);
+    setCustForm({
+      name: '',
+      ledger: 'SUNDRY DEBTORS',
+      address: '',
+      gstNo: '',
+      pan: '',
+      mobile: '',
+      email: '',
+      city: 'Chennai',
+      state: 'Tamil Nadu'
+    });
+    setShowCustomerModal(true);
+  };
+
+  const handleOpenEditCustomer = (customer) => {
+    setEditingCustomer(customer);
+    setCustForm({
+      name: customer.name || '',
+      ledger: customer.ledger || 'SUNDRY DEBTORS',
+      address: customer.address || '',
+      gstNo: customer.gstNumber || customer.gst_number || '',
+      pan: customer.panNumber || customer.pan_number || '',
+      mobile: customer.phone || customer.mobile || '',
+      email: customer.email || '',
+      city: customer.city || 'Chennai',
+      state: customer.state || 'Tamil Nadu'
+    });
+    setShowCustomerModal(true);
+  };
+
+  const handleRegisterCustomer = async (e) => {
     e.preventDefault();
     if (!custForm.name.trim() || !custForm.gstNo.trim()) {
       addToast('Customer NAME and GST NO are required', 'error');
       return;
     }
 
-    const newCustomer = {
-      id: `CUST-00${customers.length + 1}`,
-      name: custForm.name,
-      ledger: custForm.ledger,
-      address: custForm.address,
-      gstNumber: custForm.gstNo,
-      panNumber: custForm.pan,
-      phone: custForm.mobile || '+91 98765 43210',
-      email: custForm.email || `${custForm.name.toLowerCase().replace(/\s+/g, '')}@demo.com`,
-      city: 'Chennai',
-      state: 'Tamil Nadu',
-      totalBilled: 0,
-      status: 'Active'
-    };
+    if (editingCustomer) {
+      // UPDATE existing customer
+      const updatedCustomer = {
+        ...editingCustomer,
+        name: custForm.name,
+        ledger: custForm.ledger,
+        address: custForm.address,
+        gstNumber: custForm.gstNo,
+        panNumber: custForm.pan,
+        phone: custForm.mobile,
+        email: custForm.email,
+        city: custForm.city || editingCustomer.city || 'Chennai',
+        state: custForm.state || editingCustomer.state || 'Tamil Nadu'
+      };
 
-    setCustomers([newCustomer, ...customers]);
-    addToast(`REGISTRATION (CUSTOMER) complete for ${custForm.name}!`, 'success', 'Customer Registered');
+      setCustomers((prev) => prev.map((c) => c.id === editingCustomer.id ? updatedCustomer : c));
+      api.updateCustomer(editingCustomer.id, {
+        name: custForm.name,
+        ledger: custForm.ledger,
+        address: custForm.address,
+        gstNumber: custForm.gstNo,
+        panNumber: custForm.pan,
+        mobile: custForm.mobile,
+        email: custForm.email,
+        city: custForm.city,
+        state: custForm.state
+      });
+
+      addToast(`Customer ${custForm.name} updated successfully!`, 'success', 'Customer Updated');
+    } else {
+      // CREATE new customer
+      const custId = `CUST-00${customers.length + 1}`;
+      const newCustomer = {
+        id: custId,
+        name: custForm.name,
+        ledger: custForm.ledger,
+        address: custForm.address,
+        gstNumber: custForm.gstNo,
+        panNumber: custForm.pan,
+        phone: custForm.mobile || '+91 98765 43210',
+        email: custForm.email || `${custForm.name.toLowerCase().replace(/\s+/g, '')}@demo.com`,
+        city: custForm.city || 'Chennai',
+        state: custForm.state || 'Tamil Nadu',
+        totalBilled: 0,
+        status: 'Active'
+      };
+
+      setCustomers([newCustomer, ...customers]);
+      api.registerCustomer({
+        name: custForm.name,
+        ledger: custForm.ledger,
+        address: custForm.address,
+        gstNumber: custForm.gstNo,
+        panNumber: custForm.pan,
+        mobile: custForm.mobile,
+        email: custForm.email,
+        city: custForm.city,
+        state: custForm.state
+      });
+
+      addToast(`REGISTRATION (CUSTOMER) complete for ${custForm.name}!`, 'success', 'Customer Registered');
+    }
+
     setShowCustomerModal(false);
-    setCustForm({ name: '', ledger: 'SUNDRY DEBTORS', address: '', gstNo: '', pan: '', mobile: '', email: '' });
+    setEditingCustomer(null);
+    setCustForm({ name: '', ledger: 'SUNDRY DEBTORS', address: '', gstNo: '', pan: '', mobile: '', email: '', city: 'Chennai', state: 'Tamil Nadu' });
   };
 
-  // 2. Submit Bank / Cash Registration
-  const handleRegisterBankCash = (e) => {
+  const handleDeleteCustomer = (customer) => {
+    setDeleteModal({
+      isOpen: true,
+      title: 'Delete Customer Ledger',
+      message: `Are you sure you want to delete "${customer.name}" (${customer.id})? All associated records will be removed.`,
+      onConfirm: () => {
+        setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
+        api.deleteCustomer(customer.id);
+        addToast(`Customer "${customer.name}" deleted successfully.`, 'info', 'Customer Deleted');
+      }
+    });
+  };
+
+  // ----------------------------------------------------
+  // 2. BANK / CASH HANDLERS (Create, Edit, Update, Delete)
+  // ----------------------------------------------------
+  const handleOpenNewBank = () => {
+    setEditingBank(null);
+    setBankForm({
+      bankType: 'Bank Account',
+      accountName: '',
+      accountNumber: '',
+      bankName: '',
+      ifscCode: '',
+      address: '',
+      balance: 150000
+    });
+    setShowBankModal(true);
+  };
+
+  const handleOpenEditBank = (bank) => {
+    setEditingBank(bank);
+    setBankForm({
+      bankType: bank.bankType || bank.bank_type || 'Bank Account',
+      accountName: bank.accountName || bank.account_name || '',
+      accountNumber: bank.accountNumber || bank.account_number || '',
+      bankName: bank.bankName || bank.bank_name || '',
+      ifscCode: bank.ifscCode || bank.ifsc_code || '',
+      address: bank.address || '',
+      balance: bank.balance !== undefined ? bank.balance : 150000
+    });
+    setShowBankModal(true);
+  };
+
+  const handleRegisterBankCash = async (e) => {
     e.preventDefault();
     if (!bankForm.accountName.trim() || !bankForm.accountNumber.trim()) {
       addToast('NAME OF ACCOUNT and ACCOUNT NUMBER are required', 'error');
       return;
     }
 
-    const newBank = {
-      id: `BANK-00${bankAccounts.length + 1}`,
-      bankType: bankForm.bankType,
-      accountName: bankForm.accountName,
-      accountNumber: bankForm.accountNumber,
-      bankName: bankForm.bankName || 'Standard Chartered Bank',
-      ifscCode: bankForm.ifscCode || 'SCBL0001122',
-      address: bankForm.address || 'Chennai Central Branch',
-      balance: 150000,
-      status: 'Active'
-    };
+    if (editingBank) {
+      // UPDATE existing bank
+      const updatedBank = {
+        ...editingBank,
+        bankType: bankForm.bankType,
+        accountName: bankForm.accountName,
+        accountNumber: bankForm.accountNumber,
+        bankName: bankForm.bankName || 'Standard Chartered Bank',
+        ifscCode: bankForm.ifscCode || 'SCBL0001122',
+        address: bankForm.address || 'Chennai Central Branch',
+        balance: parseFloat(bankForm.balance) || editingBank.balance || 0
+      };
 
-    setBankAccounts([newBank, ...bankAccounts]);
-    addToast(`REGISTRATION (BANK / CASH) complete for ${bankForm.accountName}!`, 'success', 'Bank Account Registered');
+      setBankAccounts((prev) => prev.map((b) => b.id === editingBank.id ? updatedBank : b));
+      api.updateBankAccount(editingBank.id, {
+        bankType: bankForm.bankType,
+        accountName: bankForm.accountName,
+        accountNumber: bankForm.accountNumber,
+        bankName: bankForm.bankName,
+        ifscCode: bankForm.ifscCode,
+        address: bankForm.address,
+        balance: parseFloat(bankForm.balance)
+      });
+
+      addToast(`Bank / Cash Account "${bankForm.accountName}" updated successfully!`, 'success', 'Account Updated');
+    } else {
+      // CREATE new bank
+      const bankId = `BANK-00${bankAccounts.length + 1}`;
+      const newBank = {
+        id: bankId,
+        bankType: bankForm.bankType,
+        accountName: bankForm.accountName,
+        accountNumber: bankForm.accountNumber,
+        bankName: bankForm.bankName || 'Standard Chartered Bank',
+        ifscCode: bankForm.ifscCode || 'SCBL0001122',
+        address: bankForm.address || 'Chennai Central Branch',
+        balance: parseFloat(bankForm.balance) || 150000,
+        status: 'Active'
+      };
+
+      setBankAccounts([newBank, ...bankAccounts]);
+      api.registerBankCash({
+        bankType: bankForm.bankType,
+        accountName: bankForm.accountName,
+        accountNumber: bankForm.accountNumber,
+        bankName: bankForm.bankName,
+        ifscCode: bankForm.ifscCode,
+        address: bankForm.address
+      });
+
+      addToast(`REGISTRATION (BANK / CASH) complete for ${bankForm.accountName}!`, 'success', 'Bank Account Registered');
+    }
+
     setShowBankModal(false);
-    setBankForm({ bankType: 'Bank Account', accountName: '', accountNumber: '', bankName: '', ifscCode: '', address: '' });
+    setEditingBank(null);
+    setBankForm({ bankType: 'Bank Account', accountName: '', accountNumber: '', bankName: '', ifscCode: '', address: '', balance: 150000 });
   };
 
-  // 3. Submit Sales / Services Registration
-  const handleRegisterSalesService = (e) => {
+  const handleDeleteBank = (bank) => {
+    setDeleteModal({
+      isOpen: true,
+      title: 'Delete Bank / Cash Account',
+      message: `Are you sure you want to delete "${bank.accountName}" (${bank.accountNumber})? This ledger will no longer be available for payments.`,
+      onConfirm: () => {
+        setBankAccounts((prev) => prev.filter((b) => b.id !== bank.id));
+        api.deleteBankAccount(bank.id);
+        addToast(`Account "${bank.accountName}" deleted successfully.`, 'info', 'Account Deleted');
+      }
+    });
+  };
+
+  // ----------------------------------------------------
+  // 3. SALES / SERVICES HANDLERS (Create, Edit, Update, Delete)
+  // ----------------------------------------------------
+  const handleOpenNewItem = () => {
+    setEditingItem(null);
+    setItemForm({
+      itemName: '',
+      unit: 'Pices',
+      hsnCode: '',
+      openingStock: '100',
+      rate: '12500',
+      taxPercent: '18',
+      category: 'Sales / Service Item'
+    });
+    setShowItemModal(true);
+  };
+
+  const handleOpenEditItem = (item) => {
+    setEditingItem(item);
+    setItemForm({
+      itemName: item.title || '',
+      unit: item.unit || 'Pices',
+      hsnCode: item.hsnSac || item.hsn_sac || '',
+      openingStock: item.openingStock !== undefined ? String(item.openingStock) : (item.opening_stock !== undefined ? String(item.opening_stock) : '100'),
+      rate: item.rate !== undefined ? String(item.rate) : '12500',
+      taxPercent: item.taxPercent !== undefined ? String(item.taxPercent) : (item.tax_percent !== undefined ? String(item.tax_percent) : '18'),
+      category: item.category || 'Sales / Service Item'
+    });
+    setShowItemModal(true);
+  };
+
+  const handleRegisterSalesService = async (e) => {
     e.preventDefault();
     if (!itemForm.itemName.trim() || !itemForm.hsnCode.trim()) {
       addToast('NAME OF ITEM and HSN CODE are required', 'error');
       return;
     }
 
-    const newItem = {
-      id: `SRV-00${products.length + 1}`,
-      title: itemForm.itemName,
-      unit: itemForm.unit,
-      hsnSac: itemForm.hsnCode,
-      openingStock: parseInt(itemForm.openingStock) || 0,
-      rate: 12500,
-      taxPercent: 18,
-      category: 'Sales / Service Item'
-    };
+    if (editingItem) {
+      // UPDATE existing item
+      const updatedItem = {
+        ...editingItem,
+        title: itemForm.itemName,
+        unit: itemForm.unit,
+        hsnSac: itemForm.hsnCode,
+        openingStock: parseInt(itemForm.openingStock) || 0,
+        rate: parseFloat(itemForm.rate) || 12500,
+        taxPercent: parseFloat(itemForm.taxPercent) || 18,
+        category: itemForm.category || editingItem.category || 'Sales / Service Item'
+      };
 
-    setProducts([newItem, ...products]);
-    addToast(`REGISTRATION (SALES / SERVICES) complete for ${itemForm.itemName}!`, 'success', 'Item Registered');
+      setProducts((prev) => prev.map((p) => p.id === editingItem.id ? updatedItem : p));
+      api.updateProduct(editingItem.id, {
+        title: itemForm.itemName,
+        unit: itemForm.unit,
+        hsnSac: itemForm.hsnCode,
+        openingStock: parseInt(itemForm.openingStock) || 0,
+        rate: parseFloat(itemForm.rate) || 12500,
+        taxPercent: parseFloat(itemForm.taxPercent) || 18,
+        category: itemForm.category
+      });
+
+      addToast(`Item / Service "${itemForm.itemName}" updated successfully!`, 'success', 'Item Updated');
+    } else {
+      // CREATE new item
+      const itemId = `SRV-00${products.length + 1}`;
+      const newItem = {
+        id: itemId,
+        title: itemForm.itemName,
+        unit: itemForm.unit,
+        hsnSac: itemForm.hsnCode,
+        openingStock: parseInt(itemForm.openingStock) || 0,
+        rate: parseFloat(itemForm.rate) || 12500,
+        taxPercent: parseFloat(itemForm.taxPercent) || 18,
+        category: itemForm.category || 'Sales / Service Item'
+      };
+
+      setProducts([newItem, ...products]);
+      api.registerSalesService({
+        title: itemForm.itemName,
+        unit: itemForm.unit,
+        hsnSac: itemForm.hsnCode,
+        openingStock: parseInt(itemForm.openingStock) || 0,
+        rate: parseFloat(itemForm.rate) || 12500,
+        taxPercent: parseFloat(itemForm.taxPercent) || 18,
+        category: itemForm.category
+      });
+
+      addToast(`REGISTRATION (SALES / SERVICES) complete for ${itemForm.itemName}!`, 'success', 'Item Registered');
+    }
+
     setShowItemModal(false);
-    setItemForm({ itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100' });
+    setEditingItem(null);
+    setItemForm({ itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100', rate: '12500', taxPercent: '18', category: 'Sales / Service Item' });
+  };
+
+  const handleDeleteItem = (item) => {
+    setDeleteModal({
+      isOpen: true,
+      title: 'Delete Item / Service',
+      message: `Are you sure you want to delete "${item.title}" (${item.id})? It will be removed from item catalogs.`,
+      onConfirm: () => {
+        setProducts((prev) => prev.filter((p) => p.id !== item.id));
+        api.deleteProduct(item.id);
+        addToast(`Item "${item.title}" deleted successfully.`, 'info', 'Item Deleted');
+      }
+    });
+  };
+
+  // ----------------------------------------------------
+  // 4. INVOICES HANDLERS (Mark Paid, Delete)
+  // ----------------------------------------------------
+  const handleDeleteInvoice = (inv) => {
+    setDeleteModal({
+      isOpen: true,
+      title: 'Delete Tax Invoice',
+      message: `Are you sure you want to delete Tax Invoice "${inv.invoiceNumber}" for ${inv.customerName}?`,
+      onConfirm: () => {
+        setInvoices((prev) => prev.filter((i) => i.id !== inv.id));
+        api.deleteInvoice(inv.id);
+        addToast(`Invoice ${inv.invoiceNumber} deleted successfully.`, 'info', 'Invoice Deleted');
+      }
+    });
+  };
+
+  const handleMarkAsPaid = (invId) => {
+    setInvoices((prev) => prev.map((inv) => inv.id === invId ? { ...inv, status: 'Paid' } : inv));
+    api.updateInvoice(invId, { status: 'Paid' });
+    addToast('Invoice updated to Paid status!', 'success');
   };
 
   // Financial Stat calculations
   const totalInvoicesCount = invoices.length;
-  const totalSales = invoices.reduce((acc, inv) => acc + inv.grandTotal, 0);
-  const totalTax = invoices.reduce((acc, inv) => acc + inv.totalTax, 0);
+  const totalSales = invoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
+  const totalTax = invoices.reduce((acc, inv) => acc + (inv.totalTax || inv.total_tax || 0), 0);
   
   const paidInvoices = invoices.filter(inv => inv.status === 'Paid');
   const pendingInvoices = invoices.filter(inv => inv.status === 'Pending');
   const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue');
 
-  const paidAmount = paidInvoices.reduce((acc, inv) => acc + inv.grandTotal, 0);
-  const pendingAmount = pendingInvoices.reduce((acc, inv) => acc + inv.grandTotal, 0);
-  const outstandingAmount = overdueInvoices.reduce((acc, inv) => acc + inv.grandTotal, 0);
+  const paidAmount = paidInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
+  const pendingAmount = pendingInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
+  const outstandingAmount = overdueInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
 
   // Filtered Invoices
   const filteredInvoices = invoices.filter((inv) => {
-    const matchesSearch = inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          inv.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          inv.customerGst.toLowerCase().includes(searchQuery.toLowerCase());
+    const invNum = inv.invoiceNumber || inv.invoice_number || '';
+    const custName = inv.customerName || inv.customer_name || '';
+    const custGst = inv.customerGst || inv.customer_gst || '';
+    const matchesSearch = invNum.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          custName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          custGst.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || inv.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-
-  const handleMarkAsPaid = (invId) => {
-    setInvoices((prev) => prev.map((inv) => inv.id === invId ? { ...inv, status: 'Paid' } : inv));
-    addToast('Invoice updated to Paid status!', 'success');
-  };
 
   return (
     <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
@@ -217,27 +515,27 @@ export const UserDashboard = ({
           {/* Quick Registration Buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setShowCustomerModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all"
+              onClick={handleOpenNewCustomer}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
               <Users className="w-3.5 h-3.5 text-indigo-400" /> + Customer
             </button>
             <button
-              onClick={() => setShowBankModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all"
+              onClick={handleOpenNewBank}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
               <Landmark className="w-3.5 h-3.5 text-amber-400" /> + Bank / Cash
             </button>
             <button
-              onClick={() => setShowItemModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all"
+              onClick={handleOpenNewItem}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
               <Package className="w-3.5 h-3.5 text-emerald-400" /> + Item / Service
             </button>
 
             <button
               onClick={onQuickCreateInvoice}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all transform hover:-translate-y-0.5"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Create Invoice
             </button>
@@ -249,141 +547,126 @@ export const UserDashboard = ({
       {(activeTab === 'overview' || activeTab === 'invoices') && (
         <div className="space-y-8 animate-slide-up">
           
-          {/* 6 Key Financial Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-            
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 hover:border-indigo-500/30 transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-slate-400 font-medium">Total Invoices</span>
-                <FileText className="w-4 h-4 text-indigo-400" />
+          {/* Key Metrics Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 font-medium">Total Billed Revenue</p>
+                <h3 className="text-2xl font-bold font-mono text-white mt-1">₹{totalSales.toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-emerald-400 font-mono mt-1">↑ 14.2% from last month</p>
               </div>
-              <h3 className="text-xl font-bold font-mono text-white">{totalInvoicesCount}</h3>
-              <p className="text-[10px] text-emerald-400 font-mono mt-1">100% Tax Filed</p>
+              <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
+                <DollarSign className="w-6 h-6" />
+              </div>
             </div>
 
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 hover:border-indigo-500/30 transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-slate-400 font-medium">Total Sales</span>
-                <DollarSign className="w-4 h-4 text-emerald-400" />
+            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 font-medium">Tax Collected (GST)</p>
+                <h3 className="text-2xl font-bold font-mono text-indigo-300 mt-1">₹{totalTax.toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-indigo-400 font-mono mt-1">18% Compliant ITC</p>
               </div>
-              <h3 className="text-xl font-bold font-mono text-white">₹{totalSales.toLocaleString('en-IN')}</h3>
-              <p className="text-[10px] text-slate-400 font-mono mt-1">Gross Revenue</p>
+              <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                <Receipt className="w-6 h-6" />
+              </div>
             </div>
 
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 hover:border-indigo-500/30 transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-slate-400 font-medium">Total Tax</span>
-                <PieChart className="w-4 h-4 text-brand-accent" />
+            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 font-medium">Settled / Paid</p>
+                <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">₹{paidAmount.toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-emerald-400 font-mono mt-1">{paidInvoices.length} invoices cleared</p>
               </div>
-              <h3 className="text-xl font-bold font-mono text-indigo-300">₹{totalTax.toLocaleString('en-IN')}</h3>
-              <p className="text-[10px] text-indigo-400 font-mono mt-1">18% GST Split</p>
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
             </div>
 
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 hover:border-indigo-500/30 transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-slate-400 font-medium">Paid Amount</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 font-medium">Outstanding Due</p>
+                <h3 className="text-2xl font-bold font-mono text-amber-300 mt-1">₹{(pendingAmount + outstandingAmount).toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-amber-400 font-mono mt-1">{pendingInvoices.length + overdueInvoices.length} pending invoices</p>
               </div>
-              <h3 className="text-xl font-bold font-mono text-emerald-400">₹{paidAmount.toLocaleString('en-IN')}</h3>
-              <p className="text-[10px] text-emerald-500/80 font-mono mt-1">{paidInvoices.length} Invoices Paid</p>
-            </div>
-
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 hover:border-indigo-500/30 transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-slate-400 font-medium">Pending</span>
-                <Clock className="w-4 h-4 text-amber-400" />
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <Clock className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold font-mono text-amber-300">₹{pendingAmount.toLocaleString('en-IN')}</h3>
-              <p className="text-[10px] text-amber-400/80 font-mono mt-1">{pendingInvoices.length} Invoices Pending</p>
             </div>
-
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 hover:border-indigo-500/30 transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-slate-400 font-medium">Outstanding</span>
-                <AlertCircle className="w-4 h-4 text-red-400" />
-              </div>
-              <h3 className="text-xl font-bold font-mono text-red-400">₹{outstandingAmount.toLocaleString('en-IN')}</h3>
-              <p className="text-[10px] text-red-400/80 font-mono mt-1">{overdueInvoices.length} Overdue</p>
-            </div>
-
           </div>
 
-          {/* Interactive Recharts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Graphical Analytics Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* Monthly Revenue Area Chart */}
-            <div className="lg:col-span-8 glass-card rounded-3xl p-6 border border-slate-800">
-              <div className="flex items-center justify-between mb-6">
+            {/* Revenue Trend Area Chart */}
+            <div className="glass-card rounded-3xl p-6 border border-slate-800 lg:col-span-2 space-y-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-white font-serif">Monthly Billed Revenue & Tax Trends</h3>
-                  <p className="text-xs text-slate-400 font-mono">Financial Year 2026-27 Revenue Stream</p>
+                  <h3 className="text-base font-bold text-white font-serif">Revenue & GST Trend (2026)</h3>
+                  <p className="text-xs text-slate-400 font-mono">Monthly turnover with verified GST returns</p>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-brand-500/10 text-brand-300 font-mono border border-brand-500/20">
-                  +18.4% MoM Growth
-                </span>
+                <div className="flex items-center gap-4 text-xs font-mono">
+                  <span className="flex items-center gap-1 text-brand-400"><div className="w-2 h-2 rounded-full bg-brand-500"></div> Revenue</span>
+                  <span className="flex items-center gap-1 text-indigo-400"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> GST</span>
+                </div>
               </div>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyRevenueData}>
+                  <AreaChart data={monthlyRevenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
                       </linearGradient>
                       <linearGradient id="colorTax" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v/1000}k`} />
+                    <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v/1000}k`} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#0d1527', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }} 
-                      formatter={(val) => `₹${val.toLocaleString('en-IN')}`}
+                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }} 
+                      formatter={(v) => [`₹${v.toLocaleString('en-IN')}`, '']}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" name="Billed Revenue" />
-                    <Area type="monotone" dataKey="tax" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorTax)" name="GST Collected" />
+                    <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
+                    <Area type="monotone" dataKey="tax" stroke="#818cf8" strokeWidth={2} fillOpacity={1} fill="url(#colorTax)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Tax Category Pie Breakdown */}
-            <div className="lg:col-span-4 glass-card rounded-3xl p-6 border border-slate-800 flex flex-col justify-between">
+            {/* GST Split Doughnut Chart */}
+            <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
               <div>
-                <h3 className="text-base font-bold text-white font-serif mb-1">Tax Component Split</h3>
-                <p className="text-xs text-slate-400 font-mono mb-4">CGST / SGST / IGST Ratio</p>
-                <div className="h-48 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RePieChart>
-                      <Pie
-                        data={taxBreakdownData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={75}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {taxBreakdownData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: '#0d1527', borderColor: '#334155', borderRadius: '10px' }} />
-                    </RePieChart>
-                  </ResponsiveContainer>
-                </div>
+                <h3 className="text-base font-bold text-white font-serif">GST Tax Distribution</h3>
+                <p className="text-xs text-slate-400 font-mono">Output tax split by CGST, SGST & IGST</p>
               </div>
-
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                {taxBreakdownData.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-slate-300">{item.name}</span>
-                    </div>
-                    <span className="font-mono font-semibold text-white">{item.value}%</span>
+              <div className="h-52 w-full flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RePieChart>
+                    <Pie
+                      data={taxBreakdownData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={75}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {taxBreakdownData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }} />
+                  </RePieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center">
+                {taxBreakdownData.map((item) => (
+                  <div key={item.name} className="space-y-1">
+                    <p className="text-[10px] text-slate-400 font-mono">{item.name.split(' ')[0]}</p>
+                    <p className="text-xs font-bold font-mono" style={{ color: item.color }}>{item.value}%</p>
                   </div>
                 ))}
               </div>
@@ -391,100 +674,116 @@ export const UserDashboard = ({
 
           </div>
 
-          {/* Invoices Search & Directory Table */}
-          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+          {/* Invoices Table Section */}
+          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-6">
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white font-serif">Recent Tax Invoices</h3>
-                <p className="text-xs text-slate-400 font-mono">Manage client bills and track payment settlements</p>
+                <h3 className="text-lg font-bold text-white font-serif">Invoices & Billing Directory</h3>
+                <p className="text-xs text-slate-400 font-mono">Recent GST tax invoices generated for customers</p>
               </div>
 
-              {/* Search & Filter Bar */}
-              <div className="flex items-center gap-3">
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search invoice or GSTIN..."
-                    className="pl-9 pr-4 py-2 rounded-xl glass-input text-xs w-48 sm:w-64"
+                    placeholder="Search invoices..."
+                    className="pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs w-48 font-mono"
                   />
                 </div>
 
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl glass-input text-xs bg-dark-900"
+                  className="px-3 py-1.5 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
                 >
-                  <option value="All">All Statuses</option>
-                  <option value="Paid">Paid Only</option>
-                  <option value="Pending">Pending Only</option>
-                  <option value="Overdue">Overdue Only</option>
+                  <option value="All">All Status</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Overdue">Overdue</option>
                 </select>
               </div>
             </div>
 
-            {/* Invoices Table */}
+            {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-dark-900/80 text-slate-400 uppercase text-[10px] font-mono border-b border-slate-800">
-                  <tr>
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-mono">
                     <th className="py-3 px-4">Invoice #</th>
-                    <th className="py-3 px-4">Customer Entity</th>
+                    <th className="py-3 px-4">Customer</th>
                     <th className="py-3 px-4">GSTIN</th>
                     <th className="py-3 px-4">Date / Due</th>
-                    <th className="py-3 px-4">Tax (18%)</th>
+                    <th className="py-3 px-4">Tax (₹)</th>
                     <th className="py-3 px-4">Grand Total</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {filteredInvoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-white">{inv.invoiceNumber}</td>
-                      <td className="py-3 px-4 font-medium text-slate-200">{inv.customerName}</td>
-                      <td className="py-3 px-4 font-mono text-slate-400">{inv.customerGst}</td>
-                      <td className="py-3 px-4 text-slate-400 font-mono">
-                        <div>{inv.date}</div>
-                        <div className="text-[10px] text-slate-500">Due: {inv.dueDate}</div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-indigo-300">₹{inv.totalTax.toLocaleString('en-IN')}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-white">₹{inv.grandTotal.toLocaleString('en-IN')}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
-                          inv.status === 'Paid' 
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                            : inv.status === 'Pending'
-                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                            : 'bg-red-500/10 text-red-400 border-red-500/30'
-                        }`}>
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setSelectedInvoice(inv)}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-                            title="View Invoice Details"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          {inv.status !== 'Paid' && (
+                  {filteredInvoices.map((inv) => {
+                    const invNumber = inv.invoiceNumber || inv.invoice_number;
+                    const custName = inv.customerName || inv.customer_name;
+                    const custGst = inv.customerGst || inv.customer_gst;
+                    const totalTaxVal = inv.totalTax || inv.total_tax || 0;
+                    const grandTotalVal = inv.grandTotal || inv.grand_total || 0;
+                    const dueDateVal = inv.dueDate || inv.due_date;
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-white">{invNumber}</td>
+                        <td className="py-3 px-4 font-medium text-slate-200">{custName}</td>
+                        <td className="py-3 px-4 font-mono text-slate-400">{custGst}</td>
+                        <td className="py-3 px-4 text-slate-400 font-mono">
+                          <div>{inv.date}</div>
+                          <div className="text-[10px] text-slate-500">Due: {dueDateVal}</div>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-indigo-300">₹{totalTaxVal.toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-white">₹{grandTotalVal.toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
+                            inv.status === 'Paid' 
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : inv.status === 'Pending'
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                              : 'bg-red-500/10 text-red-400 border-red-500/30'
+                          }`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => handleMarkAsPaid(inv.id)}
-                              className="px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 transition-colors"
+                              onClick={() => setSelectedInvoice(inv)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                              title="View Invoice Details"
                             >
-                              Mark Paid
+                              <Eye className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {inv.status !== 'Paid' && (
+                              <button
+                                onClick={() => handleMarkAsPaid(inv.id)}
+                                className="px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 transition-colors cursor-pointer"
+                              >
+                                Mark Paid
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteInvoice(inv)}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-colors cursor-pointer"
+                              title="Delete Invoice"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -497,14 +796,14 @@ export const UserDashboard = ({
       {/* CUSTOMERS TAB CONTENT (REGISTRATION - CUSTOMER) */}
       {activeTab === 'customers' && (
         <div className="space-y-6 animate-slide-up">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( CUSTOMER )</h2>
               <p className="text-xs text-slate-400 font-mono">Customer Ledger (Sundry Debtors / Sundry Creditors) Directory</p>
             </div>
             <button
-              onClick={() => setShowCustomerModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-lg shadow-brand-600/30"
+              onClick={handleOpenNewCustomer}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-lg shadow-brand-600/30 cursor-pointer w-fit"
             >
               <Plus className="w-4 h-4" /> Register New Customer
             </button>
@@ -512,24 +811,47 @@ export const UserDashboard = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {customers.map((c) => (
-              <div key={c.id} className="p-5 rounded-2xl glass-card border border-slate-800 space-y-3 hover:border-indigo-500/30 transition-all">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono border border-indigo-500/20">{c.id}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-semibold">
-                    {c.ledger || 'SUNDRY DEBTORS'}
-                  </span>
+              <div key={c.id} className="p-5 rounded-2xl glass-card border border-slate-800 space-y-3 hover:border-indigo-500/30 transition-all flex flex-col justify-between group">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono border border-indigo-500/20">{c.id}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-semibold">
+                      {c.ledger || 'SUNDRY DEBTORS'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-white">{c.name}</h3>
+                  <div className="space-y-1 text-xs text-slate-300 font-mono">
+                    <p><span className="text-slate-500">GST NO:</span> {c.gstNumber || c.gst_number}</p>
+                    <p><span className="text-slate-500">PAN:</span> {c.panNumber || c.pan_number || 'AAACD1234F'}</p>
+                    <p><span className="text-slate-500">MOBILE:</span> {c.phone || c.mobile || 'N/A'}</p>
+                    <p><span className="text-slate-500">EMAIL:</span> {c.email || 'N/A'}</p>
+                    <p><span className="text-slate-500">ADDRESS:</span> {c.address || `${c.city || 'Chennai'}, ${c.state || 'Tamil Nadu'}`}</p>
+                  </div>
                 </div>
-                <h3 className="text-base font-bold text-white">{c.name}</h3>
-                <div className="space-y-1 text-xs text-slate-300 font-mono">
-                  <p><span className="text-slate-500">GST NO:</span> {c.gstNumber}</p>
-                  <p><span className="text-slate-500">PAN:</span> {c.panNumber || 'AAACD1234F'}</p>
-                  <p><span className="text-slate-500">MOBILE:</span> {c.phone}</p>
-                  <p><span className="text-slate-500">EMAIL:</span> {c.email}</p>
-                  <p><span className="text-slate-500">ADDRESS:</span> {c.address || `${c.city}, ${c.state}`}</p>
-                </div>
-                <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
-                  <span className="text-slate-400">Total Billed:</span>
-                  <span className="font-bold text-emerald-400 font-mono">₹{c.totalBilled.toLocaleString('en-IN')}</span>
+
+                <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-400">Total Billed: </span>
+                    <span className="font-bold text-emerald-400 font-mono">₹{(c.totalBilled || c.total_billed || 0).toLocaleString('en-IN')}</span>
+                  </div>
+
+                  {/* Edit & Delete Action Buttons */}
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <button
+                      onClick={() => handleOpenEditCustomer(c)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all border border-indigo-500/30 text-[11px] font-semibold cursor-pointer"
+                      title="Edit Customer"
+                    >
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCustomer(c)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                      title="Delete Customer"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -540,14 +862,14 @@ export const UserDashboard = ({
       {/* BANK / CASH TAB CONTENT (REGISTRATION - BANK / CASH) */}
       {activeTab === 'payments' && (
         <div className="space-y-6 animate-slide-up">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( BANK / CASH )</h2>
               <p className="text-xs text-slate-400 font-mono">Registered Bank Accounts & Cash in Hand Ledgers</p>
             </div>
             <button
-              onClick={() => setShowBankModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20"
+              onClick={handleOpenNewBank}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 cursor-pointer w-fit"
             >
               <Plus className="w-4 h-4" /> Register Bank / Cash Account
             </button>
@@ -555,21 +877,44 @@ export const UserDashboard = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {bankAccounts.map((b) => (
-              <div key={b.id} className="p-5 rounded-2xl glass-card-gold border border-amber-500/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">{b.bankType}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">{b.status}</span>
+              <div key={b.id} className="p-5 rounded-2xl glass-card-gold border border-amber-500/30 space-y-3 flex flex-col justify-between group">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">{b.bankType || b.bank_type}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">{b.status || 'Active'}</span>
+                  </div>
+                  <h3 className="text-base font-bold text-white">{b.accountName || b.account_name}</h3>
+                  <div className="space-y-1 text-xs text-slate-300 font-mono">
+                    <p><span className="text-amber-200/60">NAME OF BANK:</span> {b.bankName || b.bank_name}</p>
+                    <p><span className="text-amber-200/60">ACCOUNT NUMBER:</span> {b.accountNumber || b.account_number}</p>
+                    <p><span className="text-amber-200/60">IFSC CODE:</span> {b.ifscCode || b.ifsc_code}</p>
+                    <p><span className="text-amber-200/60">ADDRESS:</span> {b.address || 'Chennai Central'}</p>
+                  </div>
                 </div>
-                <h3 className="text-base font-bold text-white">{b.accountName}</h3>
-                <div className="space-y-1 text-xs text-slate-300 font-mono">
-                  <p><span className="text-amber-200/60">NAME OF BANK:</span> {b.bankName}</p>
-                  <p><span className="text-amber-200/60">ACCOUNT NUMBER:</span> {b.accountNumber}</p>
-                  <p><span className="text-amber-200/60">IFSC CODE:</span> {b.ifscCode}</p>
-                  <p><span className="text-amber-200/60">ADDRESS:</span> {b.address}</p>
-                </div>
-                <div className="pt-3 border-t border-amber-500/20 flex justify-between items-center text-xs">
-                  <span className="text-slate-400">Ledger Balance:</span>
-                  <span className="font-bold text-emerald-400 font-mono">₹{b.balance.toLocaleString('en-IN')}</span>
+
+                <div className="pt-3 border-t border-amber-500/20 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-400">Ledger Balance: </span>
+                    <span className="font-bold text-emerald-400 font-mono">₹{(b.balance || 0).toLocaleString('en-IN')}</span>
+                  </div>
+
+                  {/* Edit & Delete Action Buttons */}
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <button
+                      onClick={() => handleOpenEditBank(b)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 transition-all border border-amber-500/40 text-[11px] font-semibold cursor-pointer"
+                      title="Edit Bank Account"
+                    >
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBank(b)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                      title="Delete Bank Account"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -580,37 +925,64 @@ export const UserDashboard = ({
       {/* SERVICES CATALOG TAB CONTENT (REGISTRATION - SALES / SERVICES) */}
       {activeTab === 'services' && (
         <div className="space-y-6 animate-slide-up">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( SALES / SERVICES )</h2>
               <p className="text-xs text-slate-400 font-mono">Item & Service Master Catalog with HSN Codes & Opening Stock</p>
             </div>
             <button
-              onClick={() => setShowItemModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30"
+              onClick={handleOpenNewItem}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 cursor-pointer w-fit"
             >
               <Plus className="w-4 h-4" /> Register Sales / Service Item
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {products.map((p) => (
-              <div key={p.id} className="p-5 rounded-2xl glass-card border border-slate-800 flex justify-between items-start">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 font-mono border border-brand-500/30">{p.id}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">QTY Unit: {p.unit || 'Pices / Number'}</span>
+            {products.map((p) => {
+              const itemTitle = p.title;
+              const hsn = p.hsnSac || p.hsn_sac;
+              const rateVal = p.rate || 0;
+              const taxPct = p.taxPercent || p.tax_percent || 18;
+              const opStock = p.openingStock !== undefined ? p.openingStock : (p.opening_stock !== undefined ? p.opening_stock : 100);
+
+              return (
+                <div key={p.id} className="p-5 rounded-2xl glass-card border border-slate-800 flex flex-col justify-between group hover:border-emerald-500/30 transition-all">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 font-mono border border-brand-500/30">{p.id}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">QTY Unit: {p.unit || 'Pices'}</span>
+                      </div>
+                      <h3 className="text-base font-bold text-white">{itemTitle}</h3>
+                      <p className="text-xs text-slate-300 font-mono">HSN CODE: <strong className="text-indigo-300">{hsn}</strong> • Tax Rate: {taxPct}% GST</p>
+                      <p className="text-xs text-slate-400 font-mono">OPENING STOCK: <strong className="text-emerald-400">{opStock} Units</strong></p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-lg font-bold text-emerald-400 font-mono">₹{rateVal.toLocaleString('en-IN')}</span>
+                      <p className="text-[10px] text-slate-500">Standard Tariff</p>
+                    </div>
                   </div>
-                  <h3 className="text-base font-bold text-white">{p.title}</h3>
-                  <p className="text-xs text-slate-300 font-mono">HSN CODE: <strong className="text-indigo-300">{p.hsnSac}</strong> • Tax Rate: {p.taxPercent}% GST</p>
-                  <p className="text-xs text-slate-400 font-mono">OPENING STOCK: <strong className="text-emerald-400">{p.openingStock || 100} Units</strong></p>
+
+                  <div className="pt-3 border-t border-slate-800 flex justify-end items-center gap-2">
+                    <button
+                      onClick={() => handleOpenEditItem(p)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white transition-all border border-emerald-500/30 text-[11px] font-semibold cursor-pointer"
+                      title="Edit Item"
+                    >
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteItem(p)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                      title="Delete Item"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-lg font-bold text-emerald-400 font-mono">₹{p.rate.toLocaleString('en-IN')}</span>
-                  <p className="text-[10px] text-slate-500">Standard Tariff</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -619,14 +991,14 @@ export const UserDashboard = ({
       {activeTab === 'tax-reports' && (
         <div className="space-y-6 animate-slide-up">
           <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
               <div>
                 <h2 className="text-xl font-bold text-white font-serif">GSTR-1 & Tax Compliance Export</h2>
                 <p className="text-xs text-slate-400 font-mono">Generate official GST return JSON & Excel files for August 2026</p>
               </div>
               <button
                 onClick={() => addToast('GSTR-1 tax export file generated & downloaded!', 'success', 'Export Ready')}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer w-fit"
               >
                 <Download className="w-4 h-4" /> Export GSTR-1 CSV
               </button>
@@ -653,16 +1025,20 @@ export const UserDashboard = ({
         </div>
       )}
 
-      {/* MODAL 1: REGISTRATION ( CUSTOMER ) */}
+      {/* MODAL 1: REGISTRATION ( CUSTOMER ) - Supports Add & Edit/Update */}
       {showCustomerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
           <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div>
-                <h3 className="text-lg font-bold text-white font-serif">REGISTRATION ( CUSTOMER )</h3>
-                <p className="text-xs text-slate-400 font-mono">Create new customer ledger account</p>
+                <h3 className="text-lg font-bold text-white font-serif">
+                  {editingCustomer ? 'EDIT REGISTRATION ( CUSTOMER )' : 'REGISTRATION ( CUSTOMER )'}
+                </h3>
+                <p className="text-xs text-slate-400 font-mono">
+                  {editingCustomer ? `Update ledger details for ${editingCustomer.id}` : 'Create new customer ledger account'}
+                </p>
               </div>
-              <button onClick={() => setShowCustomerModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowCustomerModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -676,6 +1052,7 @@ export const UserDashboard = ({
                   onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
                   placeholder="e.g. Apex Global Tech Pvt Ltd"
                   className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
+                  required
                 />
               </div>
 
@@ -701,6 +1078,7 @@ export const UserDashboard = ({
                     onChange={(e) => handleCustGstChange(e.target.value)}
                     placeholder="33AAACD1234F1Z5"
                     className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono uppercase"
+                    required
                   />
                 </div>
               </div>
@@ -741,6 +1119,29 @@ export const UserDashboard = ({
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">CITY</label>
+                  <input
+                    type="text"
+                    value={custForm.city}
+                    onChange={(e) => setCustForm({ ...custForm, city: e.target.value })}
+                    placeholder="Chennai"
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">STATE</label>
+                  <input
+                    type="text"
+                    value={custForm.state}
+                    onChange={(e) => setCustForm({ ...custForm, state: e.target.value })}
+                    placeholder="Tamil Nadu"
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-200 mb-1">ADDRESS</label>
                 <textarea
@@ -756,15 +1157,15 @@ export const UserDashboard = ({
                 <button
                   type="button"
                   onClick={() => setShowCustomerModal(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-lg shadow-brand-600/30"
+                  className="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-lg shadow-brand-600/30 cursor-pointer"
                 >
-                  Register Customer
+                  {editingCustomer ? 'Update Customer' : 'Register Customer'}
                 </button>
               </div>
             </form>
@@ -772,16 +1173,20 @@ export const UserDashboard = ({
         </div>
       )}
 
-      {/* MODAL 2: REGISTRATION ( BANK / CASH ) */}
+      {/* MODAL 2: REGISTRATION ( BANK / CASH ) - Supports Add & Edit/Update */}
       {showBankModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
           <div className="glass-card-gold rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-amber-500/40 shadow-2xl animate-slide-up">
             <div className="flex items-center justify-between pb-4 border-b border-amber-500/20 mb-4">
               <div>
-                <h3 className="text-lg font-bold text-white font-serif">REGISTRATION ( BANK / CASH )</h3>
-                <p className="text-xs text-amber-200/80 font-mono">Create new Bank or Cash Account Ledger</p>
+                <h3 className="text-lg font-bold text-white font-serif">
+                  {editingBank ? 'EDIT REGISTRATION ( BANK / CASH )' : 'REGISTRATION ( BANK / CASH )'}
+                </h3>
+                <p className="text-xs text-amber-200/80 font-mono">
+                  {editingBank ? `Update account ledger details for ${editingBank.id}` : 'Create new Bank or Cash Account Ledger'}
+                </p>
               </div>
-              <button onClick={() => setShowBankModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowBankModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -808,6 +1213,7 @@ export const UserDashboard = ({
                   onChange={(e) => setBankForm({ ...bankForm, accountName: e.target.value })}
                   placeholder="e.g. Durai Tax Advisory Operating A/C"
                   className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
+                  required
                 />
               </div>
 
@@ -820,6 +1226,7 @@ export const UserDashboard = ({
                     onChange={(e) => setBankForm({ ...bankForm, accountNumber: e.target.value })}
                     placeholder="50100234901234"
                     className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
+                    required
                   />
                 </div>
 
@@ -848,30 +1255,41 @@ export const UserDashboard = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-amber-200 mb-1">ADDRESS</label>
+                  <label className="block text-xs font-semibold text-amber-200 mb-1">LEDGER BALANCE (₹)</label>
                   <input
-                    type="text"
-                    value={bankForm.address}
-                    onChange={(e) => setBankForm({ ...bankForm, address: e.target.value })}
-                    placeholder="Branch Address e.g. Anna Salai Chennai"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
+                    type="number"
+                    value={bankForm.balance}
+                    onChange={(e) => setBankForm({ ...bankForm, balance: e.target.value })}
+                    placeholder="150000"
+                    className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-amber-200 mb-1">ADDRESS</label>
+                <input
+                  type="text"
+                  value={bankForm.address}
+                  onChange={(e) => setBankForm({ ...bankForm, address: e.target.value })}
+                  placeholder="Branch Address e.g. Anna Salai Chennai"
+                  className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowBankModal(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20"
+                  className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 cursor-pointer"
                 >
-                  Register Bank / Cash
+                  {editingBank ? 'Update Account' : 'Register Bank / Cash'}
                 </button>
               </div>
             </form>
@@ -879,29 +1297,34 @@ export const UserDashboard = ({
         </div>
       )}
 
-      {/* MODAL 3: REGISTRATION ( SALES / SERVICES ) */}
+      {/* MODAL 3: REGISTRATION ( SALES / SERVICES ) - Supports Add & Edit/Update */}
       {showItemModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
           <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div>
-                <h3 className="text-lg font-bold text-white font-serif">REGISTRATION ( SALES / SERVICES )</h3>
-                <p className="text-xs text-slate-400 font-mono">Create new Item / Service catalog entry</p>
+                <h3 className="text-lg font-bold text-white font-serif">
+                  {editingItem ? 'EDIT REGISTRATION ( SALES / SERVICES )' : 'REGISTRATION ( SALES / SERVICES )'}
+                </h3>
+                <p className="text-xs text-slate-400 font-mono">
+                  {editingItem ? `Update catalog details for ${editingItem.id}` : 'Create new Item / Service catalog entry'}
+                </p>
               </div>
-              <button onClick={() => setShowItemModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowItemModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleRegisterSalesService} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">NAME OF THE ITEM *</label>
+                <label className="block text-xs font-semibold text-slate-200 mb-1">NAME OF THE ITEM / SERVICE *</label>
                 <input
                   type="text"
                   value={itemForm.itemName}
                   onChange={(e) => setItemForm({ ...itemForm, itemName: e.target.value })}
                   placeholder="e.g. GSTR-1 & GSTR-3B Monthly Audit Service"
                   className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
+                  required
                 />
               </div>
 
@@ -928,6 +1351,7 @@ export const UserDashboard = ({
                     onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
                     placeholder="998222"
                     className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                    required
                   />
                 </div>
 
@@ -943,19 +1367,47 @@ export const UserDashboard = ({
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">STANDARD TARIFF / RATE (₹)</label>
+                  <input
+                    type="number"
+                    value={itemForm.rate}
+                    onChange={(e) => setItemForm({ ...itemForm, rate: e.target.value })}
+                    placeholder="12500"
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">GST TAX PERCENT (%)</label>
+                  <select
+                    value={itemForm.taxPercent}
+                    onChange={(e) => setItemForm({ ...itemForm, taxPercent: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
+                  >
+                    <option value="18">18% GST (Standard)</option>
+                    <option value="12">12% GST</option>
+                    <option value="5">5% GST</option>
+                    <option value="28">28% GST</option>
+                    <option value="0">0% (Exempted)</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowItemModal(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30"
+                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 cursor-pointer"
                 >
-                  Register Item / Service
+                  {editingItem ? 'Update Item' : 'Register Item / Service'}
                 </button>
               </div>
             </form>
@@ -969,33 +1421,74 @@ export const UserDashboard = ({
           <div className="glass-card rounded-3xl p-6 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div>
-                <h3 className="text-lg font-bold text-white font-serif">{selectedInvoice.invoiceNumber}</h3>
-                <p className="text-xs text-slate-400 font-mono">Customer: {selectedInvoice.customerName}</p>
+                <h3 className="text-lg font-bold text-white font-serif">{selectedInvoice.invoiceNumber || selectedInvoice.invoice_number}</h3>
+                <p className="text-xs text-slate-400 font-mono">Customer: {selectedInvoice.customerName || selectedInvoice.customer_name}</p>
               </div>
-              <button onClick={() => setSelectedInvoice(null)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setSelectedInvoice(null)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs text-slate-300 font-mono">
-              <p><span className="text-slate-500">GSTIN:</span> {selectedInvoice.customerGst}</p>
-              <p><span className="text-slate-500">Date / Due:</span> {selectedInvoice.date} / {selectedInvoice.dueDate}</p>
+              <p><span className="text-slate-500">GSTIN:</span> {selectedInvoice.customerGst || selectedInvoice.customer_gst}</p>
+              <p><span className="text-slate-500">Date / Due:</span> {selectedInvoice.date} / {selectedInvoice.dueDate || selectedInvoice.due_date}</p>
               <div className="p-3 rounded-xl bg-dark-900 border border-slate-800 space-y-1">
-                <p className="flex justify-between"><span>Subtotal:</span> <span>₹{selectedInvoice.subtotal.toLocaleString('en-IN')}</span></p>
-                <p className="flex justify-between text-indigo-300"><span>Tax (CGST+SGST/IGST):</span> <span>₹{selectedInvoice.totalTax.toLocaleString('en-IN')}</span></p>
-                <p className="flex justify-between font-bold text-white pt-1 border-t border-slate-800"><span>Grand Total:</span> <span className="text-emerald-400">₹{selectedInvoice.grandTotal.toLocaleString('en-IN')}</span></p>
+                <p className="flex justify-between"><span>Subtotal:</span> <span>₹{(selectedInvoice.subtotal || 0).toLocaleString('en-IN')}</span></p>
+                <p className="flex justify-between text-indigo-300"><span>Tax (CGST+SGST/IGST):</span> <span>₹{(selectedInvoice.totalTax || selectedInvoice.total_tax || 0).toLocaleString('en-IN')}</span></p>
+                <p className="flex justify-between font-bold text-white pt-1 border-t border-slate-800"><span>Grand Total:</span> <span className="text-emerald-400">₹{(selectedInvoice.grandTotal || selectedInvoice.grand_total || 0).toLocaleString('en-IN')}</span></p>
               </div>
             </div>
 
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => {
-                  addToast(`PDF generated for ${selectedInvoice.invoiceNumber}`, 'info');
+                  addToast(`PDF generated for ${selectedInvoice.invoiceNumber || selectedInvoice.invoice_number}`, 'info');
                   setSelectedInvoice(null);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all"
               >
                 <Download className="w-4 h-4" /> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Glassmorphic Delete Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 max-w-md w-full border border-red-500/30 shadow-2xl animate-slide-up">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400">
+                <AlertTriangle className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">{deleteModal.title || 'Confirm Deletion'}</h3>
+                <p className="text-xs text-slate-400 font-mono">This action is permanent</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+              {deleteModal.message}
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteModal({ isOpen: false, title: '', message: '', onConfirm: null })}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteModal.onConfirm) deleteModal.onConfirm();
+                  setDeleteModal({ isOpen: false, title: '', message: '', onConfirm: null });
+                }}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+              >
+                Delete Permanently
               </button>
             </div>
           </div>

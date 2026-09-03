@@ -64,4 +64,65 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PUT Update Customer
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, ledger, address, gstNumber, panNumber, mobile, email, city, state } = req.body;
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query(
+        `UPDATE customers SET name = ?, ledger = ?, address = ?, gst_number = ?, pan_number = ?, mobile = ?, email = ?, city = ?, state = ?
+         WHERE id = ?`,
+        [name, ledger, address, gstNumber, panNumber, mobile, email, city || 'Chennai', state || 'Tamil Nadu', id]
+      );
+    } else {
+      const idx = fallbackStore.customers.findIndex(c => c.id === id);
+      if (idx !== -1) {
+        fallbackStore.customers[idx] = {
+          ...fallbackStore.customers[idx],
+          name: name || fallbackStore.customers[idx].name,
+          ledger: ledger || fallbackStore.customers[idx].ledger,
+          address: address !== undefined ? address : fallbackStore.customers[idx].address,
+          gst_number: gstNumber || fallbackStore.customers[idx].gst_number,
+          pan_number: panNumber !== undefined ? panNumber : fallbackStore.customers[idx].pan_number,
+          mobile: mobile !== undefined ? mobile : fallbackStore.customers[idx].mobile,
+          email: email !== undefined ? email : fallbackStore.customers[idx].email,
+          city: city || fallbackStore.customers[idx].city,
+          state: state || fallbackStore.customers[idx].state
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Customer record updated successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE Customer
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query('DELETE FROM customers WHERE id = ?', [id]);
+    } else {
+      fallbackStore.customers = fallbackStore.customers.filter(c => c.id !== id);
+    }
+
+    res.json({
+      success: true,
+      message: 'Customer deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

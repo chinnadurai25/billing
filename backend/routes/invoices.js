@@ -66,4 +66,61 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PUT Update Invoice
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, customerName, grandTotal } = req.body;
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query(
+        `UPDATE invoices SET status = COALESCE(?, status), customer_name = COALESCE(?, customer_name), grand_total = COALESCE(?, grand_total)
+         WHERE id = ?`,
+        [status, customerName, grandTotal, id]
+      );
+    } else {
+      const idx = fallbackStore.invoices.findIndex(i => i.id === id);
+      if (idx !== -1) {
+        fallbackStore.invoices[idx] = {
+          ...fallbackStore.invoices[idx],
+          status: status || fallbackStore.invoices[idx].status,
+          customer_name: customerName || fallbackStore.invoices[idx].customer_name,
+          customerName: customerName || fallbackStore.invoices[idx].customerName,
+          grand_total: grandTotal !== undefined ? grandTotal : fallbackStore.invoices[idx].grand_total,
+          grandTotal: grandTotal !== undefined ? grandTotal : fallbackStore.invoices[idx].grandTotal
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Invoice updated successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE Invoice
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query('DELETE FROM invoices WHERE id = ?', [id]);
+    } else {
+      fallbackStore.invoices = fallbackStore.invoices.filter(i => i.id !== id);
+    }
+
+    res.json({
+      success: true,
+      message: 'Invoice deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

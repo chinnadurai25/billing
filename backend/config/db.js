@@ -130,11 +130,76 @@ export const initDB = async () => {
       );
     `);
 
+    // 4. Auto-seed initial data if tables are empty
+    const [existingCustomers] = await connection.query('SELECT COUNT(*) as count FROM customers');
+    if (existingCustomers[0].count === 0) {
+      console.log('🌱 Seeding initial records into MySQL (customers, bank_accounts, products_services, invoices)...');
+      
+      // Seed Customers
+      const initialCustomers = [
+        ['CUST-001', 'Acme Global Solutions', 'SUNDRY DEBTORS', 'Plot 12, Tech Park, Bengaluru', '29AABCA1234B1Z2', 'AAACD1234F', '+91 98400 11223', 'billing@acmeglobal.com', 'Bengaluru', 'Karnataka', 145000.00, 'Active'],
+        ['CUST-002', 'Zenith Retail Infra', 'SUNDRY DEBTORS', '24, Mount Road, Chennai', '33BBCCZ5678K1Z8', 'AAACD1234F', '+91 97100 44556', 'finance@zenithretail.in', 'Chennai', 'Tamil Nadu', 98000.00, 'Active'],
+        ['CUST-003', 'Apex Logistics Tech', 'SUNDRY DEBTORS', '88, BKC Complex, Mumbai', '27CCCAP9988P1Z4', 'AAACD1234F', '+91 99600 77889', 'accounts@apexlogistics.io', 'Mumbai', 'Maharashtra', 230000.00, 'Active'],
+        ['CUST-004', 'Nova Biotech Ltd', 'SUNDRY DEBTORS', '5th Floor, HITEC City, Hyderabad', '36DDDNB4455M1Z9', 'AAACD1234F', '+91 94400 33445', 'tax@novabiotech.org', 'Hyderabad', 'Telangana', 64000.00, 'Active'],
+        ['CUST-005', 'Vanguard Design Studio', 'SUNDRY DEBTORS', '14, Avinashi Road, Coimbatore', '33EEEVD8877Q1Z1', 'AAACD1234F', '+91 98800 22110', 'hello@vanguarddesign.com', 'Coimbatore', 'Tamil Nadu', 42000.00, 'Active']
+      ];
+      for (const c of initialCustomers) {
+        await connection.query(
+          'INSERT INTO customers (id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          c
+        );
+      }
+
+      // Seed Bank Accounts
+      const initialBanks = [
+        ['BANK-001', 'Bank Account', 'Durai Tax Advisory Operating A/C', '50100234901234', 'HDFC Bank Ltd', 'HDFC0001234', 'Anna Salai, Chennai Branch', 450000.00, 'Active'],
+        ['BANK-002', 'Bank Account', 'Durai Tax Collection Reserve', '000405012345', 'ICICI Bank Ltd', 'ICIC0000004', 'Nungambakkam, Chennai Branch', 280000.00, 'Active'],
+        ['BANK-003', 'Cash in Hand', 'Main Petty Cash Ledger', 'CASH-LEDGER-01', 'Cash Chest', 'N/A', 'Office Safe', 35000.00, 'Active']
+      ];
+      for (const b of initialBanks) {
+        await connection.query(
+          'INSERT INTO bank_accounts (id, bank_type, account_name, account_number, bank_name, ifsc_code, address, balance, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          b
+        );
+      }
+
+      // Seed Products & Services
+      const initialProducts = [
+        ['SRV-101', 'GSTR-1 & GSTR-3B Monthly Tax Filing', 'Pices', '998222', 100, 12500.00, 18.00, 'Tax Compliance'],
+        ['SRV-102', 'Corporate Income Tax Return (ITR-6)', 'Pices', '998231', 50, 35000.00, 18.00, 'Income Tax'],
+        ['SRV-103', 'GST Annual Audit & Reconciliation', 'Pices', '998221', 30, 48000.00, 18.00, 'Auditing'],
+        ['SRV-104', 'TDS / TCS Quarterly Advisory & Returns', 'Pices', '998212', 80, 15000.00, 18.00, 'Direct Tax'],
+        ['SRV-105', 'Transfer Pricing Documentation', 'Pices', '998240', 25, 75000.00, 18.00, 'International Tax']
+      ];
+      for (const p of initialProducts) {
+        await connection.query(
+          'INSERT INTO products_services (id, title, unit, hsn_sac, opening_stock, rate, tax_percent, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          p
+        );
+      }
+
+      // Seed Invoices
+      const initialInvoices = [
+        ['INV-2026-089', 'TP-2026-089', 'Acme Global Solutions', '29AABCA1234B1Z2', '2026-08-24', '2026-09-07', 50000.00, 4500.00, 4500.00, 0.00, 9000.00, 59000.00, 'Paid'],
+        ['INV-2026-088', 'TP-2026-088', 'Apex Logistics Tech', '27CCCAP9988P1Z4', '2026-08-21', '2026-09-04', 75000.00, 0.00, 0.00, 13500.00, 13500.00, 88500.00, 'Pending'],
+        ['INV-2026-087', 'TP-2026-087', 'Zenith Retail Infra', '33BBCCZ5678K1Z8', '2026-08-15', '2026-08-25', 35000.00, 3150.00, 3150.00, 0.00, 6300.00, 41300.00, 'Overdue'],
+        ['INV-2026-086', 'TP-2026-086', 'Nova Biotech Ltd', '36DDDNB4455M1Z9', '2026-08-10', '2026-08-24', 48000.00, 0.00, 0.00, 8640.00, 8640.00, 56640.00, 'Paid'],
+        ['INV-2026-085', 'TP-2026-085', 'Vanguard Design Studio', '33EEEVD8877Q1Z1', '2026-08-02', '2026-08-16', 25000.00, 2250.00, 2250.00, 0.00, 4500.00, 29500.00, 'Paid']
+      ];
+      for (const inv of initialInvoices) {
+        await connection.query(
+          'INSERT INTO invoices (id, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          inv
+        );
+      }
+      console.log('✅ Initial Seed Data successfully populated in MySQL tables!');
+    }
+
     connection.release();
     isMySqlConnected = true;
-    console.log('✅ MySQL Database Connected & All 7 Relational Tables Initialized (taxpulse_db)');
+    console.log('✅ MySQL Database Connected & All 7 Relational Tables Ready (taxpulse_db)');
   } catch (error) {
-    console.log('⚠️ MySQL Connection Note: MySQL server is not active on localhost:3306. Operating with seamless Memory-Store fallback mode.');
+    console.log(`⚠️ MySQL Connection Note: ${error.message}. Operating with Memory-Store fallback mode.`);
     isMySqlConnected = false;
   }
 };

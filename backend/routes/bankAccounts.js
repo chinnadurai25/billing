@@ -61,4 +61,69 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PUT Update Bank / Cash Account
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, status } = req.body;
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query(
+        `UPDATE bank_accounts SET bank_type = ?, account_name = ?, account_number = ?, bank_name = ?, ifsc_code = ?, address = ?, balance = COALESCE(?, balance), status = COALESCE(?, status)
+         WHERE id = ?`,
+        [bankType, accountName, accountNumber, bankName, ifscCode, address, balance, status, id]
+      );
+    } else {
+      const idx = fallbackStore.bankAccounts.findIndex(b => b.id === id);
+      if (idx !== -1) {
+        fallbackStore.bankAccounts[idx] = {
+          ...fallbackStore.bankAccounts[idx],
+          bank_type: bankType || fallbackStore.bankAccounts[idx].bank_type,
+          bankType: bankType || fallbackStore.bankAccounts[idx].bankType,
+          account_name: accountName || fallbackStore.bankAccounts[idx].account_name,
+          accountName: accountName || fallbackStore.bankAccounts[idx].accountName,
+          account_number: accountNumber || fallbackStore.bankAccounts[idx].account_number,
+          accountNumber: accountNumber || fallbackStore.bankAccounts[idx].accountNumber,
+          bank_name: bankName || fallbackStore.bankAccounts[idx].bank_name,
+          bankName: bankName || fallbackStore.bankAccounts[idx].bankName,
+          ifsc_code: ifscCode !== undefined ? ifscCode : fallbackStore.bankAccounts[idx].ifsc_code,
+          ifscCode: ifscCode !== undefined ? ifscCode : fallbackStore.bankAccounts[idx].ifscCode,
+          address: address !== undefined ? address : fallbackStore.bankAccounts[idx].address,
+          balance: balance !== undefined ? balance : fallbackStore.bankAccounts[idx].balance,
+          status: status || fallbackStore.bankAccounts[idx].status
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Bank / Cash account updated successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE Bank / Cash Account
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query('DELETE FROM bank_accounts WHERE id = ?', [id]);
+    } else {
+      fallbackStore.bankAccounts = fallbackStore.bankAccounts.filter(b => b.id !== id);
+    }
+
+    res.json({
+      success: true,
+      message: 'Bank / Cash account deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
