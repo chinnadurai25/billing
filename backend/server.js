@@ -20,8 +20,12 @@ dotenv.config();
 const app = express();
 const INITIAL_PORT = parseInt(process.env.PORT || '5000');
 
-// Middlewares with 50MB payload limit for company logos
-app.use(cors());
+// Middlewares with 50MB payload limit for company logos & full CORS support
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -52,8 +56,8 @@ app.get('*', (req, res) => {
 
 // Port Fallback & Server Startup
 const startServer = (port) => {
-  const server = app.listen(port, async () => {
-    console.log(`🚀 TaxPulse Backend REST API listening on http://localhost:${port}`);
+  const server = app.listen(port, '0.0.0.0', async () => {
+    console.log(`🚀 TaxPulse Backend REST API listening on port ${port} (0.0.0.0)`);
     await initDB();
   });
 
