@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -8,7 +9,23 @@ let isMySqlConnected = false;
 
 // Fallback in-memory store if MySQL server is offline during dev
 export const fallbackStore = {
-  users: [],
+  users: [
+    {
+      id: 'USR-001',
+      fullName: 'Chinna Durai',
+      email: 'chinna.durai@taxpulse.io',
+      contactNumber: '+91 98765 43210',
+      companyName: 'Durai Tax Advisory & Financials Ltd',
+      constitution: 'Private Limited',
+      companyAddress: 'Suite 402, Quantum Tech Tower, Inner Ring Road',
+      state: 'Tamil Nadu',
+      gstNumber: '33AAACD1234F1Z5',
+      registrationType: 'Regular',
+      panNumber: 'AAACD1234F',
+      username: 'chinna_durai',
+      passwordHash: bcrypt.hashSync('password123', 10)
+    }
+  ],
   customers: [],
   bankAccounts: [],
   productsServices: [],
@@ -60,9 +77,17 @@ export const initDB = async () => {
         pan_number VARCHAR(10) NOT NULL,
         username VARCHAR(100) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        company_logo LONGTEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Ensure company_logo column exists in users table if already created
+    try {
+      await connection.query(`ALTER TABLE users ADD COLUMN company_logo LONGTEXT;`);
+    } catch (e) {
+      // Column already exists, ignore
+    }
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS customers (
@@ -131,6 +156,17 @@ export const initDB = async () => {
     `);
 
     // 4. Auto-seed initial data if tables are empty
+    const [existingUsers] = await connection.query('SELECT COUNT(*) as count FROM users');
+    if (existingUsers[0].count === 0) {
+      console.log('🌱 Seeding initial demo user into MySQL users table...');
+      const defaultPassHash = await bcrypt.hash('password123', 10);
+      await connection.query(
+        `INSERT INTO users (id, full_name, email, contact_number, company_name, constitution, company_address, state, gst_number, registration_type, pan_number, username, password_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ['USR-001', 'Chinna Durai', 'chinna.durai@taxpulse.io', '+91 98765 43210', 'Durai Tax Advisory & Financials Ltd', 'Private Limited', 'Suite 402, Quantum Tech Tower, Inner Ring Road', 'Tamil Nadu', '33AAACD1234F1Z5', 'Regular', 'AAACD1234F', 'chinna_durai', defaultPassHash]
+      );
+    }
+
     const [existingCustomers] = await connection.query('SELECT COUNT(*) as count FROM customers');
     if (existingCustomers[0].count === 0) {
       console.log('🌱 Seeding initial records into MySQL (customers, bank_accounts, products_services, invoices)...');

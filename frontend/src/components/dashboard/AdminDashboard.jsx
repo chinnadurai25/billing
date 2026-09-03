@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, Users, Building2, FileText, DollarSign, 
   PieChart, Activity, Settings, Search, Filter, Lock, 
-  CheckCircle2, XCircle, AlertTriangle, RefreshCw, Eye, UserPlus, Sparkles, X, Building
+  CheckCircle2, XCircle, AlertTriangle, RefreshCw, Eye, UserPlus, Sparkles, X, Building, Download, ArrowRight
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { useToast } from '../../context/ToastContext';
 import { api } from '../../services/api';
+import { generateInvoicePDF } from '../../utils/pdfGenerator';
 
 export const AdminDashboard = ({ 
   activeTab, 
@@ -17,12 +18,18 @@ export const AdminDashboard = ({
   setAdminUsers, 
   activityLogs, 
   monthlyRevenueData,
-  user 
+  user,
+  invoices = []
 }) => {
   const { addToast } = useToast();
   const [userSearch, setUserSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedUserModal, setSelectedUserModal] = useState(null);
+  
+  // Admin Invoices Modal & PDF state
+  const [showAdminInvoicesModal, setShowAdminInvoicesModal] = useState(false);
+  const [selectedAdminInvoice, setSelectedAdminInvoice] = useState(null);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
 
   // Fetch live registered users from MySQL backend on component mount
   useEffect(() => {
@@ -101,61 +108,42 @@ export const AdminDashboard = ({
       {(activeTab === 'admin-overview' || activeTab === 'admin-users') && (
         <div className="space-y-8 animate-slide-up">
           
-          {/* 6 Platform Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+          {/* 3 Platform Stat Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <div className="p-4 rounded-2xl glass-card-gold border border-amber-500/30">
+            <div className="p-5 rounded-2xl glass-card-gold border border-amber-500/30">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-amber-200/80 font-medium">Registered Users</span>
-                <Users className="w-4 h-4 text-amber-400" />
+                <span className="text-xs text-amber-200/80 font-medium">Registered SaaS Users</span>
+                <Users className="w-5 h-5 text-amber-400" />
               </div>
-              <h3 className="text-xl font-bold font-mono text-white">{totalRegisteredUsers}</h3>
-              <p className="text-[10px] text-amber-400/80 font-mono mt-1">Live MySQL Sync</p>
+              <h3 className="text-2xl font-bold font-mono text-white">{totalRegisteredUsers}</h3>
+              <p className="text-xs text-amber-400/80 font-mono mt-1">Live MySQL DB Synchronized</p>
             </div>
 
-            <div className="p-4 rounded-2xl glass-card-gold border border-amber-500/30">
+            <div className="p-5 rounded-2xl glass-card-gold border border-amber-500/30">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-amber-200/80 font-medium">Active Companies</span>
-                <Building2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-amber-200/80 font-medium">Active Enterprise Companies</span>
+                <Building2 className="w-5 h-5 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-bold font-mono text-emerald-400">{activeCompanies}</h3>
-              <p className="text-[10px] text-emerald-500/80 font-mono mt-1">100% Verified</p>
+              <h3 className="text-2xl font-bold font-mono text-emerald-400">{activeCompanies}</h3>
+              <p className="text-xs text-emerald-500/80 font-mono mt-1">100% Verified Legal Entities</p>
             </div>
 
-            <div className="p-4 rounded-2xl glass-card-gold border border-amber-500/30">
+            <div 
+              onClick={() => setShowAdminInvoicesModal(true)}
+              className="p-5 rounded-2xl glass-card-gold border border-indigo-500/50 bg-indigo-950/20 hover:bg-indigo-900/30 cursor-pointer transition-all duration-300 transform hover:-translate-y-1 shadow-lg hover:shadow-indigo-500/20 group"
+            >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-amber-200/80 font-medium">Total Invoices</span>
-                <FileText className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs text-indigo-300 font-bold group-hover:text-white transition-colors">Total Platform Invoices</span>
+                <FileText className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
               </div>
-              <h3 className="text-xl font-bold font-mono text-white">{totalGlobalInvoices}</h3>
-              <p className="text-[10px] text-indigo-400 font-mono mt-1">Platform Volume</p>
-            </div>
-
-            <div className="p-4 rounded-2xl glass-card-gold border border-amber-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-amber-200/80 font-medium">Total Revenue</span>
-                <DollarSign className="w-4 h-4 text-amber-400" />
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-2xl font-bold font-mono text-white">{invoices.length || totalGlobalInvoices}</h3>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold flex items-center gap-1 group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                  Click to View & Download All Invoices →
+                </span>
               </div>
-              <h3 className="text-xl font-bold font-mono text-amber-300">₹{(totalGlobalRevenue/100000).toFixed(2)}L</h3>
-              <p className="text-[10px] text-slate-400 font-mono mt-1">Gross Invoiced</p>
-            </div>
-
-            <div className="p-4 rounded-2xl glass-card-gold border border-amber-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-amber-200/80 font-medium">Pending Settled</span>
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
-              </div>
-              <h3 className="text-xl font-bold font-mono text-amber-300">₹{(pendingGlobalPayments/100000).toFixed(2)}L</h3>
-              <p className="text-[10px] text-amber-400/80 font-mono mt-1">Pending Clearance</p>
-            </div>
-
-            <div className="p-4 rounded-2xl glass-card-gold border border-amber-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-amber-200/80 font-medium">Tax Collected</span>
-                <PieChart className="w-4 h-4 text-emerald-400" />
-              </div>
-              <h3 className="text-xl font-bold font-mono text-emerald-400">₹{(totalTaxCollection/100000).toFixed(2)}L</h3>
-              <p className="text-[10px] text-emerald-500/80 font-mono mt-1">18% Output Tax</p>
+              <p className="text-xs text-indigo-400 font-mono mt-2">Click to inspect and download all customer GST invoices</p>
             </div>
 
           </div>
@@ -370,6 +358,163 @@ export const AdminDashboard = ({
                 Close Details
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* GLOBAL SYSTEM INVOICES DIRECTORY MODAL */}
+      {showAdminInvoicesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card-gold rounded-3xl p-6 sm:p-8 max-w-4xl w-full border border-indigo-500/40 shadow-2xl animate-slide-up space-y-5 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-indigo-500/20">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-serif">Global System GST Invoices Directory</h3>
+                  <p className="text-xs text-indigo-200/80 font-mono">Viewing all generated invoices across enterprise tenants ({invoices.length} Invoices)</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowAdminInvoicesModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Live Search */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-indigo-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                value={invoiceSearch}
+                onChange={(e) => setInvoiceSearch(e.target.value)}
+                placeholder="Search invoice number, customer name, GSTIN..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input glass-input-gold text-xs"
+              />
+            </div>
+
+            {/* Invoices Directory Table */}
+            <div className="overflow-x-auto rounded-2xl border border-indigo-500/20 bg-dark-900/60">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-dark-950 text-indigo-300 uppercase text-[10px] font-mono border-b border-indigo-500/20">
+                  <tr>
+                    <th className="py-3 px-4">Invoice #</th>
+                    <th className="py-3 px-4">Customer Entity</th>
+                    <th className="py-3 px-4">GSTIN</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Tax (18%)</th>
+                    <th className="py-3 px-4">Grand Total</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80 font-mono">
+                  {invoices
+                    .filter((inv) => {
+                      const q = invoiceSearch.toLowerCase();
+                      return (inv.invoiceNumber || inv.invoice_number || '').toLowerCase().includes(q) ||
+                             (inv.customerName || inv.customer_name || '').toLowerCase().includes(q) ||
+                             (inv.customerGst || inv.customer_gst || '').toLowerCase().includes(q);
+                    })
+                    .map((inv) => (
+                      <tr key={inv.id || inv.invoiceNumber} className="hover:bg-indigo-950/20 transition-colors">
+                        <td className="py-3 px-4 font-bold text-indigo-300 whitespace-nowrap">{inv.invoiceNumber || inv.invoice_number}</td>
+                        <td className="py-3 px-4 font-semibold text-white">{inv.customerName || inv.customer_name}</td>
+                        <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{inv.customerGst || inv.customer_gst || '33AAACD9999F1Z0'}</td>
+                        <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{inv.date}</td>
+                        <td className="py-3 px-4 text-indigo-300">₹{(inv.totalTax || inv.total_tax || 0).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-4 font-bold text-emerald-400">₹{(inv.grandTotal || inv.grand_total || 0).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            inv.status === 'Paid' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                            inv.status === 'Pending' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                            'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => setSelectedAdminInvoice(inv)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> View & Download PDF
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowAdminInvoicesModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Directory
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN SELECTED INVOICE DETAIL & DOWNLOAD PDF MODAL */}
+      {selectedAdminInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/85 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 max-w-lg w-full border border-indigo-500/50 shadow-2xl animate-slide-up space-y-4">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-white font-serif">{selectedAdminInvoice.invoiceNumber || selectedAdminInvoice.invoice_number}</h3>
+                <p className="text-xs text-slate-400 font-mono">Billed To: {selectedAdminInvoice.customerName || selectedAdminInvoice.customer_name}</p>
+              </div>
+              <button onClick={() => setSelectedAdminInvoice(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs text-slate-300 font-mono">
+              <p><span className="text-slate-500">Customer GSTIN:</span> <strong className="text-indigo-300">{selectedAdminInvoice.customerGst || selectedAdminInvoice.customer_gst}</strong></p>
+              <p><span className="text-slate-500">Invoice Date / Due Date:</span> {selectedAdminInvoice.date} / {selectedAdminInvoice.dueDate || selectedAdminInvoice.due_date}</p>
+              
+              <div className="p-3.5 rounded-xl bg-dark-900 border border-slate-800 space-y-1.5">
+                <p className="flex justify-between"><span>Subtotal (Taxable):</span> <span>₹{(selectedAdminInvoice.subtotal || 0).toLocaleString('en-IN')}</span></p>
+                <p className="flex justify-between text-indigo-300"><span>GST Pool (18% Output):</span> <span>₹{(selectedAdminInvoice.totalTax || selectedAdminInvoice.total_tax || 0).toLocaleString('en-IN')}</span></p>
+                <p className="flex justify-between font-bold text-white pt-2 border-t border-slate-800 text-sm">
+                  <span>Grand Total (INR):</span> 
+                  <span className="text-emerald-400">₹{(selectedAdminInvoice.grandTotal || selectedAdminInvoice.grand_total || 0).toLocaleString('en-IN')}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  generateInvoicePDF(selectedAdminInvoice, user);
+                  addToast(`Tax Invoice PDF generated for ${selectedAdminInvoice.invoiceNumber || selectedAdminInvoice.invoice_number}`, 'success');
+                  setSelectedAdminInvoice(null);
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all shadow-lg shadow-indigo-600/30"
+              >
+                <Download className="w-4 h-4" /> Download PDF / Print
+              </button>
+              <button
+                onClick={() => setSelectedAdminInvoice(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
           </div>
         </div>
       )}

@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { 
   X, Plus, Trash2, Receipt, Calculator, CheckCircle2, 
-  FileText, Building, ArrowRight
+  FileText, Building, ArrowRight, RefreshCw
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+
+const generateRandomInvoiceNumber = () => {
+  const random5Digits = Math.floor(10000 + Math.random() * 90000);
+  return `TP-2026-${random5Digits}`;
+};
 
 export const QuickCreateInvoiceModal = ({ 
   isOpen, 
@@ -16,8 +21,8 @@ export const QuickCreateInvoiceModal = ({
 
   const [customerName, setCustomerName] = useState(customers[0]?.name || '');
   const [customerGst, setCustomerGst] = useState(customers[0]?.gstNumber || '');
+  const [invoiceNumber, setInvoiceNumber] = useState(generateRandomInvoiceNumber());
   const [invoiceDate, setInvoiceDate] = useState('2026-08-26');
-  const [dueDate, setDueDate] = useState('2026-09-09');
   const [taxType, setTaxType] = useState('intrastate'); // 'intrastate' (CGST+SGST) or 'interstate' (IGST)
   const [status, setStatus] = useState('Pending');
 
@@ -105,15 +110,14 @@ export const QuickCreateInvoiceModal = ({
       return;
     }
 
-    const newInvNumber = `TP-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const finalInvNumber = invoiceNumber || generateRandomInvoiceNumber();
 
     const newInvoice = {
       id: `INV-${Date.now()}`,
-      invoiceNumber: newInvNumber,
+      invoiceNumber: finalInvNumber,
       customerName,
       customerGst: customerGst || '33AAACD9999F1Z0',
       date: invoiceDate,
-      dueDate,
       subtotal,
       cgst,
       sgst,
@@ -125,7 +129,7 @@ export const QuickCreateInvoiceModal = ({
     };
 
     onSaveInvoice(newInvoice);
-    addToast(`Invoice ${newInvNumber} generated successfully!`, 'success', 'Tax Invoice Created');
+    addToast(`Invoice ${finalInvNumber} generated successfully!`, 'success', 'Tax Invoice Created');
     onClose();
   };
 
@@ -183,6 +187,26 @@ export const QuickCreateInvoiceModal = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-indigo-300">Invoice Number (Auto Generated)</label>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceNumber(generateRandomInvoiceNumber())}
+                  className="text-[10px] text-brand-400 hover:text-brand-300 font-mono flex items-center gap-1 cursor-pointer"
+                  title="Generate new random number"
+                >
+                  <RefreshCw className="w-3 h-3" /> Randomize
+                </button>
+              </div>
+              <input
+                type="text"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono font-bold text-indigo-300 border-indigo-500/40 bg-indigo-950/20"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">Tax Scheme Type</label>
               <select
                 value={taxType}
@@ -200,16 +224,6 @@ export const QuickCreateInvoiceModal = ({
                 type="date"
                 value={invoiceDate}
                 onChange={(e) => setInvoiceDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl glass-input text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Due Date</label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl glass-input text-xs"
               />
             </div>

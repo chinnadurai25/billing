@@ -1,30 +1,54 @@
 import React, { useState } from 'react';
 import { 
   User, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, 
-  Sparkles, CheckCircle2, KeyRound, AlertCircle, Quote
+  Sparkles, CheckCircle2, KeyRound, AlertCircle, Quote, Loader2, Mail
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { api } from '../../services/api';
 
 export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
   const { addToast } = useToast();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      setError('Please enter both username and password');
-      addToast('Username and password are required', 'error');
+    setError('');
+
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter both your registered Email Address and Password');
+      addToast('Email Address and Password are required', 'error');
       return;
     }
 
-    addToast('Authentication successful. Redirecting to User Dashboard...', 'success', 'Welcome Back');
-    onLoginSuccess();
+    setLoading(true);
+    try {
+      const res = await api.loginUser({ username: email.trim(), password });
+      setLoading(false);
+
+      if (res && res.success) {
+        if (res.token) {
+          localStorage.setItem('taxpulse_token', res.token);
+        }
+        addToast('Authentication successful. Redirecting to User Dashboard...', 'success', 'Welcome Back');
+        onLoginSuccess(res.user);
+      } else {
+        const errorMsg = res?.message || 'Invalid registered Email Address or Password';
+        setError(errorMsg);
+        addToast(errorMsg, 'error', 'Login Failed');
+      }
+    } catch (err) {
+      setLoading(false);
+      const errorMsg = 'Server connection error. Please try again.';
+      setError(errorMsg);
+      addToast(errorMsg, 'error', 'Login Error');
+    }
   };
 
   const handleForgotPassword = (e) => {
@@ -113,15 +137,15 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
             <form onSubmit={handleLogin} className="space-y-4">
               
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Username or Email Address</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Registered Email Address</label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter your username or email"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. chinna.durai@taxpulse.io"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs font-mono"
                   />
                 </div>
               </div>
@@ -168,9 +192,20 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
 
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 transition-all duration-300 transform hover:-translate-y-0.5"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Sign In to Dashboard <ArrowRight className="w-4 h-4" />
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verifying Credentials...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In to Dashboard</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
 
             </form>

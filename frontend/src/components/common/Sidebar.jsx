@@ -124,31 +124,7 @@ export const Sidebar = ({
         </nav>
       </div>
 
-      {/* Sidebar Footer Pro Card */}
-      <div className="mt-8">
-        {mode === 'user' ? (
-          <div className="p-3.5 rounded-2xl glass-card border border-indigo-500/20 bg-indigo-950/20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
-              <span className="text-xs font-bold text-white">GST Filing Ready</span>
-            </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Auto-generate GSTR-1 JSON & Excel sheets compliant with August 2026 GSTN rules.
-            </p>
-          </div>
-        ) : (
-          <div className="p-3.5 rounded-2xl glass-card-gold border border-amber-500/30 bg-amber-950/10 relative overflow-hidden">
-            <div className="flex items-center gap-2 mb-1.5">
-              <FileCheck className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-bold text-amber-300">Compliance Sync</span>
-            </div>
-            <p className="text-[11px] text-amber-200/80 leading-relaxed">
-              Audit trails encrypted with SHA-256 signatures & real-time webhook sync.
-            </p>
-          </div>
-        )}
-      </div>
+
     </div>
   );
 

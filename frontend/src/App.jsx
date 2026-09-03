@@ -160,15 +160,21 @@ function AppContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Registration success handler
-  const handleRegisterSuccess = (newRegistration) => {
-    setUserData((prev) => ({
-      ...prev,
-      ...newRegistration,
-      companyName: newRegistration.companyName || prev.companyName,
-      gstNumber: newRegistration.gstNumber || prev.gstNumber,
-      panNumber: newRegistration.panNumber || prev.panNumber,
-    }));
+  // Auth success handlers
+  const handleAuthSuccess = (loggedInUser) => {
+    if (loggedInUser) {
+      setUserData((prev) => ({
+        ...prev,
+        ...loggedInUser,
+        fullName: loggedInUser.fullName || loggedInUser.full_name || prev.fullName,
+        companyName: loggedInUser.companyName || loggedInUser.company_name || prev.companyName,
+        gstNumber: loggedInUser.gstNumber || loggedInUser.gst_number || prev.gstNumber,
+        panNumber: loggedInUser.panNumber || loggedInUser.pan_number || prev.panNumber,
+        email: loggedInUser.email || prev.email,
+        contactNumber: loggedInUser.contactNumber || loggedInUser.contact_number || prev.contactNumber,
+        companyLogo: loggedInUser.companyLogo || loggedInUser.company_logo || prev.companyLogo || null
+      }));
+    }
     setCurrentView('user-dashboard');
   };
 
@@ -247,6 +253,7 @@ function AppContent() {
                 activityLogs={adminActivityLogs}
                 monthlyRevenueData={monthlyRevenueData}
                 user={userData}
+                invoices={invoices}
               />
             </main>
           </>
@@ -262,7 +269,7 @@ function AppContent() {
         {currentView === 'user-login' && (
           <main className="flex-1 w-full">
             <UserLogin 
-              onLoginSuccess={() => setCurrentView('user-dashboard')}
+              onLoginSuccess={handleAuthSuccess}
               setCurrentView={setCurrentView}
             />
           </main>
@@ -271,7 +278,7 @@ function AppContent() {
         {currentView === 'user-register' && (
           <main className="flex-1 w-full">
             <UserRegister 
-              onRegisterSuccess={handleRegisterSuccess}
+              onRegisterSuccess={handleAuthSuccess}
               setCurrentView={setCurrentView}
             />
           </main>

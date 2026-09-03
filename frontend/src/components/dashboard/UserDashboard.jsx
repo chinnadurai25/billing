@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { useToast } from '../../context/ToastContext';
 import { api } from '../../services/api';
+import { generateInvoicePDF } from '../../utils/pdfGenerator';
 
 export const UserDashboard = ({ 
   activeTab, 
@@ -28,8 +29,10 @@ export const UserDashboard = ({
   onQuickCreateInvoice,
   user
 }) => {
-  const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [bankSearchQuery, setBankSearchQuery] = useState('');
+  const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
   // Modal State Triggers
@@ -50,8 +53,11 @@ export const UserDashboard = ({
     onConfirm: null
   });
 
-  // View Invoice Detail Modal state
+  // View Detail Modals state
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
+  const [selectedBankDetail, setSelectedBankDetail] = useState(null);
+  const [selectedServiceDetail, setSelectedServiceDetail] = useState(null);
 
   // 1. REGISTRATION ( CUSTOMER ) Form State
   const [custForm, setCustForm] = useState({
@@ -492,6 +498,51 @@ export const UserDashboard = ({
     return matchesSearch && matchesStatus;
   });
 
+  // Filtered Customers
+  const filteredCustomers = customers.filter((c) => {
+    const q = customerSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.gstNumber || c.gst_number || '').toLowerCase().includes(q) ||
+      (c.panNumber || c.pan_number || '').toLowerCase().includes(q) ||
+      (c.phone || c.mobile || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q) ||
+      (c.address || '').toLowerCase().includes(q) ||
+      (c.city || '').toLowerCase().includes(q) ||
+      (c.ledger || '').toLowerCase().includes(q) ||
+      (c.id || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered Bank & Cash Accounts
+  const filteredBankAccounts = bankAccounts.filter((b) => {
+    const q = bankSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (b.accountName || b.account_name || '').toLowerCase().includes(q) ||
+      (b.bankName || b.bank_name || '').toLowerCase().includes(q) ||
+      (b.accountNumber || b.account_number || '').toLowerCase().includes(q) ||
+      (b.ifscCode || b.ifsc_code || '').toLowerCase().includes(q) ||
+      (b.bankType || b.bank_type || '').toLowerCase().includes(q) ||
+      (b.address || '').toLowerCase().includes(q) ||
+      (b.id || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered Products & Services
+  const filteredProducts = products.filter((p) => {
+    const q = serviceSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (p.title || '').toLowerCase().includes(q) ||
+      (p.hsnSac || p.hsn_sac || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q) ||
+      (p.unit || '').toLowerCase().includes(q) ||
+      (p.id || '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
       
@@ -543,8 +594,8 @@ export const UserDashboard = ({
         </div>
       </div>
 
-      {/* OVERVIEW TAB CONTENT */}
-      {(activeTab === 'overview' || activeTab === 'invoices') && (
+      {/* OVERVIEW TAB CONTENT (EXECUTIVE BUSINESS DASHBOARD) */}
+      {activeTab === 'overview' && (
         <div className="space-y-8 animate-slide-up">
           
           {/* Key Metrics Cards */}
@@ -674,13 +725,189 @@ export const UserDashboard = ({
 
           </div>
 
-          {/* Invoices Table Section */}
+          {/* Overview Dashboard Bottom Section: Recent Activity & Quick Master Directory */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Recent Invoices Activity log (Left 2 cols) */}
+            <div className="glass-card rounded-3xl p-6 border border-slate-800 lg:col-span-2 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-white font-serif">Recent Invoice Transactions</h3>
+                  <p className="text-xs text-slate-400 font-mono">Latest GST tax invoices generated</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('invoices')}
+                  className="flex items-center gap-1 text-xs text-indigo-400 hover:text-white font-semibold cursor-pointer transition-colors"
+                >
+                  View All Invoices <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
+                      <th className="py-2.5 px-3">Invoice #</th>
+                      <th className="py-2.5 px-3">Customer</th>
+                      <th className="py-2.5 px-3">Grand Total</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {invoices.slice(0, 4).map((inv) => {
+                      const invNumber = inv.invoiceNumber || inv.invoice_number;
+                      const custName = inv.customerName || inv.customer_name;
+                      const grandTotalVal = inv.grandTotal || inv.grand_total || 0;
+
+                      return (
+                        <tr key={inv.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-3 px-3 font-mono font-bold text-white whitespace-nowrap">{invNumber}</td>
+                          <td className="py-3 px-3 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
+                          <td className="py-3 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                              inv.status === 'Paid' 
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : inv.status === 'Pending'
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                : 'bg-red-500/10 text-red-400 border-red-500/30'
+                            }`}>
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedInvoice(inv)}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all text-[11px] font-semibold cursor-pointer border border-indigo-500/30"
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Quick Master Directory Summary (Right 1 col) */}
+            <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+              <h3 className="text-base font-bold text-white font-serif">Quick Directory Shortcuts</h3>
+              <p className="text-xs text-slate-400 font-mono">Overview of registered master records</p>
+
+              <div className="space-y-3 pt-1">
+                <div 
+                  onClick={() => setActiveTab('customers')}
+                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-indigo-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">Customers Directory</h4>
+                      <p className="text-xs text-slate-400 font-mono">{customers.length} Registered Debtors</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                </div>
+
+                <div 
+                  onClick={() => setActiveTab('payments')}
+                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-amber-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
+                      <Landmark className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">Bank / Cash Accounts</h4>
+                      <p className="text-xs text-slate-400 font-mono">{bankAccounts.length} Active Accounts</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                </div>
+
+                <div 
+                  onClick={() => setActiveTab('services')}
+                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-emerald-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+                      <Package className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">Services & Products</h4>
+                      <p className="text-xs text-slate-400 font-mono">{products.length} Master Items</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* INVOICE & BILLING HUB TAB CONTENT (DEDICATED INVOICE MANAGEMENT) */}
+      {activeTab === 'invoices' && (
+        <div className="space-y-6 animate-slide-up">
+          
+          {/* Dedicated Header for Invoices Hub */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-950/60 to-dark-900/60 p-6 rounded-3xl border border-indigo-500/20">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/20 text-brand-300 font-mono font-bold border border-brand-500/30">
+                  GST BILLING HUB
+                </span>
+              </div>
+              <h2 className="text-2xl font-bold text-white font-serif">Invoices & Billing Hub</h2>
+              <p className="text-xs text-slate-300 font-mono mt-0.5">Manage, track status, filter, export, and create official GST invoices</p>
+            </div>
+
+            <button
+              onClick={onQuickCreateInvoice}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer w-fit"
+            >
+              <Plus className="w-4 h-4" /> + Create New Tax Invoice
+            </button>
+          </div>
+
+          {/* Invoice Specific KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="glass-card p-5 rounded-2xl border border-slate-800">
+              <p className="text-xs text-slate-400 font-mono">Total Invoices</p>
+              <h3 className="text-2xl font-bold font-mono text-white mt-1">{invoices.length}</h3>
+              <p className="text-[11px] text-slate-500 font-mono mt-1">Generated all-time</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl border border-slate-800">
+              <p className="text-xs text-slate-400 font-mono">Total Billing Amount</p>
+              <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">₹{totalSales.toLocaleString('en-IN')}</h3>
+              <p className="text-[11px] text-emerald-400 font-mono mt-1">Inclusive of GST</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl border border-slate-800">
+              <p className="text-xs text-slate-400 font-mono">Paid Cleared Invoices</p>
+              <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">{paidInvoices.length}</h3>
+              <p className="text-[11px] text-emerald-400 font-mono mt-1">₹{paidAmount.toLocaleString('en-IN')} settled</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl border border-slate-800">
+              <p className="text-xs text-slate-400 font-mono">Pending / Overdue</p>
+              <h3 className="text-2xl font-bold font-mono text-amber-300 mt-1">{pendingInvoices.length + overdueInvoices.length}</h3>
+              <p className="text-[11px] text-amber-400 font-mono mt-1">₹{(pendingAmount + outstandingAmount).toLocaleString('en-IN')} pending</p>
+            </div>
+          </div>
+
+          {/* Full Invoices Master Table */}
           <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-6">
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white font-serif">Invoices & Billing Directory</h3>
-                <p className="text-xs text-slate-400 font-mono">Recent GST tax invoices generated for customers</p>
+                <h3 className="text-lg font-bold text-white font-serif">GST Invoice Directory</h3>
+                <p className="text-xs text-slate-400 font-mono">Showing {filteredInvoices.length} of {invoices.length} total tax invoices</p>
               </div>
 
               {/* Filters */}
@@ -691,102 +918,123 @@ export const UserDashboard = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search invoices..."
-                    className="pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs w-48 font-mono"
+                    placeholder="Search invoice number, customer, GSTIN..."
+                    className="pl-8 pr-3 py-2 rounded-xl glass-input text-xs w-64 font-mono"
                   />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-white">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
+                  className="px-3.5 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold cursor-pointer"
                 >
-                  <option value="All">All Status</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Overdue">Overdue</option>
+                  <option value="All">All Status ({invoices.length})</option>
+                  <option value="Paid">Paid ({paidInvoices.length})</option>
+                  <option value="Pending">Pending ({pendingInvoices.length})</option>
+                  <option value="Overdue">Overdue ({overdueInvoices.length})</option>
                 </select>
               </div>
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-mono">
-                    <th className="py-3 px-4">Invoice #</th>
-                    <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4">GSTIN</th>
-                    <th className="py-3 px-4">Date / Due</th>
-                    <th className="py-3 px-4">Tax (₹)</th>
-                    <th className="py-3 px-4">Grand Total</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {filteredInvoices.map((inv) => {
-                    const invNumber = inv.invoiceNumber || inv.invoice_number;
-                    const custName = inv.customerName || inv.customer_name;
-                    const custGst = inv.customerGst || inv.customer_gst;
-                    const totalTaxVal = inv.totalTax || inv.total_tax || 0;
-                    const grandTotalVal = inv.grandTotal || inv.grand_total || 0;
-                    const dueDateVal = inv.dueDate || inv.due_date;
+            {filteredInvoices.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
+                      <th className="py-3 px-4">Invoice #</th>
+                      <th className="py-3 px-4">Customer</th>
+                      <th className="py-3 px-4">GSTIN</th>
+                      <th className="py-3 px-4">Date / Due</th>
+                      <th className="py-3 px-4">Tax (₹)</th>
+                      <th className="py-3 px-4">Grand Total</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {filteredInvoices.map((inv) => {
+                      const invNumber = inv.invoiceNumber || inv.invoice_number;
+                      const custName = inv.customerName || inv.customer_name;
+                      const custGst = inv.customerGst || inv.customer_gst;
+                      const totalTaxVal = inv.totalTax || inv.total_tax || 0;
+                      const grandTotalVal = inv.grandTotal || inv.grand_total || 0;
+                      const dueDateVal = inv.dueDate || inv.due_date;
 
-                    return (
-                      <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-white">{invNumber}</td>
-                        <td className="py-3 px-4 font-medium text-slate-200">{custName}</td>
-                        <td className="py-3 px-4 font-mono text-slate-400">{custGst}</td>
-                        <td className="py-3 px-4 text-slate-400 font-mono">
-                          <div>{inv.date}</div>
-                          <div className="text-[10px] text-slate-500">Due: {dueDateVal}</div>
-                        </td>
-                        <td className="py-3 px-4 font-mono text-indigo-300">₹{totalTaxVal.toLocaleString('en-IN')}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-white">₹{grandTotalVal.toLocaleString('en-IN')}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
-                            inv.status === 'Paid' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                              : inv.status === 'Pending'
-                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                              : 'bg-red-500/10 text-red-400 border-red-500/30'
-                          }`}>
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => setSelectedInvoice(inv)}
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                              title="View Invoice Details"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            {inv.status !== 'Paid' && (
+                      return (
+                        <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3.5 px-4 font-mono font-bold text-white whitespace-nowrap">{invNumber}</td>
+                          <td className="py-3.5 px-4 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
+                          <td className="py-3.5 px-4 font-mono text-slate-400 whitespace-nowrap">{custGst}</td>
+                          <td className="py-3.5 px-4 text-slate-400 font-mono whitespace-nowrap">
+                            <div>{inv.date}</div>
+                            <div className="text-[10px] text-slate-500">Due: {dueDateVal}</div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-indigo-300 whitespace-nowrap">₹{totalTaxVal.toLocaleString('en-IN')}</td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
+                              inv.status === 'Paid' 
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : inv.status === 'Pending'
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                : 'bg-red-500/10 text-red-400 border-red-500/30'
+                            }`}>
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
                               <button
-                                onClick={() => handleMarkAsPaid(inv.id)}
-                                className="px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 transition-colors cursor-pointer"
+                                onClick={() => setSelectedInvoice(inv)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all border border-indigo-500/30 text-[11px] font-semibold cursor-pointer"
+                                title="View Invoice Details"
                               >
-                                Mark Paid
+                                <Eye className="w-3 h-3" /> View
                               </button>
-                            )}
-                            <button
-                              onClick={() => handleDeleteInvoice(inv)}
-                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-colors cursor-pointer"
-                              title="Delete Invoice"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              {inv.status !== 'Paid' && (
+                                <button
+                                  onClick={() => handleMarkAsPaid(inv.id)}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[11px] font-semibold border border-emerald-500/30 transition-colors cursor-pointer"
+                                >
+                                  Mark Paid
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteInvoice(inv)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                                title="Delete Invoice"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 text-center space-y-3">
+                <Receipt className="w-10 h-10 text-slate-600 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-300">No matching invoices found</h4>
+                <p className="text-xs text-slate-500">Try adjusting your status filter or search query.</p>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-indigo-400 hover:text-white font-medium inline-block transition-colors cursor-pointer"
+                  >
+                    Clear Search Query
+                  </button>
+                )}
+              </div>
+            )}
 
           </div>
 
@@ -809,52 +1057,126 @@ export const UserDashboard = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {customers.map((c) => (
-              <div key={c.id} className="p-5 rounded-2xl glass-card border border-slate-800 space-y-3 hover:border-indigo-500/30 transition-all flex flex-col justify-between group">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono border border-indigo-500/20">{c.id}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-semibold">
-                      {c.ledger || 'SUNDRY DEBTORS'}
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-white">{c.name}</h3>
-                  <div className="space-y-1 text-xs text-slate-300 font-mono">
-                    <p><span className="text-slate-500">GST NO:</span> {c.gstNumber || c.gst_number}</p>
-                    <p><span className="text-slate-500">PAN:</span> {c.panNumber || c.pan_number || 'AAACD1234F'}</p>
-                    <p><span className="text-slate-500">MOBILE:</span> {c.phone || c.mobile || 'N/A'}</p>
-                    <p><span className="text-slate-500">EMAIL:</span> {c.email || 'N/A'}</p>
-                    <p><span className="text-slate-500">ADDRESS:</span> {c.address || `${c.city || 'Chennai'}, ${c.state || 'Tamil Nadu'}`}</p>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
-                  <div>
-                    <span className="text-slate-400">Total Billed: </span>
-                    <span className="font-bold text-emerald-400 font-mono">₹{(c.totalBilled || c.total_billed || 0).toLocaleString('en-IN')}</span>
-                  </div>
-
-                  {/* Edit & Delete Action Buttons */}
-                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                    <button
-                      onClick={() => handleOpenEditCustomer(c)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all border border-indigo-500/30 text-[11px] font-semibold cursor-pointer"
-                      title="Edit Customer"
-                    >
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCustomer(c)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
-                      title="Delete Customer"
-                    >
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
-                  </div>
-                </div>
+          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+            {/* Customer Search Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-dark-900/60 p-3 rounded-2xl border border-slate-800">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  value={customerSearchQuery}
+                  onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                  placeholder="Search customers by name, GSTIN, PAN, mobile, email or city..."
+                  className="w-full pl-10 pr-10 py-2 rounded-xl glass-input text-xs"
+                />
+                {customerSearchQuery && (
+                  <button
+                    onClick={() => setCustomerSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            ))}
+              <div className="text-xs text-slate-400 font-mono shrink-0">
+                Showing <span className="text-emerald-400 font-bold">{filteredCustomers.length}</span> of {customers.length} customers
+              </div>
+            </div>
+
+            {/* Customers Row / Table Layout */}
+            {filteredCustomers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
+                      <th className="py-3 px-4">ID</th>
+                      <th className="py-3 px-4">Customer Name</th>
+                      <th className="py-3 px-4">Ledger Type</th>
+                      <th className="py-3 px-4">GSTIN & PAN</th>
+                      <th className="py-3 px-4">Contact Details</th>
+                      <th className="py-3 px-4">Address / City</th>
+                      <th className="py-3 px-4">Total Billed</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {filteredCustomers.map((c) => (
+                      <tr 
+                        key={c.id} 
+                        onClick={() => setSelectedCustomerDetail(c)}
+                        className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3.5 px-4 font-mono font-semibold text-brand-300 whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-md bg-brand-500/10 text-brand-300 border border-brand-500/30 whitespace-nowrap inline-block font-mono text-[11px] font-bold">{c.id}</span>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
+                          <div>{c.name}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">Status: {c.status || 'Active'}</div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20 whitespace-nowrap inline-block text-[10px]">
+                            {c.ledger || 'SUNDRY DEBTORS'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
+                          <div><span className="text-slate-500">GST:</span> {c.gstNumber || c.gst_number || 'N/A'}</div>
+                          <div className="text-[11px] text-slate-400"><span className="text-slate-500">PAN:</span> {c.panNumber || c.pan_number || 'N/A'}</div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
+                          <div>{c.phone || c.mobile || 'N/A'}</div>
+                          <div className="text-[11px] text-slate-400">{c.email || 'N/A'}</div>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-300">
+                          <div className="max-w-xs truncate">{c.address || `${c.city || 'Chennai'}, ${c.state || 'Tamil Nadu'}`}</div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                          ₹{(c.totalBilled || c.total_billed || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedCustomerDetail(c)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white transition-all border border-emerald-500/20 text-[11px] font-semibold cursor-pointer"
+                              title="View Customer Details"
+                            >
+                              <Eye className="w-3 h-3" /> View
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditCustomer(c)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all border border-indigo-500/30 text-[11px] font-semibold cursor-pointer"
+                              title="Edit Customer"
+                            >
+                              <Pencil className="w-3 h-3" /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCustomer(c)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                              title="Delete Customer"
+                            >
+                              <Trash2 className="w-3 h-3" /> Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 text-center space-y-3">
+                <Users className="w-10 h-10 text-slate-600 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-300">No matching customers found</h4>
+                <p className="text-xs text-slate-500">Try adjusting your search query or register a new customer.</p>
+                {customerSearchQuery && (
+                  <button
+                    onClick={() => setCustomerSearchQuery('')}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-indigo-400 hover:text-white font-medium inline-block transition-colors cursor-pointer"
+                  >
+                    Clear Search Query
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -875,49 +1197,124 @@ export const UserDashboard = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {bankAccounts.map((b) => (
-              <div key={b.id} className="p-5 rounded-2xl glass-card-gold border border-amber-500/30 space-y-3 flex flex-col justify-between group">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">{b.bankType || b.bank_type}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">{b.status || 'Active'}</span>
-                  </div>
-                  <h3 className="text-base font-bold text-white">{b.accountName || b.account_name}</h3>
-                  <div className="space-y-1 text-xs text-slate-300 font-mono">
-                    <p><span className="text-amber-200/60">NAME OF BANK:</span> {b.bankName || b.bank_name}</p>
-                    <p><span className="text-amber-200/60">ACCOUNT NUMBER:</span> {b.accountNumber || b.account_number}</p>
-                    <p><span className="text-amber-200/60">IFSC CODE:</span> {b.ifscCode || b.ifsc_code}</p>
-                    <p><span className="text-amber-200/60">ADDRESS:</span> {b.address || 'Chennai Central'}</p>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-amber-500/20 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
-                  <div>
-                    <span className="text-slate-400">Ledger Balance: </span>
-                    <span className="font-bold text-emerald-400 font-mono">₹{(b.balance || 0).toLocaleString('en-IN')}</span>
-                  </div>
-
-                  {/* Edit & Delete Action Buttons */}
-                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                    <button
-                      onClick={() => handleOpenEditBank(b)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 transition-all border border-amber-500/40 text-[11px] font-semibold cursor-pointer"
-                      title="Edit Bank Account"
-                    >
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteBank(b)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
-                      title="Delete Bank Account"
-                    >
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
-                  </div>
-                </div>
+          <div className="glass-card-gold rounded-3xl p-6 border border-amber-500/30 space-y-4">
+            {/* Bank / Cash Search Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-dark-900/60 p-3 rounded-2xl border border-slate-800">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  value={bankSearchQuery}
+                  onChange={(e) => setBankSearchQuery(e.target.value)}
+                  placeholder="Search bank or cash accounts by account name, bank, account number, IFSC..."
+                  className="w-full pl-10 pr-10 py-2 rounded-xl glass-input text-xs"
+                />
+                {bankSearchQuery && (
+                  <button
+                    onClick={() => setBankSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            ))}
+              <div className="text-xs text-slate-400 font-mono shrink-0">
+                Showing <span className="text-amber-400 font-bold">{filteredBankAccounts.length}</span> of {bankAccounts.length} accounts
+              </div>
+            </div>
+
+            {/* Bank Accounts Row / Table Layout */}
+            {filteredBankAccounts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-amber-500/20 text-amber-200/70 font-mono whitespace-nowrap">
+                      <th className="py-3 px-4">Account ID</th>
+                      <th className="py-3 px-4">Account Name</th>
+                      <th className="py-3 px-4">Account Type</th>
+                      <th className="py-3 px-4">Bank Name</th>
+                      <th className="py-3 px-4">A/C Number & IFSC</th>
+                      <th className="py-3 px-4">Branch / Address</th>
+                      <th className="py-3 px-4">Ledger Balance</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {filteredBankAccounts.map((b) => (
+                      <tr 
+                        key={b.id} 
+                        onClick={() => setSelectedBankDetail(b)}
+                        className="hover:bg-amber-500/10 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3.5 px-4 font-mono font-semibold text-amber-400 whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 whitespace-nowrap inline-block font-mono text-[11px] font-bold">{b.id}</span>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
+                          <div>{b.accountName || b.account_name}</div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 whitespace-nowrap inline-block text-[10px]">
+                            {b.bankType || b.bank_type}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-200 font-medium whitespace-nowrap">
+                          {b.bankName || b.bank_name || 'N/A'}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
+                          <div>{b.accountNumber || b.account_number}</div>
+                          <div className="text-[11px] text-amber-300/80"><span className="text-slate-500">IFSC:</span> {b.ifscCode || b.ifsc_code || 'N/A'}</div>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-300 max-w-xs truncate">
+                          {b.address || 'Chennai Central'}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                          ₹{(b.balance || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedBankDetail(b)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 transition-all border border-amber-500/30 text-[11px] font-semibold cursor-pointer"
+                              title="View Account Details"
+                            >
+                              <Eye className="w-3 h-3" /> View
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditBank(b)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 transition-all border border-amber-500/40 text-[11px] font-semibold cursor-pointer"
+                              title="Edit Bank Account"
+                            >
+                              <Pencil className="w-3 h-3" /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBank(b)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                              title="Delete Bank Account"
+                            >
+                              <Trash2 className="w-3 h-3" /> Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 text-center space-y-3">
+                <Landmark className="w-10 h-10 text-amber-400/50 mx-auto" />
+                <h4 className="text-sm font-bold text-amber-200">No matching bank or cash accounts found</h4>
+                <p className="text-xs text-slate-400">Try adjusting your search query or register a new bank account.</p>
+                {bankSearchQuery && (
+                  <button
+                    onClick={() => setBankSearchQuery('')}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-amber-300 hover:text-white font-medium inline-block transition-colors cursor-pointer"
+                  >
+                    Clear Search Query
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -938,51 +1335,135 @@ export const UserDashboard = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {products.map((p) => {
-              const itemTitle = p.title;
-              const hsn = p.hsnSac || p.hsn_sac;
-              const rateVal = p.rate || 0;
-              const taxPct = p.taxPercent || p.tax_percent || 18;
-              const opStock = p.openingStock !== undefined ? p.openingStock : (p.opening_stock !== undefined ? p.opening_stock : 100);
+          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+            {/* Service / Product Search Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-dark-900/60 p-3 rounded-2xl border border-slate-800">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  value={serviceSearchQuery}
+                  onChange={(e) => setServiceSearchQuery(e.target.value)}
+                  placeholder="Search products or services by item title, HSN/SAC code, category..."
+                  className="w-full pl-10 pr-10 py-2 rounded-xl glass-input text-xs"
+                />
+                {serviceSearchQuery && (
+                  <button
+                    onClick={() => setServiceSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="text-xs text-slate-400 font-mono shrink-0">
+                Showing <span className="text-emerald-400 font-bold">{filteredProducts.length}</span> of {products.length} items
+              </div>
+            </div>
 
-              return (
-                <div key={p.id} className="p-5 rounded-2xl glass-card border border-slate-800 flex flex-col justify-between group hover:border-emerald-500/30 transition-all">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 font-mono border border-brand-500/30">{p.id}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">QTY Unit: {p.unit || 'Pices'}</span>
-                      </div>
-                      <h3 className="text-base font-bold text-white">{itemTitle}</h3>
-                      <p className="text-xs text-slate-300 font-mono">HSN CODE: <strong className="text-indigo-300">{hsn}</strong> • Tax Rate: {taxPct}% GST</p>
-                      <p className="text-xs text-slate-400 font-mono">OPENING STOCK: <strong className="text-emerald-400">{opStock} Units</strong></p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-lg font-bold text-emerald-400 font-mono">₹{rateVal.toLocaleString('en-IN')}</span>
-                      <p className="text-[10px] text-slate-500">Standard Tariff</p>
-                    </div>
-                  </div>
+            {/* Products & Services Row / Table Layout */}
+            {filteredProducts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
+                      <th className="py-3 px-4">Item ID</th>
+                      <th className="py-3 px-4">Item / Service Name</th>
+                      <th className="py-3 px-4">Category</th>
+                      <th className="py-3 px-4">HSN / SAC</th>
+                      <th className="py-3 px-4">GST Rate</th>
+                      <th className="py-3 px-4">QTY Unit</th>
+                      <th className="py-3 px-4">Opening Stock</th>
+                      <th className="py-3 px-4">Rate (₹)</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {filteredProducts.map((p) => {
+                      const itemTitle = p.title;
+                      const hsn = p.hsnSac || p.hsn_sac;
+                      const rateVal = p.rate || 0;
+                      const taxPct = p.taxPercent || p.tax_percent || 18;
+                      const opStock = p.openingStock !== undefined ? p.openingStock : (p.opening_stock !== undefined ? p.opening_stock : 100);
 
-                  <div className="pt-3 border-t border-slate-800 flex justify-end items-center gap-2">
-                    <button
-                      onClick={() => handleOpenEditItem(p)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white transition-all border border-emerald-500/30 text-[11px] font-semibold cursor-pointer"
-                      title="Edit Item"
-                    >
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteItem(p)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
-                      title="Delete Item"
-                    >
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                      return (
+                        <tr 
+                          key={p.id} 
+                          onClick={() => setSelectedServiceDetail(p)}
+                          className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                        >
+                          <td className="py-3.5 px-4 font-mono font-semibold text-brand-300 whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-md bg-brand-500/20 text-brand-300 border border-brand-500/30 whitespace-nowrap inline-block font-mono text-[11px] font-bold">{p.id}</span>
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
+                            <div>{itemTitle}</div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 whitespace-nowrap inline-block text-[10px]">
+                              {p.category || 'Sales / Service Item'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-indigo-300 whitespace-nowrap">
+                            {hsn}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-emerald-400 font-semibold whitespace-nowrap">
+                            {taxPct}% GST
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
+                            {p.unit || 'Pices'}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-300 font-semibold whitespace-nowrap">
+                            {opStock} Units
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                            ₹{rateVal.toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setSelectedServiceDetail(p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white transition-all border border-emerald-500/20 text-[11px] font-semibold cursor-pointer"
+                                title="View Item Details"
+                              >
+                                <Eye className="w-3 h-3" /> View
+                              </button>
+                              <button
+                                onClick={() => handleOpenEditItem(p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white transition-all border border-emerald-500/30 text-[11px] font-semibold cursor-pointer"
+                                title="Edit Item"
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                                title="Delete Item"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 text-center space-y-3">
+                <Package className="w-10 h-10 text-slate-600 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-300">No matching products or services found</h4>
+                <p className="text-xs text-slate-500">Try adjusting your search query or register a new service item.</p>
+                {serviceSearchQuery && (
+                  <button
+                    onClick={() => setServiceSearchQuery('')}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-emerald-400 hover:text-white font-medium inline-block transition-colors cursor-pointer"
+                  >
+                    Clear Search Query
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1415,6 +1896,235 @@ export const UserDashboard = ({
         </div>
       )}
 
+      {/* Customer Detail View Modal */}
+      {selectedCustomerDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                  <Users className="w-6 h-6 text-indigo-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 font-mono border border-brand-500/30 whitespace-nowrap">{selectedCustomerDetail.id}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-semibold whitespace-nowrap">
+                      {selectedCustomerDetail.ledger || 'SUNDRY DEBTORS'}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white font-serif mt-1">{selectedCustomerDetail.name}</h3>
+                </div>
+              </div>
+              <button onClick={() => setSelectedCustomerDetail(null)} className="text-slate-400 hover:text-white cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">GSTIN NUMBER</span>
+                <span className="text-indigo-300 font-bold">{selectedCustomerDetail.gstNumber || selectedCustomerDetail.gst_number || 'N/A'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">PAN NUMBER</span>
+                <span className="text-white font-bold">{selectedCustomerDetail.panNumber || selectedCustomerDetail.pan_number || 'N/A'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">MOBILE NUMBER</span>
+                <span className="text-white font-bold">{selectedCustomerDetail.phone || selectedCustomerDetail.mobile || 'N/A'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">EMAIL ADDRESS</span>
+                <span className="text-white font-bold truncate block">{selectedCustomerDetail.email || 'N/A'}</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-dark-900 border border-slate-800 text-xs font-mono space-y-1">
+              <span className="text-slate-500 block text-[10px]">REGISTERED ADDRESS</span>
+              <p className="text-slate-200">{selectedCustomerDetail.address || `${selectedCustomerDetail.city || 'Chennai'}, ${selectedCustomerDetail.state || 'Tamil Nadu'}`}</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-slate-400 font-mono">Total Billed Revenue</span>
+                <h4 className="text-xl font-bold font-mono text-emerald-400">₹{(selectedCustomerDetail.totalBilled || selectedCustomerDetail.total_billed || 0).toLocaleString('en-IN')}</h4>
+              </div>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono font-semibold border border-emerald-500/30">Active Customer</span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  const cust = selectedCustomerDetail;
+                  setSelectedCustomerDetail(null);
+                  handleOpenEditCustomer(cust);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all"
+              >
+                <Pencil className="w-4 h-4" /> Edit Customer
+              </button>
+              <button
+                onClick={() => setSelectedCustomerDetail(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bank Account Detail View Modal */}
+      {selectedBankDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card-gold rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-amber-500/30 shadow-2xl animate-slide-up space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-amber-500/20">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                  <Landmark className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30 whitespace-nowrap">{selectedBankDetail.id}</span>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30 whitespace-nowrap">
+                      {selectedBankDetail.bankType || selectedBankDetail.bank_type}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white font-serif mt-1">{selectedBankDetail.accountName || selectedBankDetail.account_name}</h3>
+                </div>
+              </div>
+              <button onClick={() => setSelectedBankDetail(null)} className="text-slate-400 hover:text-white cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
+                <span className="text-amber-200/60 block text-[10px]">NAME OF BANK</span>
+                <span className="text-white font-bold">{selectedBankDetail.bankName || selectedBankDetail.bank_name || 'N/A'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
+                <span className="text-amber-200/60 block text-[10px]">ACCOUNT NUMBER</span>
+                <span className="text-amber-300 font-bold">{selectedBankDetail.accountNumber || selectedBankDetail.account_number}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
+                <span className="text-amber-200/60 block text-[10px]">IFSC CODE</span>
+                <span className="text-white font-bold">{selectedBankDetail.ifscCode || selectedBankDetail.ifsc_code || 'N/A'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
+                <span className="text-amber-200/60 block text-[10px]">STATUS</span>
+                <span className="text-emerald-400 font-bold">{selectedBankDetail.status || 'Active'}</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20 text-xs font-mono space-y-1">
+              <span className="text-amber-200/60 block text-[10px]">BRANCH / ADDRESS</span>
+              <p className="text-slate-200">{selectedBankDetail.address || 'Chennai Central'}</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-slate-400 font-mono">Current Ledger Balance</span>
+                <h4 className="text-xl font-bold font-mono text-emerald-400">₹{(selectedBankDetail.balance || 0).toLocaleString('en-IN')}</h4>
+              </div>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono font-semibold border border-emerald-500/30">Operational</span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  const bank = selectedBankDetail;
+                  setSelectedBankDetail(null);
+                  handleOpenEditBank(bank);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold cursor-pointer transition-all"
+              >
+                <Pencil className="w-4 h-4" /> Edit Account
+              </button>
+              <button
+                onClick={() => setSelectedBankDetail(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product / Service Detail View Modal */}
+      {selectedServiceDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  <Package className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 font-mono border border-brand-500/30 whitespace-nowrap">{selectedServiceDetail.id}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono whitespace-nowrap">
+                      Unit: {selectedServiceDetail.unit || 'Pices'}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white font-serif mt-1">{selectedServiceDetail.title}</h3>
+                </div>
+              </div>
+              <button onClick={() => setSelectedServiceDetail(null)} className="text-slate-400 hover:text-white cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">HSN / SAC CODE</span>
+                <span className="text-indigo-300 font-bold">{selectedServiceDetail.hsnSac || selectedServiceDetail.hsn_sac || 'N/A'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">GST TAX RATE</span>
+                <span className="text-emerald-400 font-bold">{selectedServiceDetail.taxPercent || selectedServiceDetail.tax_percent || 18}% GST</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">CATEGORY</span>
+                <span className="text-white font-bold">{selectedServiceDetail.category || 'Sales / Service Item'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                <span className="text-slate-500 block text-[10px]">OPENING STOCK</span>
+                <span className="text-emerald-400 font-bold">{selectedServiceDetail.openingStock !== undefined ? selectedServiceDetail.openingStock : (selectedServiceDetail.opening_stock !== undefined ? selectedServiceDetail.opening_stock : 100)} Units</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-slate-400 font-mono">Standard Tariff Rate</span>
+                <h4 className="text-xl font-bold font-mono text-emerald-400">₹{(selectedServiceDetail.rate || 0).toLocaleString('en-IN')}</h4>
+              </div>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono font-semibold border border-emerald-500/30">Active Item</span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  const item = selectedServiceDetail;
+                  setSelectedServiceDetail(null);
+                  handleOpenEditItem(item);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer transition-all"
+              >
+                <Pencil className="w-4 h-4" /> Edit Item
+              </button>
+              <button
+                onClick={() => setSelectedServiceDetail(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invoice Detail View Modal */}
       {selectedInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
@@ -1442,12 +2152,13 @@ export const UserDashboard = ({
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => {
-                  addToast(`PDF generated for ${selectedInvoice.invoiceNumber || selectedInvoice.invoice_number}`, 'info');
+                  generateInvoicePDF(selectedInvoice, user);
+                  addToast(`Tax Invoice PDF generated for ${selectedInvoice.invoiceNumber || selectedInvoice.invoice_number}`, 'success');
                   setSelectedInvoice(null);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all shadow-lg shadow-indigo-600/30"
               >
-                <Download className="w-4 h-4" /> Download PDF
+                <Download className="w-4 h-4" /> Download PDF / Print
               </button>
             </div>
           </div>

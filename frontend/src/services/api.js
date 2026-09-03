@@ -10,8 +10,19 @@ async function request(endpoint, options = {}) {
       },
       ...options,
     });
-    const data = await res.json();
-    return data;
+
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      return data;
+    } else {
+      const text = await res.text();
+      console.warn(`Non-JSON API response from ${endpoint}:`, text.substring(0, 200));
+      return { 
+        success: false, 
+        message: res.status === 413 ? 'Company logo image file size is too large' : `Server HTTP Error (${res.status})` 
+      };
+    }
   } catch (err) {
     console.warn(`Backend connection note at ${endpoint}:`, err.message);
     return { success: false, fallback: true, message: err.message };
@@ -19,10 +30,12 @@ async function request(endpoint, options = {}) {
 }
 
 export const api = {
-  // Auth
+  // Auth & OTP
   registerUser: (userData) => request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }),
   loginUser: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
   loginAdmin: (credentials) => request('/auth/admin/login', { method: 'POST', body: JSON.stringify(credentials) }),
+  sendOtp: (data) => request('/auth/send-otp', { method: 'POST', body: JSON.stringify(data) }),
+  verifyOtp: (data) => request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(data) }),
 
   // 1. REGISTRATION ( CUSTOMER )
   getCustomers: () => request('/customers'),

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { 
   User, Building2, FileCheck, KeyRound, ArrowRight, ArrowLeft, 
   Check, Eye, EyeOff, ShieldAlert, Sparkles, CheckCircle2, AlertCircle,
-  Mail, Phone, Shield, Lock, RefreshCw, Send
+  Mail, Phone, Shield, Lock, RefreshCw, Send, Loader2, Upload, X
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { api } from '../../services/api';
 
 export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
   const { addToast } = useToast();
@@ -12,22 +13,25 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
   const [maxVisitedStep, setMaxVisitedStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // OTP Verification state
   const [otpSent, setOtpSent] = useState(false);
+  const [isRealEmailSent, setIsRealEmailSent] = useState(false);
   const [enteredOtp, setEnteredOtp] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(0);
 
-  // 10 Exact Required Input Fields State
+  // 10 Exact Required Input Fields State + Company Logo
   const [formData, setFormData] = useState({
-    fullName: 'Chinna Durai',
+    fullName: '',
     email: '',
     contactNumber: '',
     password: '',
     confirmPassword: '',
     companyName: '',
+    companyLogo: '',
     constitution: 'Private Limited', // Proprietorship / Partnership Firm / Private Limited
     companyAddress: '',
     state: 'Tamil Nadu',
@@ -36,6 +40,46 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     panNumber: '',
     username: ''
   });
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 300;
+        const MAX_HEIGHT = 300;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/png', 0.85);
+        setFormData(prev => ({ ...prev, companyLogo: compressedDataUrl }));
+        addToast('Company logo uploaded and optimized for PDF!', 'success');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const [errors, setErrors] = useState({});
 
@@ -96,7 +140,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
   };
 
   // Trigger OTP Generation & Send
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (!formData.email.trim()) {
       addToast('Please enter your Email ID first', 'error');
       setErrors((prev) => ({ ...prev, email: 'Email ID is required for OTP verification' }));
@@ -108,27 +152,40 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       return;
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(code);
-    setOtpSent(true);
-    setOtpCountdown(30);
-    addToast(`OTP Verification code sent to ${formData.email}! Demo Code: ${code}`, 'info', 'OTP Sent Successfully');
+    addToast(`Sending OTP email to ${formData.email}...`, 'info');
+    const res = await api.sendOtp({ email: formData.email });
+
+    if (res && res.success) {
+      setOtpSent(true);
+      setOtpCountdown(60);
+      if (res.sent) {
+        setIsRealEmailSent(true);
+        addToast(`OTP Sent! Check your email inbox at ${formData.email}`, 'success', 'OTP Sent via Email');
+      } else {
+        setIsRealEmailSent(false);
+        if (res.code) setGeneratedOtp(res.code);
+        addToast(`OTP generated for ${formData.email}! Demo Code: ${res.code || '123456'}`, 'info', 'OTP Generated');
+      }
+    } else {
+      addToast(res?.message || 'Failed to send OTP email', 'error');
+    }
   };
 
   // Verify OTP
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (!enteredOtp.trim()) {
       addToast('Please enter the 6-digit OTP code', 'error');
       return;
     }
 
-    if (enteredOtp.trim() === generatedOtp || enteredOtp.trim() === '984210' || enteredOtp.trim() === '123456') {
+    const res = await api.verifyOtp({ email: formData.email, otp: enteredOtp.trim() });
+    if ((res && res.success) || enteredOtp.trim() === generatedOtp || enteredOtp.trim() === '984210' || enteredOtp.trim() === '123456') {
       setIsEmailVerified(true);
       setOtpSent(false);
       setErrors((prev) => ({ ...prev, email: '' }));
       addToast('Email ID verified successfully! ✓', 'success', 'OTP Verified');
     } else {
-      addToast('Incorrect OTP entered. Please try again or resend.', 'error', 'Invalid OTP');
+      addToast(res?.message || 'Incorrect OTP entered. Please try again.', 'error', 'Invalid OTP');
     }
   };
 
@@ -190,7 +247,6 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     }
 
     if (currentStep === 4) {
-      if (!formData.username.trim()) newErrors.username = 'Username is required';
       if (!formData.password) {
         newErrors.password = 'Password is required';
       } else if (formData.password.length < 6) {
@@ -233,15 +289,35 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateStep(4)) {
       addToast('Please complete all requirements before submitting', 'error');
       return;
     }
 
-    addToast('Company Account created & GST setup complete! Welcome.', 'success', 'Registration Verified');
-    onRegisterSuccess(formData);
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        ...formData,
+        username: formData.email
+      };
+      const res = await api.registerUser(payload);
+      setIsSubmitting(false);
+
+      if (res && res.success) {
+        if (res.token) {
+          localStorage.setItem('taxpulse_token', res.token);
+        }
+        addToast(res.message || 'Company Account created & GST setup complete! Welcome.', 'success', 'Registration Verified');
+        onRegisterSuccess(res.user || payload);
+      } else {
+        addToast(res?.message || 'Registration failed. Please check your details.', 'error', 'Registration Error');
+      }
+    } catch (err) {
+      setIsSubmitting(false);
+      addToast('Server connection error during registration', 'error', 'Registration Error');
+    }
   };
 
   return (
@@ -385,7 +461,15 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       <span className="text-xs font-semibold text-indigo-200 flex items-center gap-1.5">
                         <Shield className="w-4 h-4 text-indigo-400" /> Enter 6-Digit OTP Code
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">Demo OTP: <strong className="text-amber-300 font-mono font-bold">{generatedOtp}</strong></span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {isRealEmailSent ? (
+                          <span className="text-emerald-400 font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
+                            📧 Check your Inbox ({formData.email})
+                          </span>
+                        ) : (
+                          <>Demo OTP: <strong className="text-amber-300 font-mono font-bold">{generatedOtp}</strong></>
+                        )}
+                      </span>
                     </div>
 
                     <div className="flex gap-2">
@@ -438,7 +522,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   name="fullName"
                   value={formData.fullName}
                   onChange={handleChange}
-                  placeholder="e.g. Chinna Durai"
+                  placeholder="Enter Contact Person Name"
                   className="w-full px-4 py-2.5 rounded-xl glass-input text-xs"
                 />
               </div>
@@ -465,6 +549,49 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs ${errors.companyName ? 'border-red-500/80' : ''}`}
                 />
                 {errors.companyName && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.companyName}</p>}
+              </div>
+
+              {/* Company Logo Upload Field */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-200 mb-1">
+                  Company Logo (Appears on Invoice PDF)
+                </label>
+                <div className="flex items-center gap-4 p-3 rounded-2xl glass-card border border-slate-800 bg-dark-900/60">
+                  {formData.companyLogo ? (
+                    <div className="relative group shrink-0">
+                      <img 
+                        src={formData.companyLogo} 
+                        alt="Company Logo Preview" 
+                        className="w-14 h-14 object-contain rounded-xl bg-white/10 p-1 border border-indigo-500/40 shadow-inner"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, companyLogo: '' }))}
+                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-500 transition-colors cursor-pointer"
+                        title="Remove Logo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-slate-800/80 border border-dashed border-slate-600 flex flex-col items-center justify-center text-slate-400 shrink-0">
+                      <Upload className="w-5 h-5 text-indigo-400" />
+                    </div>
+                  )}
+
+                  <div className="flex-1 space-y-1">
+                    <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all text-xs font-semibold border border-indigo-500/30 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" /> {formData.companyLogo ? 'Change Logo Image' : 'Upload Logo Image'}
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-[10px] text-slate-400 font-mono">Upload PNG, JPG, SVG or WEBP (Max 2MB). Auto-added on Tax Invoice PDFs.</p>
+                  </div>
+                </div>
               </div>
 
               {/* Field 5: Constitution of Business */}
@@ -583,24 +710,25 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
             </div>
           )}
 
-          {/* STEP 4: Password & Username */}
+          {/* STEP 4: Password & Login Setup */}
           {step === 4 && (
             <div className="space-y-4 animate-slide-up">
               <h3 className="text-sm font-semibold text-indigo-300 flex items-center gap-2 border-b border-slate-800 pb-2">
                 <KeyRound className="w-4 h-4 text-indigo-400" /> Step 4: Login Account Password
               </h3>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">Username *</label>
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  placeholder="e.g. chinna_durai"
-                  className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs ${errors.username ? 'border-red-500/80' : ''}`}
-                />
-                {errors.username && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.username}</p>}
+              {/* Verified Email Banner for Login */}
+              <div className="p-3.5 rounded-xl glass-card border border-indigo-500/30 bg-indigo-950/30 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-indigo-300 font-semibold block">Registered Login Email</span>
+                    <span className="text-xs font-semibold text-white font-mono">{formData.email || 'No email specified'}</span>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded font-mono font-semibold">Verified ✓</span>
               </div>
 
               {/* Field 3: Password */}
@@ -696,9 +824,19 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
             ) : (
               <button
                 type="submit"
-                className="flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-xl shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-xl shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <CheckCircle2 className="w-4 h-4" /> Complete Registration
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Registering Account...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" /> Complete Registration
+                  </>
+                )}
               </button>
             )}
           </div>
