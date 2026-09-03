@@ -6,10 +6,26 @@ const router = express.Router();
 // GET all invoices
 router.get('/', async (req, res) => {
   try {
+    const { userId } = req.query;
+
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM invoices ORDER BY created_at DESC');
+      let query = 'SELECT * FROM invoices';
+      const params = [];
+
+      if (userId) {
+        query += ' WHERE user_id = ?';
+        params.push(userId);
+      }
+      query += ' ORDER BY created_at DESC';
+
+      const [rows] = await db.query(query, params);
       return res.json({ success: true, data: rows });
+    }
+
+    if (userId) {
+      const filtered = fallbackStore.invoices.filter(i => i.user_id === userId);
+      return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.invoices });
   } catch (error) {
@@ -20,17 +36,19 @@ router.get('/', async (req, res) => {
 // POST Create Tax Invoice
 router.post('/', async (req, res) => {
   try {
-    const { invoiceNumber, customerName, customerGst, date, dueDate, subtotal, cgst, sgst, igst, totalTax, grandTotal, status } = req.body;
+    const { invoiceNumber, customerName, customerGst, date, dueDate, subtotal, cgst, sgst, igst, totalTax, grandTotal, status, userId } = req.body;
 
     if (!customerName || !grandTotal) {
       return res.status(400).json({ success: false, message: 'Customer Name and Total are required' });
     }
 
-    const invId = `INV-${Date.now().toString().slice(-4)}`;
+    const invId = req.body.id || `INV-${Date.now().toString().slice(-4)}`;
     const num = invoiceNumber || `TP-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const effectiveUserId = userId || 'USR-901';
 
     const newInvoice = {
       id: invId,
+      user_id: effectiveUserId,
       invoice_number: num,
       customer_name: customerName,
       customer_gst: customerGst || '33AAACD1234F1Z5',
@@ -48,9 +66,9 @@ router.post('/', async (req, res) => {
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO invoices (id, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [invId, num, customerName, newInvoice.customer_gst, newInvoice.date, newInvoice.due_date, newInvoice.subtotal, newInvoice.cgst, newInvoice.sgst, newInvoice.igst, newInvoice.total_tax, newInvoice.grand_total, newInvoice.status]
+        `INSERT INTO invoices (id, user_id, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [invId, effectiveUserId, num, customerName, newInvoice.customer_gst, newInvoice.date, newInvoice.due_date, newInvoice.subtotal, newInvoice.cgst, newInvoice.sgst, newInvoice.igst, newInvoice.total_tax, newInvoice.grand_total, newInvoice.status]
       );
     } else {
       fallbackStore.invoices.unshift(newInvoice);

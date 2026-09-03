@@ -11,11 +11,12 @@ export const Sidebar = ({
   setActiveTab, 
   onQuickCreateInvoice,
   isMobileOpen,
-  closeMobileSidebar
+  closeMobileSidebar,
+  invoicesCount
 }) => {
   const userNavItems = [
     { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'invoices', label: 'Invoice Hub', icon: FileText, badge: '5' },
+    { id: 'invoices', label: 'Invoice Hub', icon: FileText, badge: invoicesCount !== undefined ? String(invoicesCount) : undefined },
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'services', label: 'Services & Products', icon: ShoppingBag },
     { id: 'payments', label: 'Payments', icon: CreditCard },

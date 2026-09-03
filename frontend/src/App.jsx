@@ -9,6 +9,7 @@ import { AdminLogin } from './components/auth/AdminLogin';
 import { UserDashboard } from './components/dashboard/UserDashboard';
 import { AdminDashboard } from './components/dashboard/AdminDashboard';
 import { QuickCreateInvoiceModal } from './components/dashboard/QuickCreateInvoiceModal';
+import { api } from './services/api';
 
 import { 
   initialUserData, 
@@ -22,7 +23,21 @@ import {
 } from './data/mockData';
 
 function AppContent() {
-  const [currentView, setCurrentViewInternal] = useState('landing');
+  // Restore logged-in user from localStorage on refresh
+  const [savedUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('taxpulse_active_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [currentView, setCurrentViewInternal] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) return hash;
+    return savedUser ? 'user-dashboard' : 'landing';
+  });
   
   // Dashboard Sub-tabs
   const [userActiveTab, setUserActiveTab] = useState('overview');
@@ -34,15 +49,13 @@ function AppContent() {
   // Quick Create Invoice Modal state
   const [isQuickInvoiceOpen, setIsQuickInvoiceOpen] = useState(false);
 
-  // App Master Data States (start with mock data; replaced by MySQL data on fetch)
-  const [userData, setUserData] = useState(initialUserData);
-  const [customers, setCustomers] = useState(initialCustomers);
-  const [products, setProducts] = useState(initialProductsServices);
-  const [invoices, setInvoices] = useState(initialInvoices);
+  // App Master Data States - start clean and empty for new authenticated users
+  const [userData, setUserData] = useState(() => savedUser || initialUserData);
+  const [customers, setCustomers] = useState(() => savedUser ? [] : initialCustomers);
+  const [products, setProducts] = useState(() => savedUser ? [] : initialProductsServices);
+  const [invoices, setInvoices] = useState(() => savedUser ? [] : initialInvoices);
   const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
-
-  // Bank accounts lifted to App level so MySQL data is fetched centrally
-  const [bankAccounts, setBankAccounts] = useState([
+  const [bankAccounts, setBankAccounts] = useState(() => savedUser ? [] : [
     { id: 'BANK-001', bankType: 'Bank Account', accountName: 'Durai Tax Advisory Operating A/C', accountNumber: '50100234901234', bankName: 'HDFC Bank Ltd', ifscCode: 'HDFC0001234', address: 'Anna Salai, Chennai Branch', balance: 450000, status: 'Active' },
     { id: 'BANK-002', bankType: 'Bank Account', accountName: 'Durai Tax Collection Reserve', accountNumber: '000405012345', bankName: 'ICICI Bank Ltd', ifscCode: 'ICIC0000004', address: 'Nungambakkam, Chennai Branch', balance: 280000, status: 'Active' },
     { id: 'BANK-003', bankType: 'Cash in Hand', accountName: 'Main Petty Cash Ledger', accountNumber: 'CASH-LEDGER-01', bankName: 'Cash Chest', ifscCode: 'N/A', address: 'Office Safe', balance: 35000, status: 'Active' }
@@ -51,6 +64,7 @@ function AppContent() {
   // ─── Normalise helpers (MySQL snake_case → camelCase) ─────────────────────
   const normaliseCustomer = (c) => ({
     id: c.id,
+    userId: c.user_id || c.userId,
     name: c.name,
     ledger: c.ledger || 'SUNDRY DEBTORS',
     address: c.address || '',
@@ -66,6 +80,7 @@ function AppContent() {
 
   const normaliseBank = (b) => ({
     id: b.id,
+    userId: b.user_id || b.userId,
     bankType: b.bank_type || b.bankType || 'Bank Account',
     accountName: b.account_name || b.accountName || '',
     accountNumber: b.account_number || b.accountNumber || '',
@@ -78,6 +93,7 @@ function AppContent() {
 
   const normaliseProduct = (p) => ({
     id: p.id,
+    userId: p.user_id || p.userId,
     title: p.title,
     unit: p.unit || 'Pices',
     hsnSac: p.hsn_sac || p.hsnSac || '',
@@ -89,6 +105,7 @@ function AppContent() {
 
   const normaliseInvoice = (inv) => ({
     id: inv.id,
+    userId: inv.user_id || inv.userId,
     invoiceNumber: inv.invoice_number || inv.invoiceNumber || '',
     customerName: inv.customer_name || inv.customerName || '',
     customerGst: inv.customer_gst || inv.customerGst || '',
@@ -104,39 +121,44 @@ function AppContent() {
     items: inv.items || [],
   });
 
-  // ─── Fetch live data from MySQL on mount ───────────────────────────────────
+  // ─── Fetch live data from MySQL for the active user ───────────────────────
+  const fetchUserData = useCallback(async (activeUserId) => {
+    if (!activeUserId) {
+      setCustomers([]);
+      setBankAccounts([]);
+      setProducts([]);
+      setInvoices([]);
+      return;
+    }
+
+    try {
+      const [custRes, bankRes, prodRes, invRes] = await Promise.all([
+        api.getCustomers(activeUserId),
+        api.getBankAccounts(activeUserId),
+        api.getProducts(activeUserId),
+        api.getInvoices(activeUserId)
+      ]);
+
+      setCustomers(custRes?.success && custRes.data ? custRes.data.map(normaliseCustomer) : []);
+      setBankAccounts(bankRes?.success && bankRes.data ? bankRes.data.map(normaliseBank) : []);
+      setProducts(prodRes?.success && prodRes.data ? prodRes.data.map(normaliseProduct) : []);
+      setInvoices(invRes?.success && invRes.data ? invRes.data.map(normaliseInvoice) : []);
+    } catch (err) {
+      console.warn('Backend connection note:', err.message);
+    }
+  }, []);
+
+  // Fetch on mount or user change
   useEffect(() => {
-    const API = 'http://localhost:5000/api';
-
-    const fetchAll = async () => {
-      try {
-        const [custRes, bankRes, prodRes, invRes] = await Promise.all([
-          fetch(`${API}/customers`).then(r => r.json()).catch(() => null),
-          fetch(`${API}/bank-accounts`).then(r => r.json()).catch(() => null),
-          fetch(`${API}/products`).then(r => r.json()).catch(() => null),
-          fetch(`${API}/invoices`).then(r => r.json()).catch(() => null),
-        ]);
-
-        if (custRes?.success && custRes.data?.length > 0) {
-          setCustomers(custRes.data.map(normaliseCustomer));
-        }
-        if (bankRes?.success && bankRes.data?.length > 0) {
-          setBankAccounts(bankRes.data.map(normaliseBank));
-        }
-        if (prodRes?.success && prodRes.data?.length > 0) {
-          setProducts(prodRes.data.map(normaliseProduct));
-        }
-        if (invRes?.success && invRes.data?.length > 0) {
-          setInvoices(invRes.data.map(normaliseInvoice));
-        }
-      } catch (err) {
-        // Backend not reachable – keep mock data shown
-        console.warn('Backend not reachable, using mock data:', err.message);
-      }
-    };
-
-    fetchAll();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (userData?.id) {
+      fetchUserData(userData.id);
+    } else {
+      setCustomers([]);
+      setBankAccounts([]);
+      setProducts([]);
+      setInvoices([]);
+    }
+  }, [userData?.id, fetchUserData]);
 
   // Synchronized view setter with browser history pushState
   const setCurrentView = useCallback((newView, isBackAction = false) => {
@@ -148,7 +170,8 @@ function AppContent() {
 
   // Initialize history state and popstate listener
   useEffect(() => {
-    window.history.replaceState({ view: 'landing' }, '', '#landing');
+    const initialV = savedUser ? 'user-dashboard' : 'landing';
+    window.history.replaceState({ view: initialV }, '', `#${initialV}`);
 
     const handlePopState = (e) => {
       if (e.state && e.state.view) {
@@ -158,32 +181,69 @@ function AppContent() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [savedUser]);
 
-  // Auth success handlers
+  // Auth success handlers (Login / Registration)
   const handleAuthSuccess = (loggedInUser) => {
     if (loggedInUser) {
-      setUserData((prev) => ({
-        ...prev,
-        ...loggedInUser,
-        fullName: loggedInUser.fullName || loggedInUser.full_name || prev.fullName,
-        companyName: loggedInUser.companyName || loggedInUser.company_name || prev.companyName,
-        gstNumber: loggedInUser.gstNumber || loggedInUser.gst_number || prev.gstNumber,
-        panNumber: loggedInUser.panNumber || loggedInUser.pan_number || prev.panNumber,
-        email: loggedInUser.email || prev.email,
-        contactNumber: loggedInUser.contactNumber || loggedInUser.contact_number || prev.contactNumber,
-        companyLogo: loggedInUser.companyLogo || loggedInUser.company_logo || prev.companyLogo || null
-      }));
+      // Clear any prior session data immediately
+      setCustomers([]);
+      setBankAccounts([]);
+      setProducts([]);
+      setInvoices([]);
+
+      const completeUser = {
+        id: loggedInUser.id || `USR-${Date.now()}`,
+        fullName: loggedInUser.fullName || loggedInUser.full_name || 'Business User',
+        companyName: loggedInUser.companyName || loggedInUser.company_name || 'My Enterprise',
+        gstNumber: loggedInUser.gstNumber || loggedInUser.gst_number || '',
+        panNumber: loggedInUser.panNumber || loggedInUser.pan_number || '',
+        email: loggedInUser.email || '',
+        contactNumber: loggedInUser.contactNumber || loggedInUser.contact_number || '',
+        companyAddress: loggedInUser.companyAddress || loggedInUser.company_address || '',
+        state: loggedInUser.state || 'Tamil Nadu',
+        constitution: loggedInUser.constitution || 'Private Limited',
+        companyLogo: loggedInUser.companyLogo || loggedInUser.company_logo || null
+      };
+
+      try {
+        localStorage.setItem('taxpulse_active_user', JSON.stringify(completeUser));
+      } catch (e) {}
+
+      setUserData(completeUser);
+      fetchUserData(completeUser.id);
     }
     setCurrentView('user-dashboard');
   };
 
   // Save Quick Invoice handler
-  const handleSaveInvoice = (newInvoice) => {
-    setInvoices([newInvoice, ...invoices]);
+  const handleSaveInvoice = async (newInvoice) => {
+    const invoiceWithUser = {
+      ...newInvoice,
+      userId: userData?.id || 'USR-901'
+    };
+
+    // Optimistically update frontend state
+    setInvoices([invoiceWithUser, ...invoices]);
+
+    // Persist to MySQL backend
+    try {
+      await api.createInvoice(invoiceWithUser);
+    } catch (err) {
+      console.warn('Could not persist invoice to backend:', err);
+    }
   };
 
   const handleLogout = () => {
+    try {
+      localStorage.removeItem('taxpulse_active_user');
+      localStorage.removeItem('taxpulse_token');
+    } catch (e) {}
+    setUserData(null);
+    setCustomers([]);
+    setBankAccounts([]);
+    setProducts([]);
+    setInvoices([]);
     setCurrentView('landing');
   };
 
@@ -212,6 +272,7 @@ function AppContent() {
               onQuickCreateInvoice={() => setIsQuickInvoiceOpen(true)}
               isMobileOpen={isMobileSidebarOpen}
               closeMobileSidebar={() => setIsMobileSidebarOpen(false)}
+              invoicesCount={invoices.length}
             />
             <main className="flex-1 min-w-0 bg-dark-950 overflow-y-auto">
               <UserDashboard 
@@ -253,7 +314,6 @@ function AppContent() {
                 activityLogs={adminActivityLogs}
                 monthlyRevenueData={monthlyRevenueData}
                 user={userData}
-                invoices={invoices}
               />
             </main>
           </>

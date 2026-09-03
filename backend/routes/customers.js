@@ -6,10 +6,26 @@ const router = express.Router();
 // GET all registered customers
 router.get('/', async (req, res) => {
   try {
+    const { userId } = req.query;
+
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM customers ORDER BY created_at DESC');
+      let query = 'SELECT * FROM customers';
+      const params = [];
+
+      if (userId) {
+        query += ' WHERE user_id = ?';
+        params.push(userId);
+      }
+      query += ' ORDER BY created_at DESC';
+
+      const [rows] = await db.query(query, params);
       return res.json({ success: true, data: rows });
+    }
+
+    if (userId) {
+      const filtered = fallbackStore.customers.filter(c => c.user_id === userId);
+      return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.customers });
   } catch (error) {
@@ -20,16 +36,18 @@ router.get('/', async (req, res) => {
 // POST REGISTRATION ( CUSTOMER )
 router.post('/', async (req, res) => {
   try {
-    const { name, ledger, address, gstNumber, panNumber, mobile, email, city, state } = req.body;
+    const { name, ledger, address, gstNumber, panNumber, mobile, email, city, state, userId } = req.body;
 
     if (!name || !gstNumber) {
       return res.status(400).json({ success: false, message: 'NAME and GST NO are required for customer registration' });
     }
 
-    const custId = `CUST-${Date.now().toString().slice(-4)}`;
+    const custId = req.body.id || `CUST-${Date.now().toString().slice(-4)}`;
+    const effectiveUserId = userId || 'USR-901';
 
     const newCustomer = {
       id: custId,
+      user_id: effectiveUserId,
       name,
       ledger: ledger || 'SUNDRY DEBTORS',
       address: address || '',
@@ -46,9 +64,9 @@ router.post('/', async (req, res) => {
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO customers (id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [custId, name, newCustomer.ledger, address, gstNumber, newCustomer.pan_number, mobile, email, newCustomer.city, newCustomer.state, 0, 'Active']
+        `INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [custId, effectiveUserId, name, newCustomer.ledger, address, gstNumber, newCustomer.pan_number, mobile, email, newCustomer.city, newCustomer.state, 0, 'Active']
       );
     } else {
       fallbackStore.customers.unshift(newCustomer);

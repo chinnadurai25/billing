@@ -6,10 +6,26 @@ const router = express.Router();
 // GET all sales & service items
 router.get('/', async (req, res) => {
   try {
+    const { userId } = req.query;
+
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM products_services ORDER BY created_at DESC');
+      let query = 'SELECT * FROM products_services';
+      const params = [];
+
+      if (userId) {
+        query += ' WHERE user_id = ?';
+        params.push(userId);
+      }
+      query += ' ORDER BY created_at DESC';
+
+      const [rows] = await db.query(query, params);
       return res.json({ success: true, data: rows });
+    }
+
+    if (userId) {
+      const filtered = fallbackStore.productsServices.filter(p => p.user_id === userId);
+      return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.productsServices });
   } catch (error) {
@@ -20,16 +36,18 @@ router.get('/', async (req, res) => {
 // POST REGISTRATION ( SALES / SERVICES )
 router.post('/', async (req, res) => {
   try {
-    const { title, unit, hsnSac, openingStock, rate, taxPercent, category } = req.body;
+    const { title, unit, hsnSac, openingStock, rate, taxPercent, category, userId } = req.body;
 
     if (!title || !hsnSac) {
       return res.status(400).json({ success: false, message: 'NAME OF THE ITEM and HSN CODE are required' });
     }
 
-    const prodId = `SRV-${Date.now().toString().slice(-4)}`;
+    const prodId = req.body.id || `SRV-${Date.now().toString().slice(-4)}`;
+    const effectiveUserId = userId || 'USR-901';
 
     const newItem = {
       id: prodId,
+      user_id: effectiveUserId,
       title,
       unit: unit || 'Pices',
       hsn_sac: hsnSac,
@@ -42,9 +60,9 @@ router.post('/', async (req, res) => {
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO products_services (id, title, unit, hsn_sac, opening_stock, rate, tax_percent, category)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [prodId, title, newItem.unit, hsnSac, newItem.opening_stock, newItem.rate, newItem.tax_percent, newItem.category]
+        `INSERT INTO products_services (id, user_id, title, unit, hsn_sac, opening_stock, rate, tax_percent, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [prodId, effectiveUserId, title, newItem.unit, hsnSac, newItem.opening_stock, newItem.rate, newItem.tax_percent, newItem.category]
       );
     } else {
       fallbackStore.productsServices.unshift(newItem);

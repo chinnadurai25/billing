@@ -6,10 +6,26 @@ const router = express.Router();
 // GET all registered bank & cash accounts
 router.get('/', async (req, res) => {
   try {
+    const { userId } = req.query;
+
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM bank_accounts ORDER BY created_at DESC');
+      let query = 'SELECT * FROM bank_accounts';
+      const params = [];
+
+      if (userId) {
+        query += ' WHERE user_id = ?';
+        params.push(userId);
+      }
+      query += ' ORDER BY created_at DESC';
+
+      const [rows] = await db.query(query, params);
       return res.json({ success: true, data: rows });
+    }
+
+    if (userId) {
+      const filtered = fallbackStore.bankAccounts.filter(b => b.user_id === userId);
+      return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.bankAccounts });
   } catch (error) {
@@ -20,32 +36,34 @@ router.get('/', async (req, res) => {
 // POST REGISTRATION ( BANK / CASH )
 router.post('/', async (req, res) => {
   try {
-    const { bankType, accountName, accountNumber, bankName, ifscCode, address } = req.body;
+    const { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, userId } = req.body;
 
     if (!accountName || !accountNumber) {
       return res.status(400).json({ success: false, message: 'NAME OF ACCOUNT and ACCOUNT NUMBER are required' });
     }
 
-    const bankId = `BANK-${Date.now().toString().slice(-4)}`;
+    const bankId = req.body.id || `BANK-${Date.now().toString().slice(-4)}`;
+    const effectiveUserId = userId || 'USR-901';
 
     const newBank = {
       id: bankId,
+      user_id: effectiveUserId,
       bank_type: bankType || 'Bank Account',
       account_name: accountName,
       account_number: accountNumber,
       bank_name: bankName || 'HDFC Bank Ltd',
       ifsc_code: ifscCode || 'HDFC0001234',
       address: address || '',
-      balance: 150000.00,
+      balance: parseFloat(balance) || 150000.00,
       status: 'Active'
     };
 
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO bank_accounts (id, bank_type, account_name, account_number, bank_name, ifsc_code, address, balance, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [bankId, newBank.bank_type, accountName, accountNumber, newBank.bank_name, newBank.ifsc_code, address, 150000.00, 'Active']
+        `INSERT INTO bank_accounts (id, user_id, bank_type, account_name, account_number, bank_name, ifsc_code, address, balance, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [bankId, effectiveUserId, newBank.bank_type, accountName, accountNumber, newBank.bank_name, newBank.ifsc_code, address, newBank.balance, 'Active']
       );
     } else {
       fallbackStore.bankAccounts.unshift(newBank);

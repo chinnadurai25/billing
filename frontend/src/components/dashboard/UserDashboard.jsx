@@ -29,6 +29,7 @@ export const UserDashboard = ({
   onQuickCreateInvoice,
   user
 }) => {
+  const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [bankSearchQuery, setBankSearchQuery] = useState('');
@@ -200,17 +201,26 @@ export const UserDashboard = ({
       };
 
       setCustomers([newCustomer, ...customers]);
-      api.registerCustomer({
-        name: custForm.name,
-        ledger: custForm.ledger,
-        address: custForm.address,
-        gstNumber: custForm.gstNo,
-        panNumber: custForm.pan,
-        mobile: custForm.mobile,
-        email: custForm.email,
-        city: custForm.city,
-        state: custForm.state
-      });
+      try {
+        const res = await api.registerCustomer({
+          id: custId,
+          name: custForm.name,
+          ledger: custForm.ledger,
+          address: custForm.address,
+          gstNumber: custForm.gstNo,
+          panNumber: custForm.pan,
+          mobile: custForm.mobile,
+          email: custForm.email,
+          city: custForm.city,
+          state: custForm.state,
+          userId: user?.id || 'USR-901'
+        });
+        if (res && res.customer && res.customer.id && res.customer.id !== custId) {
+          setCustomers((prev) => prev.map((c) => c.id === custId ? { ...c, id: res.customer.id } : c));
+        }
+      } catch (err) {
+        console.error('Error saving customer to backend:', err);
+      }
 
       addToast(`REGISTRATION (CUSTOMER) complete for ${custForm.name}!`, 'success', 'Customer Registered');
     }
@@ -312,14 +322,24 @@ export const UserDashboard = ({
       };
 
       setBankAccounts([newBank, ...bankAccounts]);
-      api.registerBankCash({
-        bankType: bankForm.bankType,
-        accountName: bankForm.accountName,
-        accountNumber: bankForm.accountNumber,
-        bankName: bankForm.bankName,
-        ifscCode: bankForm.ifscCode,
-        address: bankForm.address
-      });
+      try {
+        const res = await api.registerBankCash({
+          id: bankId,
+          bankType: bankForm.bankType,
+          accountName: bankForm.accountName,
+          accountNumber: bankForm.accountNumber,
+          bankName: bankForm.bankName,
+          ifscCode: bankForm.ifscCode,
+          address: bankForm.address,
+          balance: parseFloat(bankForm.balance) || 150000,
+          userId: user?.id || 'USR-901'
+        });
+        if (res && res.bankAccount && res.bankAccount.id && res.bankAccount.id !== bankId) {
+          setBankAccounts((prev) => prev.map((b) => b.id === bankId ? { ...b, id: res.bankAccount.id } : b));
+        }
+      } catch (err) {
+        console.error('Error saving bank account to backend:', err);
+      }
 
       addToast(`REGISTRATION (BANK / CASH) complete for ${bankForm.accountName}!`, 'success', 'Bank Account Registered');
     }
@@ -420,15 +440,24 @@ export const UserDashboard = ({
       };
 
       setProducts([newItem, ...products]);
-      api.registerSalesService({
-        title: itemForm.itemName,
-        unit: itemForm.unit,
-        hsnSac: itemForm.hsnCode,
-        openingStock: parseInt(itemForm.openingStock) || 0,
-        rate: parseFloat(itemForm.rate) || 12500,
-        taxPercent: parseFloat(itemForm.taxPercent) || 18,
-        category: itemForm.category
-      });
+      try {
+        const res = await api.registerSalesService({
+          id: itemId,
+          title: itemForm.itemName,
+          unit: itemForm.unit,
+          hsnSac: itemForm.hsnCode,
+          openingStock: parseInt(itemForm.openingStock) || 0,
+          rate: parseFloat(itemForm.rate) || 12500,
+          taxPercent: parseFloat(itemForm.taxPercent) || 18,
+          category: itemForm.category,
+          userId: user?.id || 'USR-901'
+        });
+        if (res && res.product && res.product.id && res.product.id !== itemId) {
+          setProducts((prev) => prev.map((p) => p.id === itemId ? { ...p, id: res.product.id } : p));
+        }
+      } catch (err) {
+        console.error('Error saving item to backend:', err);
+      }
 
       addToast(`REGISTRATION (SALES / SERVICES) complete for ${itemForm.itemName}!`, 'success', 'Item Registered');
     }
@@ -778,10 +807,14 @@ export const UserDashboard = ({
                           </td>
                           <td className="py-3 px-3 text-right whitespace-nowrap">
                             <button
-                              onClick={() => setSelectedInvoice(inv)}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all text-[11px] font-semibold cursor-pointer border border-indigo-500/30"
+                              onClick={() => {
+                                generateInvoicePDF(inv, user);
+                                addToast(`Downloading Tax Invoice ${inv.invoiceNumber || inv.invoice_number}...`, 'success');
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all text-xs font-semibold cursor-pointer border border-indigo-500/30"
+                              title="Download PDF"
                             >
-                              View
+                              <Download className="w-3.5 h-3.5" /> Download
                             </button>
                           </td>
                         </tr>
@@ -991,11 +1024,14 @@ export const UserDashboard = ({
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
-                                onClick={() => setSelectedInvoice(inv)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all border border-indigo-500/30 text-[11px] font-semibold cursor-pointer"
-                                title="View Invoice Details"
+                                onClick={() => {
+                                  generateInvoicePDF(inv, user);
+                                  addToast(`Tax Invoice PDF downloaded for ${inv.invoiceNumber || inv.invoice_number}`, 'success', 'PDF Generated');
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-[11px] shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+                                title="Download Tax Invoice PDF"
                               >
-                                <Eye className="w-3 h-3" /> View
+                                <Download className="w-3 h-3" /> Download
                               </button>
                               {inv.status !== 'Paid' && (
                                 <button
@@ -2194,8 +2230,15 @@ export const UserDashboard = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (deleteModal.onConfirm) deleteModal.onConfirm();
+                  const action = deleteModal.onConfirm;
                   setDeleteModal({ isOpen: false, title: '', message: '', onConfirm: null });
+                  if (typeof action === 'function') {
+                    try {
+                      action();
+                    } catch (err) {
+                      console.error('Error executing delete action:', err);
+                    }
+                  }
                 }}
                 className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all cursor-pointer"
               >

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Plus, Trash2, Receipt, Calculator, CheckCircle2, 
   FileText, Building, ArrowRight, RefreshCw
@@ -13,14 +13,14 @@ const generateRandomInvoiceNumber = () => {
 export const QuickCreateInvoiceModal = ({ 
   isOpen, 
   onClose, 
-  customers, 
-  products, 
+  customers = [], 
+  products = [], 
   onSaveInvoice 
 }) => {
   const { addToast } = useToast();
 
-  const [customerName, setCustomerName] = useState(customers[0]?.name || '');
-  const [customerGst, setCustomerGst] = useState(customers[0]?.gstNumber || '');
+  const [customerName, setCustomerName] = useState('');
+  const [customerGst, setCustomerGst] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState(generateRandomInvoiceNumber());
   const [invoiceDate, setInvoiceDate] = useState('2026-08-26');
   const [taxType, setTaxType] = useState('intrastate'); // 'intrastate' (CGST+SGST) or 'interstate' (IGST)
@@ -28,14 +28,54 @@ export const QuickCreateInvoiceModal = ({
 
   const [items, setItems] = useState([
     {
-      description: products[0]?.title || 'GSTR Monthly Tax Filing',
-      hsnSac: products[0]?.hsnSac || '998222',
+      description: 'GSTR Monthly Tax Filing',
+      hsnSac: '998222',
       quantity: 1,
-      unitPrice: products[0]?.rate || 12500,
+      unitPrice: 12500,
       taxPercent: 18,
-      amount: products[0]?.rate || 12500
+      amount: 12500
     }
   ]);
+
+  // Synchronize customer & product selections whenever modal opens or master lists update
+  useEffect(() => {
+    if (isOpen) {
+      setInvoiceNumber(generateRandomInvoiceNumber());
+
+      if (customers && customers.length > 0) {
+        const found = customers.find(c => c.name === customerName);
+        if (!found) {
+          setCustomerName(customers[0].name);
+          setCustomerGst(customers[0].gstNumber || customers[0].gst_number || '');
+        } else {
+          setCustomerGst(found.gstNumber || found.gst_number || '');
+        }
+      } else {
+        setCustomerName('');
+        setCustomerGst('');
+      }
+
+      if (products && products.length > 0) {
+        setItems((prevItems) => {
+          if (prevItems.length === 0) return prevItems;
+          const first = prevItems[0];
+          const prodFound = products.find(p => p.title === first.description);
+          if (!prodFound) {
+            const p0 = products[0];
+            return [{
+              description: p0.title,
+              hsnSac: p0.hsnSac || p0.hsn_sac || '998222',
+              quantity: first.quantity || 1,
+              unitPrice: p0.rate || 12500,
+              taxPercent: p0.taxPercent || p0.tax_percent || 18,
+              amount: (first.quantity || 1) * (p0.rate || 12500)
+            }, ...prevItems.slice(1)];
+          }
+          return prevItems;
+        });
+      }
+    }
+  }, [isOpen, customers, products]);
 
   if (!isOpen) return null;
 
@@ -44,7 +84,7 @@ export const QuickCreateInvoiceModal = ({
     setCustomerName(selectedName);
     const found = customers.find(c => c.name === selectedName);
     if (found) {
-      setCustomerGst(found.gstNumber);
+      setCustomerGst(found.gstNumber || found.gst_number || '');
     }
   };
 
@@ -105,8 +145,16 @@ export const QuickCreateInvoiceModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!customerName) {
-      addToast('Please select or enter customer name', 'error');
+    let effectiveCustName = customerName;
+    let effectiveCustGst = customerGst;
+
+    if (!effectiveCustName && customers && customers.length > 0) {
+      effectiveCustName = customers[0].name;
+      effectiveCustGst = customers[0].gstNumber || customers[0].gst_number || '';
+    }
+
+    if (!effectiveCustName) {
+      addToast('Please select or register a customer first', 'error');
       return;
     }
 
@@ -115,8 +163,8 @@ export const QuickCreateInvoiceModal = ({
     const newInvoice = {
       id: `INV-${Date.now()}`,
       invoiceNumber: finalInvNumber,
-      customerName,
-      customerGst: customerGst || '33AAACD9999F1Z0',
+      customerName: effectiveCustName,
+      customerGst: effectiveCustGst || '33AAACD9999F1Z0',
       date: invoiceDate,
       subtotal,
       cgst,

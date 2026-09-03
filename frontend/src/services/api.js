@@ -40,25 +40,25 @@ export const api = {
   verifyOtp: (data) => request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(data) }),
 
   // 1. REGISTRATION ( CUSTOMER )
-  getCustomers: () => request('/customers'),
+  getCustomers: (userId) => request(`/customers${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
   registerCustomer: (custData) => request('/customers', { method: 'POST', body: JSON.stringify(custData) }),
   updateCustomer: (id, custData) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(custData) }),
   deleteCustomer: (id) => request(`/customers/${id}`, { method: 'DELETE' }),
 
   // 2. REGISTRATION ( BANK / CASH )
-  getBankAccounts: () => request('/bank-accounts'),
+  getBankAccounts: (userId) => request(`/bank-accounts${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
   registerBankCash: (bankData) => request('/bank-accounts', { method: 'POST', body: JSON.stringify(bankData) }),
   updateBankAccount: (id, bankData) => request(`/bank-accounts/${id}`, { method: 'PUT', body: JSON.stringify(bankData) }),
   deleteBankAccount: (id) => request(`/bank-accounts/${id}`, { method: 'DELETE' }),
 
   // 3. REGISTRATION ( SALES / SERVICES )
-  getProducts: () => request('/products'),
+  getProducts: (userId) => request(`/products${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
   registerSalesService: (itemData) => request('/products', { method: 'POST', body: JSON.stringify(itemData) }),
   updateProduct: (id, itemData) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(itemData) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
 
   // Invoices
-  getInvoices: () => request('/invoices'),
+  getInvoices: (userId) => request(`/invoices${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
   createInvoice: (invoiceData) => request('/invoices', { method: 'POST', body: JSON.stringify(invoiceData) }),
   updateInvoice: (id, invoiceData) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoiceData) }),
   deleteInvoice: (id) => request(`/invoices/${id}`, { method: 'DELETE' }),
