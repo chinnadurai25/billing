@@ -88,25 +88,55 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, customerName, grandTotal } = req.body;
+    const { 
+      status, customerName, customer_name, customerGst, customer_gst,
+      date, dueDate, due_date, subtotal, cgst, sgst, igst, totalTax, total_tax,
+      grandTotal, grand_total, items 
+    } = req.body;
+
+    const cName = customerName || customer_name;
+    const cGst = customerGst || customer_gst;
+    const dDate = dueDate || due_date;
+    const tTax = totalTax !== undefined ? totalTax : total_tax;
+    const gTotal = grandTotal !== undefined ? grandTotal : grand_total;
+    const itemsJson = items ? JSON.stringify(items) : null;
 
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `UPDATE invoices SET status = COALESCE(?, status), customer_name = COALESCE(?, customer_name), grand_total = COALESCE(?, grand_total)
+        `UPDATE invoices SET 
+          status = COALESCE(?, status), 
+          customer_name = COALESCE(?, customer_name), 
+          customer_gst = COALESCE(?, customer_gst),
+          date = COALESCE(?, date),
+          due_date = COALESCE(?, due_date),
+          subtotal = COALESCE(?, subtotal),
+          cgst = COALESCE(?, cgst),
+          sgst = COALESCE(?, sgst),
+          igst = COALESCE(?, igst),
+          total_tax = COALESCE(?, total_tax),
+          grand_total = COALESCE(?, grand_total),
+          items = COALESCE(?, items)
          WHERE id = ?`,
-        [status, customerName, grandTotal, id]
+        [status, cName, cGst, date, dDate, subtotal, cgst, sgst, igst, tTax, gTotal, itemsJson, id]
       );
     } else {
       const idx = fallbackStore.invoices.findIndex(i => i.id === id);
       if (idx !== -1) {
         fallbackStore.invoices[idx] = {
           ...fallbackStore.invoices[idx],
-          status: status || fallbackStore.invoices[idx].status,
-          customer_name: customerName || fallbackStore.invoices[idx].customer_name,
-          customerName: customerName || fallbackStore.invoices[idx].customerName,
-          grand_total: grandTotal !== undefined ? grandTotal : fallbackStore.invoices[idx].grand_total,
-          grandTotal: grandTotal !== undefined ? grandTotal : fallbackStore.invoices[idx].grandTotal
+          ...(status && { status }),
+          ...(cName && { customerName: cName, customer_name: cName }),
+          ...(cGst && { customerGst: cGst, customer_gst: cGst }),
+          ...(date && { date }),
+          ...(dDate && { dueDate: dDate, due_date: dDate }),
+          ...(subtotal !== undefined && { subtotal }),
+          ...(cgst !== undefined && { cgst }),
+          ...(sgst !== undefined && { sgst }),
+          ...(igst !== undefined && { igst }),
+          ...(tTax !== undefined && { totalTax: tTax, total_tax: tTax }),
+          ...(gTotal !== undefined && { grandTotal: gTotal, grand_total: gTotal }),
+          ...(items && { items })
         };
       }
     }

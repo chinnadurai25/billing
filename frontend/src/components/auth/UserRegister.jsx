@@ -313,7 +313,8 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
       if (res && res.success) {
         if (res.token) {
-          localStorage.setItem('taxpulse_token', res.token);
+          localStorage.setItem('billson_token', res.token);
+          localStorage.removeItem('taxpulse_token');
         }
         addToast(res.message || 'Company Account created & GST setup complete! Welcome.', 'success', 'Registration Verified');
         onRegisterSuccess(res.user || payload);

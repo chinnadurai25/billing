@@ -1,7 +1,7 @@
 export const initialUserData = {
   fullName: "Chinna Durai",
   contactNumber: "+91 98765 43210",
-  email: "chinna.durai@taxpulse.io",
+  email: "chinna.durai@billson.io",
   companyName: "Durai Tax Advisory & Financials Ltd",
   companyAddress: "Suite 402, Quantum Tech Tower, Inner Ring Road",
   city: "Chennai",
@@ -128,7 +128,7 @@ export const initialInvoices = [
 ];
 
 export const initialAdminUsers = [
-  { id: "USR-901", name: "Chinna Durai", company: "Durai Tax Advisory", email: "chinna.durai@taxpulse.io", role: "Super Admin / User", plan: "Enterprise Pro", status: "Active", gst: "33AAACD1234F1Z5", registeredDate: "2026-01-15" },
+  { id: "USR-901", name: "Chinna Durai", company: "Durai Tax Advisory", email: "chinna.durai@billson.io", role: "Super Admin / User", plan: "Enterprise Pro", status: "Active", gst: "33AAACD1234F1Z5", registeredDate: "2026-01-15" },
   { id: "USR-902", name: "Ananya Sharma", company: "KPMG Advisory India", email: "ananya.s@kpmg-demo.in", role: "Tax Consultant", plan: "Pro SaaS", status: "Active", gst: "27AABCK9911X1Z0", registeredDate: "2026-03-22" },
   { id: "USR-903", name: "Vikram Singhania", company: "Singhania & Co Audit", email: "vikram@singhania-tax.com", role: "Tax Consultant", plan: "Pro SaaS", status: "Active", gst: "07AAACV7744G1Z2", registeredDate: "2026-04-10" },
   { id: "USR-904", name: "Priya Nair", company: "Nair Financial Group", email: "priya@nairfin.org", role: "User", plan: "Starter", status: "Pending Audit", gst: "32AAACN5522H1Z6", registeredDate: "2026-06-05" },

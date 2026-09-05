@@ -13,7 +13,7 @@ export const fallbackStore = {
     {
       id: 'USR-001',
       fullName: 'Chinna Durai',
-      email: 'chinna.durai@taxpulse.io',
+      email: 'chinna.durai@billson.io',
       contactNumber: '+91 98765 43210',
       companyName: 'Durai Tax Advisory & Financials Ltd',
       constitution: 'Private Limited',
@@ -177,7 +177,7 @@ export const initDB = async () => {
       await connection.query(
         `INSERT IGNORE INTO users (id, full_name, email, contact_number, company_name, constitution, company_address, state, gst_number, registration_type, pan_number, username, password_hash)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ['USR-901', 'Chinna Durai', 'chinna.durai@taxpulse.io', '+91 98765 43210', 'Durai Tax Advisory & Financials Ltd', 'Private Limited', 'Suite 402, Quantum Tech Tower, Inner Ring Road', 'Tamil Nadu', '33AAACD1234F1Z5', 'Regular', 'AAACD1234F', 'chinna_durai', defaultPassHash]
+        ['USR-901', 'Chinna Durai', 'chinna.durai@billson.io', '+91 98765 43210', 'Durai Tax Advisory & Financials Ltd', 'Private Limited', 'Suite 402, Quantum Tech Tower, Inner Ring Road', 'Tamil Nadu', '33AAACD1234F1Z5', 'Regular', 'AAACD1234F', 'chinna_durai', defaultPassHash]
       );
 
       // Seed Customers

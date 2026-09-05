@@ -53,9 +53,9 @@ export const sendOtpEmail = async (toEmail, otpCode) => {
   }
 
   const mailOptions = {
-    from: `"TaxPulse Compliance Portal" <${rawUser}>`,
+    from: `"BillSon Compliance Portal" <${rawUser}>`,
     to: toEmail.trim(),
-    subject: `🔒 TaxPulse Account Registration OTP: ${otpCode}`,
+    subject: `🔒 BillSon Account Registration OTP: ${otpCode}`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -76,14 +76,14 @@ export const sendOtpEmail = async (toEmail, otpCode) => {
       <body>
         <div class="card">
           <div class="header">
-            <div class="logo">⚡ TaxPulse</div>
+            <div class="logo">⚡ BillSon</div>
             <div class="title">Email Address Verification</div>
           </div>
           <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">
             Hello,
           </p>
           <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
-            Thank you for registering your company on TaxPulse SaaS Portal. Please use the following 6-digit One-Time Password (OTP) to complete your email verification:
+            Thank you for registering your company on BillSon SaaS Portal. Please use the following 6-digit One-Time Password (OTP) to complete your email verification:
           </p>
           
           <div class="otp-container">
@@ -96,7 +96,7 @@ export const sendOtpEmail = async (toEmail, otpCode) => {
           </p>
 
           <div class="footer">
-            © 2026 TaxPulse Billing & Financial Compliance Solutions. All rights reserved.
+            © 2026 BillSon Billing & Financial Compliance Solutions. All rights reserved.
           </div>
         </div>
       </body>

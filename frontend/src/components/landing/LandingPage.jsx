@@ -68,7 +68,7 @@ export const LandingPage = ({ setCurrentView }) => {
                 <div className="w-3 h-3 rounded-full bg-red-500/80" />
                 <div className="w-3 h-3 rounded-full bg-amber-500/80" />
                 <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-                <span className="text-xs text-slate-400 font-mono ml-2">app.taxpulse.io/dashboard</span>
+                <span className="text-xs text-slate-400 font-mono ml-2">app.billson.io/dashboard</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/30 flex items-center gap-1">

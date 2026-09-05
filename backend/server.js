@@ -41,7 +41,7 @@ app.use('/api/admin', adminRoutes);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    mysql: isConnected() ? 'connected (taxpulse_db)' : 'memory-fallback-active',
+    mysql: isConnected() ? 'connected (billson_db)' : 'memory-fallback-active',
     timestamp: new Date().toISOString()
   });
 });
@@ -57,7 +57,7 @@ app.get('*', (req, res) => {
 // Port Fallback & Server Startup
 const startServer = (port) => {
   const server = app.listen(port, '0.0.0.0', async () => {
-    console.log(`🚀 TaxPulse Backend REST API listening on port ${port} (0.0.0.0)`);
+    console.log(`🚀 BillSon Backend REST API listening on port ${port} (0.0.0.0)`);
     await initDB();
   });
 

@@ -219,11 +219,108 @@ router.post('/login', async (req, res) => {
 // 3. Admin Login (Enforces admin@gmail.com / admin123)
 router.post('/admin/login', async (req, res) => {
   const { adminUser, password } = req.body;
-  if ((adminUser === 'admin@gmail.com' || adminUser === 'admin_taxpulse') && password === 'admin123') {
+  if ((adminUser === 'admin@gmail.com' || adminUser === 'admin_billson' || adminUser === 'admin_taxpulse') && password === 'admin123') {
     const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
     return res.json({ success: true, message: 'Admin authorized', token });
   }
   res.status(401).json({ success: false, message: 'Invalid Admin Credentials' });
+});
+
+// 4. Update User Profile Settings
+router.put('/profile/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const {
+      fullName, email, contactNumber, companyName, constitution,
+      companyAddress, state, gstNumber, registrationType, panNumber, companyLogo
+    } = req.body;
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query(
+        `UPDATE users SET 
+          full_name = ?, email = ?, contact_number = ?, company_name = ?, constitution = ?, 
+          company_address = ?, state = ?, gst_number = ?, registration_type = ?, pan_number = ?, company_logo = ?
+         WHERE id = ?`,
+        [fullName, email, contactNumber, companyName, constitution || 'Private Limited', companyAddress, state, gstNumber, registrationType || 'Regular', panNumber, companyLogo || null, userId]
+      );
+    } else {
+      const idx = fallbackStore.users.findIndex(u => u.id === userId);
+      if (idx !== -1) {
+        fallbackStore.users[idx] = {
+          ...fallbackStore.users[idx],
+          fullName, email, contactNumber, companyName, constitution,
+          companyAddress, state, gstNumber, registrationType, panNumber, companyLogo
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'User Business Profile updated successfully',
+      user: {
+        id: userId,
+        fullName,
+        email,
+        contactNumber,
+        companyName,
+        constitution,
+        companyAddress,
+        state,
+        gstNumber,
+        registrationType,
+        panNumber,
+        companyLogo: companyLogo || null
+      }
+    });
+  } catch (error) {
+    console.error('Update Profile Error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to update user profile' });
+  }
+});
+
+// 5. Change Password
+router.post('/change-password/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    let foundUser = null;
+    if (isConnected()) {
+      const db = getDB();
+      const [rows] = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+      if (rows.length > 0) foundUser = rows[0];
+    } else {
+      foundUser = fallbackStore.users.find(u => u.id === userId);
+    }
+
+    if (!foundUser) {
+      return res.status(404).json({ success: false, message: 'User account not found' });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, foundUser.password_hash || foundUser.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Incorrect current password' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(newPassword, salt);
+
+    if (isConnected()) {
+      const db = getDB();
+      await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userId]);
+    } else {
+      foundUser.passwordHash = newHash;
+    }
+
+    res.json({ success: true, message: 'Account password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to change password' });
+  }
 });
 
 export default router;

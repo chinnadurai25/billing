@@ -7,14 +7,14 @@ export const generateInvoicePDF = (invoice, user) => {
   if (!invoice) return;
 
   const logoSrc = user?.companyLogo || user?.company_logo || null;
-  const companyName = user?.companyName || user?.company_name || 'TaxPulse Billing Solutions';
+  const companyName = user?.companyName || user?.company_name || 'BillSon Billing Solutions';
   const companyAddress = user?.companyAddress || user?.company_address || 'Suite 402, Quantum Tech Tower, Chennai, Tamil Nadu';
   const companyGst = user?.gstNumber || user?.gst_number || '33AAACD1234F1Z5';
   const companyPan = user?.panNumber || user?.pan_number || 'AAACD1234F';
   const companyContact = user?.contactNumber || user?.phone || '+91 98765 43210';
-  const companyEmail = user?.email || 'billing@taxpulse.io';
+  const companyEmail = user?.email || 'billing@billson.io';
 
-  const invNumber = invoice.invoiceNumber || invoice.invoice_number || 'TP-2026-101';
+  const invNumber = invoice.invoiceNumber || invoice.invoice_number || 'BS-2026-101';
   const invDate = invoice.date || '2026-08-26';
   const dueDate = invoice.dueDate || invoice.due_date || '2026-09-09';
   const status = invoice.status || 'Pending';

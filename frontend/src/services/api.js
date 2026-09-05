@@ -38,6 +38,8 @@ export const api = {
   loginAdmin: (credentials) => request('/auth/admin/login', { method: 'POST', body: JSON.stringify(credentials) }),
   sendOtp: (data) => request('/auth/send-otp', { method: 'POST', body: JSON.stringify(data) }),
   verifyOtp: (data) => request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(data) }),
+  updateUserProfile: (userId, profileData) => request(`/auth/profile/${userId}`, { method: 'PUT', body: JSON.stringify(profileData) }),
+  changeUserPassword: (userId, passwordData) => request(`/auth/change-password/${userId}`, { method: 'POST', body: JSON.stringify(passwordData) }),
 
   // 1. REGISTRATION ( CUSTOMER )
   getCustomers: (userId) => request(`/customers${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),

@@ -1,33 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Receipt, DollarSign, FileText, PieChart, Users, ShoppingBag, 
-  CreditCard, TrendingUp, Clock, CheckCircle2, AlertCircle, 
+import {
+  Receipt, DollarSign, FileText, PieChart, Users, ShoppingBag,
+  CreditCard, TrendingUp, Clock, CheckCircle2, AlertCircle,
   Plus, Search, Filter, Download, ArrowUpRight, ChevronRight, Eye, ShieldCheck,
-  Building, Landmark, Package, X, Check, Pencil, Trash2, Edit3, AlertTriangle
+  Building, Landmark, Package, Wrench, Ban, X, Check, Pencil, Trash2, Edit3, AlertTriangle
 } from 'lucide-react';
-import { 
-  AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell, 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+import {
+  AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { useToast } from '../../context/ToastContext';
 import { api } from '../../services/api';
 import { generateInvoicePDF } from '../../utils/pdfGenerator';
+import { UserSettings } from './UserSettings';
 
-export const UserDashboard = ({ 
-  activeTab, 
-  setActiveTab, 
-  invoices, 
-  setInvoices, 
-  customers, 
-  setCustomers, 
-  products, 
+export const UserDashboard = ({
+  activeTab,
+  setActiveTab,
+  invoices,
+  setInvoices,
+  customers,
+  setCustomers,
+  products,
   setProducts,
   bankAccounts,
   setBankAccounts,
   monthlyRevenueData,
   taxBreakdownData,
   onQuickCreateInvoice,
-  user
+  user,
+  setUserData
 }) => {
   const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,13 +89,14 @@ export const UserDashboard = ({
 
   // 3. REGISTRATION ( SALES / SERVICES ) Form State
   const [itemForm, setItemForm] = useState({
+    entryType: 'Item', // 'Item' or 'Service'
     itemName: '',
-    unit: 'Pices', // Pices / Number / Hours / Months
+    unit: 'Pices', // Pices / Number / Hours / Months / Box / Kg
     hsnCode: '',
     openingStock: '100',
     rate: '12500',
     taxPercent: '18',
-    category: 'Sales / Service Item'
+    category: 'Sales Item'
   });
 
   // Auto-fill PAN when GSTIN is typed in Customer Form
@@ -276,48 +279,58 @@ export const UserDashboard = ({
 
   const handleRegisterBankCash = async (e) => {
     e.preventDefault();
-    if (!bankForm.accountName.trim() || !bankForm.accountNumber.trim()) {
-      addToast('NAME OF ACCOUNT and ACCOUNT NUMBER are required', 'error');
+    const isCashAccount = bankForm.bankType === 'Cash in Hand' || bankForm.bankType === 'Petty Cash';
+
+    if (!bankForm.accountName.trim()) {
+      addToast('ACCOUNT NAME is required', 'error');
+      return;
+    }
+    if (!isCashAccount && !bankForm.accountNumber.trim()) {
+      addToast('ACCOUNT NUMBER is required for Bank Accounts', 'error');
       return;
     }
 
+    const effectiveAccNumber = bankForm.accountNumber.trim() || (isCashAccount ? (editingBank?.accountNumber || `CASH-${Date.now().toString().slice(-6)}`) : 'N/A');
+    const effectiveBankName = isCashAccount ? bankForm.bankType : (bankForm.bankName.trim() || 'Standard Bank');
+    const effectiveIfsc = isCashAccount ? 'N/A' : (bankForm.ifscCode.trim() || 'N/A');
+
     if (editingBank) {
-      // UPDATE existing bank
+      // UPDATE existing bank/cash ledger
       const updatedBank = {
         ...editingBank,
         bankType: bankForm.bankType,
         accountName: bankForm.accountName,
-        accountNumber: bankForm.accountNumber,
-        bankName: bankForm.bankName || 'Standard Chartered Bank',
-        ifscCode: bankForm.ifscCode || 'SCBL0001122',
-        address: bankForm.address || 'Chennai Central Branch',
-        balance: parseFloat(bankForm.balance) || editingBank.balance || 0
+        accountNumber: effectiveAccNumber,
+        bankName: effectiveBankName,
+        ifscCode: effectiveIfsc,
+        address: bankForm.address || (isCashAccount ? 'Office Safe' : 'Main Branch'),
+        balance: parseFloat(bankForm.balance) || 0
       };
 
       setBankAccounts((prev) => prev.map((b) => b.id === editingBank.id ? updatedBank : b));
       api.updateBankAccount(editingBank.id, {
         bankType: bankForm.bankType,
         accountName: bankForm.accountName,
-        accountNumber: bankForm.accountNumber,
-        bankName: bankForm.bankName,
-        ifscCode: bankForm.ifscCode,
+        accountNumber: effectiveAccNumber,
+        bankName: effectiveBankName,
+        ifscCode: effectiveIfsc,
         address: bankForm.address,
-        balance: parseFloat(bankForm.balance)
+        balance: parseFloat(bankForm.balance) || 0
       });
 
-      addToast(`Bank / Cash Account "${bankForm.accountName}" updated successfully!`, 'success', 'Account Updated');
+      addToast(`Account "${bankForm.accountName}" updated successfully!`, 'success', 'Account Updated');
     } else {
-      // CREATE new bank
+      // CREATE new bank/cash ledger
       const bankId = `BANK-00${bankAccounts.length + 1}`;
       const newBank = {
         id: bankId,
         bankType: bankForm.bankType,
         accountName: bankForm.accountName,
-        accountNumber: bankForm.accountNumber,
-        bankName: bankForm.bankName || 'Standard Chartered Bank',
-        ifscCode: bankForm.ifscCode || 'SCBL0001122',
-        address: bankForm.address || 'Chennai Central Branch',
-        balance: parseFloat(bankForm.balance) || 150000,
+        accountNumber: effectiveAccNumber,
+        bankName: effectiveBankName,
+        ifscCode: effectiveIfsc,
+        address: bankForm.address || (isCashAccount ? 'Office Safe' : 'Main Branch'),
+        balance: parseFloat(bankForm.balance) || 35000,
         status: 'Active'
       };
 
@@ -327,11 +340,11 @@ export const UserDashboard = ({
           id: bankId,
           bankType: bankForm.bankType,
           accountName: bankForm.accountName,
-          accountNumber: bankForm.accountNumber,
-          bankName: bankForm.bankName,
-          ifscCode: bankForm.ifscCode,
+          accountNumber: effectiveAccNumber,
+          bankName: effectiveBankName,
+          ifscCode: effectiveIfsc,
           address: bankForm.address,
-          balance: parseFloat(bankForm.balance) || 150000,
+          balance: parseFloat(bankForm.balance) || 35000,
           userId: user?.id || 'USR-901'
         });
         if (res && res.bankAccount && res.bankAccount.id && res.bankAccount.id !== bankId) {
@@ -341,7 +354,7 @@ export const UserDashboard = ({
         console.error('Error saving bank account to backend:', err);
       }
 
-      addToast(`REGISTRATION (BANK / CASH) complete for ${bankForm.accountName}!`, 'success', 'Bank Account Registered');
+      addToast(`REGISTRATION complete for ${bankForm.accountName}!`, 'success', 'Account Registered');
     }
 
     setShowBankModal(false);
@@ -368,75 +381,86 @@ export const UserDashboard = ({
   const handleOpenNewItem = () => {
     setEditingItem(null);
     setItemForm({
+      entryType: 'Item',
       itemName: '',
       unit: 'Pices',
       hsnCode: '',
       openingStock: '100',
       rate: '12500',
       taxPercent: '18',
-      category: 'Sales / Service Item'
+      category: 'Sales Item'
     });
     setShowItemModal(true);
   };
 
   const handleOpenEditItem = (item) => {
     setEditingItem(item);
+    const isSrv = (item.category || '').toLowerCase().includes('service') || (item.unit || '').toLowerCase().includes('service') || String(item.hsnSac || item.hsn_sac || '').startsWith('99');
     setItemForm({
+      entryType: isSrv ? 'Service' : 'Item',
       itemName: item.title || '',
-      unit: item.unit || 'Pices',
+      unit: item.unit || (isSrv ? 'Service' : 'Pices'),
       hsnCode: item.hsnSac || item.hsn_sac || '',
       openingStock: item.openingStock !== undefined ? String(item.openingStock) : (item.opening_stock !== undefined ? String(item.opening_stock) : '100'),
       rate: item.rate !== undefined ? String(item.rate) : '12500',
       taxPercent: item.taxPercent !== undefined ? String(item.taxPercent) : (item.tax_percent !== undefined ? String(item.tax_percent) : '18'),
-      category: item.category || 'Sales / Service Item'
+      category: item.category || (isSrv ? 'Service Item' : 'Sales Item')
     });
     setShowItemModal(true);
   };
 
   const handleRegisterSalesService = async (e) => {
     e.preventDefault();
-    if (!itemForm.itemName.trim() || !itemForm.hsnCode.trim()) {
-      addToast('NAME OF ITEM and HSN CODE are required', 'error');
+    if (!itemForm.itemName.trim()) {
+      addToast(`NAME OF ${itemForm.entryType === 'Service' ? 'SERVICE' : 'ITEM'} is required`, 'error');
       return;
     }
+    if (itemForm.entryType === 'Item' && !itemForm.hsnCode.trim()) {
+      addToast('HSN CODE is required for Goods / Item', 'error');
+      return;
+    }
+
+    const finalUnit = itemForm.entryType === 'Service' ? 'Service' : itemForm.unit;
+    const finalCategory = itemForm.entryType === 'Service' ? 'Service Item' : (itemForm.category || 'Sales Item');
+    const finalHsn = itemForm.hsnCode.trim() || (itemForm.entryType === 'Service' ? '998222' : '847130');
 
     if (editingItem) {
       // UPDATE existing item
       const updatedItem = {
         ...editingItem,
         title: itemForm.itemName,
-        unit: itemForm.unit,
-        hsnSac: itemForm.hsnCode,
+        unit: finalUnit,
+        hsnSac: finalHsn,
         openingStock: parseInt(itemForm.openingStock) || 0,
-        rate: parseFloat(itemForm.rate) || 12500,
+        rate: parseFloat(itemForm.rate) || 0,
         taxPercent: parseFloat(itemForm.taxPercent) || 18,
-        category: itemForm.category || editingItem.category || 'Sales / Service Item'
+        category: finalCategory
       };
 
       setProducts((prev) => prev.map((p) => p.id === editingItem.id ? updatedItem : p));
       api.updateProduct(editingItem.id, {
         title: itemForm.itemName,
-        unit: itemForm.unit,
-        hsnSac: itemForm.hsnCode,
+        unit: finalUnit,
+        hsnSac: finalHsn,
         openingStock: parseInt(itemForm.openingStock) || 0,
-        rate: parseFloat(itemForm.rate) || 12500,
+        rate: parseFloat(itemForm.rate) || 0,
         taxPercent: parseFloat(itemForm.taxPercent) || 18,
-        category: itemForm.category
+        category: finalCategory
       });
 
-      addToast(`Item / Service "${itemForm.itemName}" updated successfully!`, 'success', 'Item Updated');
+      addToast(`${itemForm.entryType} "${itemForm.itemName}" updated successfully!`, 'success', `${itemForm.entryType} Updated`);
     } else {
       // CREATE new item
       const itemId = `SRV-00${products.length + 1}`;
       const newItem = {
         id: itemId,
         title: itemForm.itemName,
-        unit: itemForm.unit,
-        hsnSac: itemForm.hsnCode,
+        unit: finalUnit,
+        hsnSac: finalHsn,
         openingStock: parseInt(itemForm.openingStock) || 0,
-        rate: parseFloat(itemForm.rate) || 12500,
+        rate: parseFloat(itemForm.rate) || 0,
         taxPercent: parseFloat(itemForm.taxPercent) || 18,
-        category: itemForm.category || 'Sales / Service Item'
+        category: finalCategory
       };
 
       setProducts([newItem, ...products]);
@@ -444,12 +468,12 @@ export const UserDashboard = ({
         const res = await api.registerSalesService({
           id: itemId,
           title: itemForm.itemName,
-          unit: itemForm.unit,
-          hsnSac: itemForm.hsnCode,
+          unit: finalUnit,
+          hsnSac: finalHsn,
           openingStock: parseInt(itemForm.openingStock) || 0,
-          rate: parseFloat(itemForm.rate) || 12500,
+          rate: parseFloat(itemForm.rate) || 0,
           taxPercent: parseFloat(itemForm.taxPercent) || 18,
-          category: itemForm.category,
+          category: finalCategory,
           userId: user?.id || 'USR-901'
         });
         if (res && res.product && res.product.id && res.product.id !== itemId) {
@@ -459,12 +483,12 @@ export const UserDashboard = ({
         console.error('Error saving item to backend:', err);
       }
 
-      addToast(`REGISTRATION (SALES / SERVICES) complete for ${itemForm.itemName}!`, 'success', 'Item Registered');
+      addToast(`REGISTRATION (${itemForm.entryType.toUpperCase()}) complete for ${itemForm.itemName}!`, 'success', `${itemForm.entryType} Registered`);
     }
 
     setShowItemModal(false);
     setEditingItem(null);
-    setItemForm({ itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100', rate: '12500', taxPercent: '18', category: 'Sales / Service Item' });
+    setItemForm({ entryType: 'Item', itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100', rate: '12500', taxPercent: '18', category: 'Sales Item' });
   };
 
   const handleDeleteItem = (item) => {
@@ -502,14 +526,30 @@ export const UserDashboard = ({
     addToast('Invoice updated to Paid status!', 'success');
   };
 
+  const handleCancelInvoice = (inv) => {
+    const invNum = inv.invoiceNumber || inv.invoice_number || '';
+    const custName = inv.customerName || inv.customer_name || '';
+    setDeleteModal({
+      isOpen: true,
+      title: 'Cancel / Void Tax Invoice',
+      message: `Are you sure you want to cancel Tax Invoice "${invNum}" for ${custName}? Its status will be marked as Cancelled.`,
+      onConfirm: () => {
+        setInvoices((prev) => prev.map((i) => i.id === inv.id ? { ...i, status: 'Cancelled' } : i));
+        api.updateInvoice(inv.id, { status: 'Cancelled' });
+        addToast(`Invoice ${invNum} has been cancelled.`, 'info', 'Invoice Cancelled');
+      }
+    });
+  };
+
   // Financial Stat calculations
   const totalInvoicesCount = invoices.length;
   const totalSales = invoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
   const totalTax = invoices.reduce((acc, inv) => acc + (inv.totalTax || inv.total_tax || 0), 0);
-  
+
   const paidInvoices = invoices.filter(inv => inv.status === 'Paid');
   const pendingInvoices = invoices.filter(inv => inv.status === 'Pending');
   const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue');
+  const cancelledInvoices = invoices.filter(inv => inv.status === 'Cancelled');
 
   const paidAmount = paidInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
   const pendingAmount = pendingInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
@@ -521,8 +561,8 @@ export const UserDashboard = ({
     const custName = inv.customerName || inv.customer_name || '';
     const custGst = inv.customerGst || inv.customer_gst || '';
     const matchesSearch = invNum.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          custName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          custGst.toLowerCase().includes(searchQuery.toLowerCase());
+      custName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      custGst.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || inv.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -574,7 +614,7 @@ export const UserDashboard = ({
 
   return (
     <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
-      
+
       {/* Welcome Banner */}
       <div className="glass-card rounded-3xl p-6 sm:p-8 border border-indigo-500/20 bg-gradient-to-r from-brand-900/40 via-dark-900 to-indigo-950/40 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
@@ -626,7 +666,7 @@ export const UserDashboard = ({
       {/* OVERVIEW TAB CONTENT (EXECUTIVE BUSINESS DASHBOARD) */}
       {activeTab === 'overview' && (
         <div className="space-y-8 animate-slide-up">
-          
+
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
@@ -676,7 +716,7 @@ export const UserDashboard = ({
 
           {/* Graphical Analytics Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* Revenue Trend Area Chart */}
             <div className="glass-card rounded-3xl p-6 border border-slate-800 lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
@@ -694,19 +734,19 @@ export const UserDashboard = ({
                   <AreaChart data={monthlyRevenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="colorTax" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v/1000}k`} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }} 
+                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }}
                       formatter={(v) => [`₹${v.toLocaleString('en-IN')}`, '']}
                     />
                     <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
@@ -756,7 +796,7 @@ export const UserDashboard = ({
 
           {/* Overview Dashboard Bottom Section: Recent Activity & Quick Master Directory */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* Recent Invoices Activity log (Left 2 cols) */}
             <div className="glass-card rounded-3xl p-6 border border-slate-800 lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
@@ -795,13 +835,12 @@ export const UserDashboard = ({
                           <td className="py-3 px-3 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
                           <td className="py-3 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
-                              inv.status === 'Paid' 
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${inv.status === 'Paid'
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                                 : inv.status === 'Pending'
-                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                                : 'bg-red-500/10 text-red-400 border-red-500/30'
-                            }`}>
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                  : 'bg-red-500/10 text-red-400 border-red-500/30'
+                              }`}>
                               {inv.status}
                             </span>
                           </td>
@@ -831,7 +870,7 @@ export const UserDashboard = ({
               <p className="text-xs text-slate-400 font-mono">Overview of registered master records</p>
 
               <div className="space-y-3 pt-1">
-                <div 
+                <div
                   onClick={() => setActiveTab('customers')}
                   className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-indigo-500/40 cursor-pointer transition-all group"
                 >
@@ -847,7 +886,7 @@ export const UserDashboard = ({
                   <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
                 </div>
 
-                <div 
+                <div
                   onClick={() => setActiveTab('payments')}
                   className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-amber-500/40 cursor-pointer transition-all group"
                 >
@@ -863,7 +902,7 @@ export const UserDashboard = ({
                   <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
                 </div>
 
-                <div 
+                <div
                   onClick={() => setActiveTab('services')}
                   className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-emerald-500/40 cursor-pointer transition-all group"
                 >
@@ -889,7 +928,7 @@ export const UserDashboard = ({
       {/* INVOICE & BILLING HUB TAB CONTENT (DEDICATED INVOICE MANAGEMENT) */}
       {activeTab === 'invoices' && (
         <div className="space-y-6 animate-slide-up">
-          
+
           {/* Dedicated Header for Invoices Hub */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-950/60 to-dark-900/60 p-6 rounded-3xl border border-indigo-500/20">
             <div>
@@ -936,7 +975,7 @@ export const UserDashboard = ({
 
           {/* Full Invoices Master Table */}
           <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-6">
-            
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-bold text-white font-serif">GST Invoice Directory</h3>
@@ -970,6 +1009,7 @@ export const UserDashboard = ({
                   <option value="Paid">Paid ({paidInvoices.length})</option>
                   <option value="Pending">Pending ({pendingInvoices.length})</option>
                   <option value="Overdue">Overdue ({overdueInvoices.length})</option>
+                  <option value="Cancelled">Cancelled ({cancelledInvoices.length})</option>
                 </select>
               </div>
             </div>
@@ -1012,12 +1052,14 @@ export const UserDashboard = ({
                           <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
-                              inv.status === 'Paid' 
+                              inv.status === 'Paid'
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                                 : inv.status === 'Pending'
-                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                                : 'bg-red-500/10 text-red-400 border-red-500/30'
-                            }`}>
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                  : inv.status === 'Cancelled'
+                                    ? 'bg-slate-800 text-slate-400 border-slate-700 line-through'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/30'
+                              }`}>
                               {inv.status}
                             </span>
                           </td>
@@ -1033,7 +1075,17 @@ export const UserDashboard = ({
                               >
                                 <Download className="w-3 h-3" /> Download
                               </button>
-                              {inv.status !== 'Paid' && (
+                              
+                              {/* EDIT Button */}
+                              <button
+                                onClick={() => onQuickCreateInvoice(inv)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[11px] font-semibold transition-all cursor-pointer"
+                                title="Edit / Update Invoice"
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </button>
+
+                              {inv.status !== 'Paid' && inv.status !== 'Cancelled' && (
                                 <button
                                   onClick={() => handleMarkAsPaid(inv.id)}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[11px] font-semibold border border-emerald-500/30 transition-colors cursor-pointer"
@@ -1041,6 +1093,18 @@ export const UserDashboard = ({
                                   Mark Paid
                                 </button>
                               )}
+
+                              {/* CANCEL Button */}
+                              {inv.status !== 'Cancelled' && (
+                                <button
+                                  onClick={() => handleCancelInvoice(inv)}
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 text-[11px] font-semibold transition-all cursor-pointer"
+                                  title="Cancel Invoice"
+                                >
+                                  <Ban className="w-3 h-3" /> Cancel
+                                </button>
+                              )}
+
                               <button
                                 onClick={() => handleDeleteInvoice(inv)}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
@@ -1137,8 +1201,8 @@ export const UserDashboard = ({
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {filteredCustomers.map((c) => (
-                      <tr 
-                        key={c.id} 
+                      <tr
+                        key={c.id}
                         onClick={() => setSelectedCustomerDetail(c)}
                         className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
                       >
@@ -1277,8 +1341,8 @@ export const UserDashboard = ({
                   </thead>
                   <tbody className="divide-y divide-amber-500/10">
                     {filteredBankAccounts.map((b) => (
-                      <tr 
-                        key={b.id} 
+                      <tr
+                        key={b.id}
                         onClick={() => setSelectedBankDetail(b)}
                         className="hover:bg-amber-500/10 transition-colors cursor-pointer group"
                       >
@@ -1423,8 +1487,8 @@ export const UserDashboard = ({
                       const opStock = p.openingStock !== undefined ? p.openingStock : (p.opening_stock !== undefined ? p.opening_stock : 100);
 
                       return (
-                        <tr 
-                          key={p.id} 
+                        <tr
+                          key={p.id}
                           onClick={() => setSelectedServiceDetail(p)}
                           className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
                         >
@@ -1540,6 +1604,18 @@ export const UserDashboard = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* SETTINGS TAB CONTENT */}
+      {activeTab === 'settings' && (
+        <UserSettings
+          user={user}
+          setUserData={setUserData}
+          bankAccounts={bankAccounts}
+          invoices={invoices}
+          customers={customers}
+          products={products}
+        />
       )}
 
       {/* MODAL 1: REGISTRATION ( CUSTOMER ) - Supports Add & Edit/Update */}
@@ -1708,123 +1784,136 @@ export const UserDashboard = ({
               </button>
             </div>
 
-            <form onSubmit={handleRegisterBankCash} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-amber-200 mb-1">BANK Category *</label>
-                <select
-                  value={bankForm.bankType}
-                  onChange={(e) => setBankForm({ ...bankForm, bankType: e.target.value })}
-                  className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs bg-dark-950 font-semibold"
-                >
-                  <option value="Bank Account">Bank Account</option>
-                  <option value="Cash in Hand">Cash in Hand</option>
-                  <option value="Petty Cash">Petty Cash</option>
-                </select>
-              </div>
+            {(() => {
+              const isCashAcc = bankForm.bankType === 'Cash in Hand' || bankForm.bankType === 'Petty Cash';
+              return (
+                <form onSubmit={handleRegisterBankCash} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-200 mb-1">ACCOUNT CATEGORY *</label>
+                    <select
+                      value={bankForm.bankType}
+                      onChange={(e) => setBankForm({ ...bankForm, bankType: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs bg-dark-950 font-semibold"
+                    >
+                      <option value="Bank Account">Bank Account</option>
+                      <option value="Cash in Hand">Cash in Hand</option>
+                      <option value="Petty Cash">Petty Cash</option>
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-amber-200 mb-1">NAME OF THE ACCOUNT *</label>
-                <input
-                  type="text"
-                  value={bankForm.accountName}
-                  onChange={(e) => setBankForm({ ...bankForm, accountName: e.target.value })}
-                  placeholder="e.g. Durai Tax Advisory Operating A/C"
-                  className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
-                  required
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-200 mb-1">
+                      {isCashAcc ? 'NAME OF THE CASH ACCOUNT *' : 'NAME OF THE BANK / ACCOUNT *'}
+                    </label>
+                    <input
+                      type="text"
+                      value={bankForm.accountName}
+                      onChange={(e) => setBankForm({ ...bankForm, accountName: e.target.value })}
+                      placeholder={isCashAcc ? 'e.g. Main Cash Drawer / Petty Cash Ledger' : 'e.g. Durai Tax Advisory Operating A/C'}
+                      className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
+                      required
+                    />
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-amber-200 mb-1">ACCOUNT NUMBER *</label>
-                  <input
-                    type="text"
-                    value={bankForm.accountNumber}
-                    onChange={(e) => setBankForm({ ...bankForm, accountNumber: e.target.value })}
-                    placeholder="50100234901234"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
-                    required
-                  />
-                </div>
+                  {!isCashAcc && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-amber-200 mb-1">ACCOUNT NUMBER *</label>
+                        <input
+                          type="text"
+                          value={bankForm.accountNumber}
+                          onChange={(e) => setBankForm({ ...bankForm, accountNumber: e.target.value })}
+                          placeholder="50100234901234"
+                          className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
+                          required
+                        />
+                      </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-amber-200 mb-1">NAME OF THE BANK</label>
-                  <input
-                    type="text"
-                    value={bankForm.bankName}
-                    onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
-                    placeholder="e.g. HDFC Bank Ltd"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
-                  />
-                </div>
-              </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-amber-200 mb-1">NAME OF THE BANK</label>
+                        <input
+                          type="text"
+                          value={bankForm.bankName}
+                          onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
+                          placeholder="e.g. HDFC Bank Ltd"
+                          className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-amber-200 mb-1">IFSC CODE</label>
-                  <input
-                    type="text"
-                    value={bankForm.ifscCode}
-                    onChange={(e) => setBankForm({ ...bankForm, ifscCode: e.target.value.toUpperCase() })}
-                    placeholder="HDFC0001234"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono uppercase"
-                  />
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {!isCashAcc && (
+                      <div>
+                        <label className="block text-xs font-semibold text-amber-200 mb-1">IFSC CODE</label>
+                        <input
+                          type="text"
+                          value={bankForm.ifscCode}
+                          onChange={(e) => setBankForm({ ...bankForm, ifscCode: e.target.value.toUpperCase() })}
+                          placeholder="HDFC0001234"
+                          className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono uppercase"
+                        />
+                      </div>
+                    )}
 
-                <div>
-                  <label className="block text-xs font-semibold text-amber-200 mb-1">LEDGER BALANCE (₹)</label>
-                  <input
-                    type="number"
-                    value={bankForm.balance}
-                    onChange={(e) => setBankForm({ ...bankForm, balance: e.target.value })}
-                    placeholder="150000"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
-                  />
-                </div>
-              </div>
+                    <div className={isCashAcc ? "col-span-2 sm:col-span-1" : ""}>
+                      <label className="block text-xs font-semibold text-amber-200 mb-1">OPENING LEDGER BALANCE (₹)</label>
+                      <input
+                        type="number"
+                        value={bankForm.balance}
+                        onChange={(e) => setBankForm({ ...bankForm, balance: e.target.value })}
+                        placeholder="150000"
+                        className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-amber-200 mb-1">ADDRESS</label>
-                <input
-                  type="text"
-                  value={bankForm.address}
-                  onChange={(e) => setBankForm({ ...bankForm, address: e.target.value })}
-                  placeholder="Branch Address e.g. Anna Salai Chennai"
-                  className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-200 mb-1">
+                      {isCashAcc ? 'LOCATION / STORAGE ADDRESS' : 'BRANCH ADDRESS'}
+                    </label>
+                    <input
+                      type="text"
+                      value={bankForm.address}
+                      onChange={(e) => setBankForm({ ...bankForm, address: e.target.value })}
+                      placeholder={isCashAcc ? 'e.g. Office Safe / Petty Cash Box' : 'Branch Address e.g. Anna Salai Chennai'}
+                      className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
+                    />
+                  </div>
 
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowBankModal(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 cursor-pointer"
-                >
-                  {editingBank ? 'Update Account' : 'Register Bank / Cash'}
-                </button>
-              </div>
-            </form>
+                  <div className="flex justify-end gap-2 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowBankModal(false)}
+                      className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/25 transition-all cursor-pointer"
+                    >
+                      {editingBank ? 'Update Account' : 'Register Account'}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
 
-      {/* MODAL 3: REGISTRATION ( SALES / SERVICES ) - Supports Add & Edit/Update */}
+      {/* MODAL 3: REGISTRATION ( SALES / SERVICES ) - Supports Item (Goods) vs Service Selection */}
       {showItemModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-2xl w-full border border-slate-700 shadow-2xl animate-slide-up">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div>
                 <h3 className="text-lg font-bold text-white font-serif">
                   {editingItem ? 'EDIT REGISTRATION ( SALES / SERVICES )' : 'REGISTRATION ( SALES / SERVICES )'}
                 </h3>
                 <p className="text-xs text-slate-400 font-mono">
-                  {editingItem ? `Update catalog details for ${editingItem.id}` : 'Create new Item / Service catalog entry'}
+                  Select Item or Service to configure required details
                 </p>
               </div>
               <button onClick={() => setShowItemModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
@@ -1832,57 +1921,118 @@ export const UserDashboard = ({
               </button>
             </div>
 
+            {/* ITEM vs SERVICE Toggle */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-300 mb-2">TYPE OF REGISTRATION *</label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-dark-900/90 rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setItemForm({ ...itemForm, entryType: 'Item' })}
+                  className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    itemForm.entryType === 'Item'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Package className="w-4 h-4" /> Item (Goods)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemForm({ ...itemForm, entryType: 'Service', unit: 'Service' })}
+                  className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    itemForm.entryType === 'Service'
+                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Wrench className="w-4 h-4" /> Service
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handleRegisterSalesService} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">NAME OF THE ITEM / SERVICE *</label>
+                <label className="block text-xs font-semibold text-slate-200 mb-1">
+                  {itemForm.entryType === 'Service' ? 'NAME OF THE SERVICE *' : 'NAME OF THE ITEM *'}
+                </label>
                 <input
                   type="text"
                   value={itemForm.itemName}
                   onChange={(e) => setItemForm({ ...itemForm, itemName: e.target.value })}
-                  placeholder="e.g. GSTR-1 & GSTR-3B Monthly Audit Service"
+                  placeholder={itemForm.entryType === 'Service' ? "e.g. Monthly GST Audit Service" : "e.g. Dell XPS 15 Laptop"}
                   className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">QTY Unit *</label>
-                  <select
-                    value={itemForm.unit}
-                    onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
-                  >
-                    <option value="Pices">Pices</option>
-                    <option value="Number">Number</option>
-                    <option value="Hours">Hours</option>
-                    <option value="Months">Months</option>
-                  </select>
-                </div>
+              {itemForm.entryType === 'Item' ? (
+                /* ITEM specific fields: QTY Unit, HSN CODE, OPENING STOCK */
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">QTY Unit *</label>
+                    <select
+                      value={itemForm.unit}
+                      onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold text-emerald-400"
+                    >
+                      <option value="Pices">Pices</option>
+                      <option value="Number">Number</option>
+                      <option value="Box">Box</option>
+                      <option value="Kg">Kg</option>
+                      <option value="Liter">Liter</option>
+                      <option value="Meter">Meter</option>
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">HSN CODE *</label>
-                  <input
-                    type="text"
-                    value={itemForm.hsnCode}
-                    onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
-                    placeholder="998222"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                    required
-                  />
-                </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">HSN CODE *</label>
+                    <input
+                      type="text"
+                      value={itemForm.hsnCode}
+                      onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
+                      placeholder="847130"
+                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                      required
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">OPENING STOCK</label>
-                  <input
-                    type="number"
-                    value={itemForm.openingStock}
-                    onChange={(e) => setItemForm({ ...itemForm, openingStock: e.target.value })}
-                    placeholder="100"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                  />
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">OPENING STOCK</label>
+                    <input
+                      type="number"
+                      value={itemForm.openingStock}
+                      onChange={(e) => setItemForm({ ...itemForm, openingStock: e.target.value })}
+                      placeholder="100"
+                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* SERVICE specific fields: OPENING STOCK (and optional SAC Code) */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">OPENING STOCK</label>
+                    <input
+                      type="number"
+                      value={itemForm.openingStock}
+                      onChange={(e) => setItemForm({ ...itemForm, openingStock: e.target.value })}
+                      placeholder="0"
+                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">SAC / HSN CODE</label>
+                    <input
+                      type="text"
+                      value={itemForm.hsnCode}
+                      onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
+                      placeholder="998222"
+                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1903,11 +2053,25 @@ export const UserDashboard = ({
                     onChange={(e) => setItemForm({ ...itemForm, taxPercent: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
                   >
-                    <option value="18">18% GST (Standard)</option>
-                    <option value="12">12% GST</option>
-                    <option value="5">5% GST</option>
-                    <option value="28">28% GST</option>
-                    <option value="0">0% (Exempted)</option>
+                    {(() => {
+                      let rates = ['0', '5', '12', '18', '28'];
+                      try {
+                        const saved = localStorage.getItem(`billson_custom_tax_rates_${user?.id}`) || localStorage.getItem(`taxpulse_custom_tax_rates_${user?.id}`);
+                        if (saved) {
+                          const parsed = JSON.parse(saved);
+                          if (Array.isArray(parsed) && parsed.length > 0) rates = parsed;
+                        }
+                      } catch (e) {}
+                      const currentStr = String(itemForm.taxPercent || '18');
+                      if (currentStr && !rates.includes(currentStr)) {
+                        rates = [...rates, currentStr].sort((a, b) => parseFloat(a) - parseFloat(b));
+                      }
+                      return rates.map((r) => (
+                        <option key={r} value={r}>
+                          {r}% GST {r === '18' ? '(Standard)' : r === '0' ? '(Exempted)' : ''}
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
               </div>
@@ -1922,9 +2086,16 @@ export const UserDashboard = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 cursor-pointer"
+                  className={`px-6 py-2 rounded-xl text-white text-xs font-bold shadow-lg cursor-pointer ${
+                    itemForm.entryType === 'Service'
+                      ? 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/30'
+                      : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30'
+                  }`}
                 >
-                  {editingItem ? 'Update Item' : 'Register Item / Service'}
+                  {editingItem 
+                    ? (itemForm.entryType === 'Service' ? 'Update Service' : 'Update Item')
+                    : (itemForm.entryType === 'Service' ? 'Register Service' : 'Register Item')
+                  }
                 </button>
               </div>
             </form>
@@ -2214,11 +2385,11 @@ export const UserDashboard = ({
                 <p className="text-xs text-slate-400 font-mono">This action is permanent</p>
               </div>
             </div>
-            
+
             <p className="text-xs text-slate-300 mb-6 leading-relaxed">
               {deleteModal.message}
             </p>
-            
+
             <div className="flex justify-end gap-3">
               <button
                 type="button"

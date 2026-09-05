@@ -1,7 +1,7 @@
 {
-  "name": "taxpulse-backend",
+  "name": "billson-backend",
   "version": "1.0.0",
-  "description": "TaxPulse Pro SaaS Billing Backend API with MySQL Integration",
+  "description": "BillSon Pro SaaS Billing Backend API with MySQL Integration",
   "main": "server.js",
   "type": "module",
   "scripts": {

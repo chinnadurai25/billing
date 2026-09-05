@@ -34,7 +34,8 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
 
       if (res && res.success) {
         if (res.token) {
-          localStorage.setItem('taxpulse_token', res.token);
+          localStorage.setItem('billson_token', res.token);
+          localStorage.removeItem('taxpulse_token');
         }
         addToast('Authentication successful. Redirecting to User Dashboard...', 'success', 'Welcome Back');
         onLoginSuccess(res.user);
@@ -45,7 +46,7 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
           id: `USR-${Date.now()}`,
           fullName: email.split('@')[0] || 'Authenticated User',
           email: email.trim(),
-          companyName: 'TaxPulse Enterprise Solutions',
+          companyName: 'BillSon Enterprise Solutions',
           gstNumber: '33AAACD1234F1Z5',
           panNumber: 'AAACD1234F'
         });
@@ -62,7 +63,7 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
         id: `USR-${Date.now()}`,
         fullName: email.split('@')[0] || 'Authenticated User',
         email: email.trim(),
-        companyName: 'TaxPulse Enterprise Solutions',
+        companyName: 'BillSon Enterprise Solutions',
         gstNumber: '33AAACD1234F1Z5',
         panNumber: 'AAACD1234F'
       });
@@ -94,9 +95,9 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-6">
               <span className="w-8 h-8 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm border border-brand-500/30">
-                TP
+                BS
               </span>
-              <span className="font-serif font-bold text-lg text-white">TaxPulse SaaS</span>
+              <span className="font-serif font-bold text-lg text-white">BillSon SaaS</span>
             </div>
 
             <h3 className="text-xl font-bold text-white mb-3">
@@ -162,7 +163,7 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. chinna.durai@taxpulse.io"
+                    placeholder="e.g. chinna.durai@billson.io"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs font-mono"
                   />
                 </div>

@@ -26,7 +26,7 @@ function AppContent() {
   // Restore logged-in user from localStorage on refresh
   const [savedUser] = useState(() => {
     try {
-      const stored = localStorage.getItem('taxpulse_active_user');
+      const stored = localStorage.getItem('billson_active_user') || localStorage.getItem('taxpulse_active_user');
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
@@ -48,6 +48,12 @@ function AppContent() {
 
   // Quick Create Invoice Modal state
   const [isQuickInvoiceOpen, setIsQuickInvoiceOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState(null);
+
+  const handleOpenQuickInvoice = (invToEdit = null) => {
+    setEditingInvoice(invToEdit || null);
+    setIsQuickInvoiceOpen(true);
+  };
 
   // App Master Data States - start clean and empty for new authenticated users
   const [userData, setUserData] = useState(() => savedUser || initialUserData);
@@ -207,7 +213,7 @@ function AppContent() {
       };
 
       try {
-        localStorage.setItem('taxpulse_active_user', JSON.stringify(completeUser));
+        localStorage.setItem('billson_active_user', JSON.stringify(completeUser));
       } catch (e) {}
 
       setUserData(completeUser);
@@ -216,26 +222,36 @@ function AppContent() {
     setCurrentView('user-dashboard');
   };
 
-  // Save Quick Invoice handler
-  const handleSaveInvoice = async (newInvoice) => {
+  // Save / Update Quick Invoice handler
+  const handleSaveInvoice = async (savedInvoice) => {
     const invoiceWithUser = {
-      ...newInvoice,
+      ...savedInvoice,
       userId: userData?.id || 'USR-901'
     };
 
-    // Optimistically update frontend state
-    setInvoices([invoiceWithUser, ...invoices]);
+    const exists = invoices.some(i => i.id === savedInvoice.id);
 
-    // Persist to MySQL backend
-    try {
-      await api.createInvoice(invoiceWithUser);
-    } catch (err) {
-      console.warn('Could not persist invoice to backend:', err);
+    if (exists) {
+      setInvoices(prev => prev.map(inv => inv.id === savedInvoice.id ? invoiceWithUser : inv));
+      try {
+        await api.updateInvoice(savedInvoice.id, invoiceWithUser);
+      } catch (err) {
+        console.warn('Could not update invoice on backend:', err);
+      }
+    } else {
+      setInvoices(prev => [invoiceWithUser, ...prev.filter(inv => inv.id !== invoiceWithUser.id)]);
+      try {
+        await api.createInvoice(invoiceWithUser);
+      } catch (err) {
+        console.warn('Could not persist invoice to backend:', err);
+      }
     }
   };
 
   const handleLogout = () => {
     try {
+      localStorage.removeItem('billson_active_user');
+      localStorage.removeItem('billson_token');
       localStorage.removeItem('taxpulse_active_user');
       localStorage.removeItem('taxpulse_token');
     } catch (e) {}
@@ -269,7 +285,7 @@ function AppContent() {
               mode="user"
               activeTab={userActiveTab}
               setActiveTab={setUserActiveTab}
-              onQuickCreateInvoice={() => setIsQuickInvoiceOpen(true)}
+              onQuickCreateInvoice={handleOpenQuickInvoice}
               isMobileOpen={isMobileSidebarOpen}
               closeMobileSidebar={() => setIsMobileSidebarOpen(false)}
               invoicesCount={invoices.length}
@@ -288,8 +304,9 @@ function AppContent() {
                 setBankAccounts={setBankAccounts}
                 monthlyRevenueData={monthlyRevenueData}
                 taxBreakdownData={taxBreakdownData}
-                onQuickCreateInvoice={() => setIsQuickInvoiceOpen(true)}
+                onQuickCreateInvoice={handleOpenQuickInvoice}
                 user={userData}
+                setUserData={setUserData}
               />
             </main>
           </>
@@ -358,9 +375,15 @@ function AppContent() {
       {/* Global Invoice Creator Modal */}
       <QuickCreateInvoiceModal 
         isOpen={isQuickInvoiceOpen}
-        onClose={() => setIsQuickInvoiceOpen(false)}
+        onClose={() => {
+          setIsQuickInvoiceOpen(false);
+          setEditingInvoice(null);
+        }}
         customers={customers}
         products={products}
+        invoices={invoices}
+        user={userData}
+        editingInvoice={editingInvoice}
         onSaveInvoice={handleSaveInvoice}
       />
 

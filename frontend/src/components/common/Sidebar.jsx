@@ -21,6 +21,7 @@ export const Sidebar = ({
     { id: 'services', label: 'Services & Products', icon: ShoppingBag },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'tax-reports', label: 'GSTR & Tax Reports', icon: PieChart },
+    { id: 'settings', label: 'Account & App Settings', icon: Settings },
   ];
 
   const adminNavItems = [
@@ -41,7 +42,7 @@ export const Sidebar = ({
         {/* Mobile Header Title */}
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800 lg:hidden">
           <div className="flex items-center gap-2">
-            <span className="font-serif font-bold text-lg text-white">TaxPulse Menu</span>
+            <span className="font-serif font-bold text-lg text-white">BillSon Menu</span>
           </div>
           <button
             onClick={closeMobileSidebar}
