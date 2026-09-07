@@ -3,7 +3,8 @@ import {
   Receipt, DollarSign, FileText, PieChart, Users, ShoppingBag,
   CreditCard, TrendingUp, Clock, CheckCircle2, AlertCircle,
   Plus, Search, Filter, Download, ArrowUpRight, ChevronRight, Eye, ShieldCheck,
-  Building, Landmark, Package, Wrench, Ban, X, Check, Pencil, Trash2, Edit3, AlertTriangle
+  Building, Landmark, Package, Wrench, Ban, X, Check, Pencil, Trash2, Edit3, AlertTriangle,
+  Calculator, Truck
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell,
@@ -47,6 +48,7 @@ export const UserDashboard = ({
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editingBank, setEditingBank] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [docSubTab, setDocSubTab] = useState('All'); // 'All', 'Sales Invoice', 'Purchase Invoice', 'Estimate', 'Delivery Challan', 'Payment'
 
   // Delete Confirmation Modal state
   const [deleteModal, setDeleteModal] = useState({
@@ -94,7 +96,7 @@ export const UserDashboard = ({
     unit: 'Pices', // Pices / Number / Hours / Months / Box / Kg
     hsnCode: '',
     openingStock: '100',
-    rate: '12500',
+    date: new Date().toISOString().split('T')[0],
     taxPercent: '18',
     category: 'Sales Item'
   });
@@ -386,7 +388,7 @@ export const UserDashboard = ({
       unit: 'Pices',
       hsnCode: '',
       openingStock: '100',
-      rate: '12500',
+      date: new Date().toISOString().split('T')[0],
       taxPercent: '18',
       category: 'Sales Item'
     });
@@ -402,7 +404,7 @@ export const UserDashboard = ({
       unit: item.unit || (isSrv ? 'Service' : 'Pices'),
       hsnCode: item.hsnSac || item.hsn_sac || '',
       openingStock: item.openingStock !== undefined ? String(item.openingStock) : (item.opening_stock !== undefined ? String(item.opening_stock) : '100'),
-      rate: item.rate !== undefined ? String(item.rate) : '12500',
+      date: item.date || (item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
       taxPercent: item.taxPercent !== undefined ? String(item.taxPercent) : (item.tax_percent !== undefined ? String(item.tax_percent) : '18'),
       category: item.category || (isSrv ? 'Service Item' : 'Sales Item')
     });
@@ -423,6 +425,8 @@ export const UserDashboard = ({
     const finalUnit = itemForm.entryType === 'Service' ? 'Service' : itemForm.unit;
     const finalCategory = itemForm.entryType === 'Service' ? 'Service Item' : (itemForm.category || 'Sales Item');
     const finalHsn = itemForm.hsnCode.trim() || (itemForm.entryType === 'Service' ? '998222' : '847130');
+    const finalStock = itemForm.entryType === 'Service' ? 0 : (parseInt(itemForm.openingStock) || 0);
+    const finalDate = itemForm.entryType === 'Item' ? itemForm.date : undefined;
 
     if (editingItem) {
       // UPDATE existing item
@@ -431,8 +435,8 @@ export const UserDashboard = ({
         title: itemForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
-        openingStock: parseInt(itemForm.openingStock) || 0,
-        rate: parseFloat(itemForm.rate) || 0,
+        openingStock: finalStock,
+        date: finalDate,
         taxPercent: parseFloat(itemForm.taxPercent) || 18,
         category: finalCategory
       };
@@ -442,8 +446,8 @@ export const UserDashboard = ({
         title: itemForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
-        openingStock: parseInt(itemForm.openingStock) || 0,
-        rate: parseFloat(itemForm.rate) || 0,
+        openingStock: finalStock,
+        date: finalDate,
         taxPercent: parseFloat(itemForm.taxPercent) || 18,
         category: finalCategory
       });
@@ -457,8 +461,8 @@ export const UserDashboard = ({
         title: itemForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
-        openingStock: parseInt(itemForm.openingStock) || 0,
-        rate: parseFloat(itemForm.rate) || 0,
+        openingStock: finalStock,
+        date: finalDate,
         taxPercent: parseFloat(itemForm.taxPercent) || 18,
         category: finalCategory
       };
@@ -470,8 +474,8 @@ export const UserDashboard = ({
           title: itemForm.itemName,
           unit: finalUnit,
           hsnSac: finalHsn,
-          openingStock: parseInt(itemForm.openingStock) || 0,
-          rate: parseFloat(itemForm.rate) || 0,
+          openingStock: finalStock,
+          date: finalDate,
           taxPercent: parseFloat(itemForm.taxPercent) || 18,
           category: finalCategory,
           userId: user?.id || 'USR-901'
@@ -488,7 +492,7 @@ export const UserDashboard = ({
 
     setShowItemModal(false);
     setEditingItem(null);
-    setItemForm({ entryType: 'Item', itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100', rate: '12500', taxPercent: '18', category: 'Sales Item' });
+    setItemForm({ entryType: 'Item', itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100', date: new Date().toISOString().split('T')[0], taxPercent: '18', category: 'Sales Item' });
   };
 
   const handleDeleteItem = (item) => {
@@ -555,14 +559,24 @@ export const UserDashboard = ({
   const pendingAmount = pendingInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
   const outstandingAmount = overdueInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
 
-  // Filtered Invoices
-  const filteredInvoices = invoices.filter((inv) => {
-    const invNum = inv.invoiceNumber || inv.invoice_number || '';
-    const custName = inv.customerName || inv.customer_name || '';
-    const custGst = inv.customerGst || inv.customer_gst || '';
-    const matchesSearch = invNum.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      custName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      custGst.toLowerCase().includes(searchQuery.toLowerCase());
+  // Filtered Invoices & Documents
+  const displayInvoices = invoices.filter((inv) => {
+    if (activeTab === 'payments') return inv.documentType === 'Payment';
+    if (docSubTab === 'All') return true;
+    if (docSubTab === 'Sales Invoice') return !inv.documentType || inv.documentType === 'Sales Invoice';
+    return inv.documentType === docSubTab;
+  });
+
+  const filteredInvoices = displayInvoices.filter((inv) => {
+    const q = searchQuery.toLowerCase().trim();
+    const invNum = (inv.invoiceNumber || inv.invoice_number || '').toLowerCase();
+    const custName = (inv.customerName || inv.customer_name || '').toLowerCase();
+    const custGst = (inv.customerGst || inv.customer_gst || '').toLowerCase();
+    const paidBy = (inv.paidBy || '').toLowerCase();
+    const paidTo = (inv.paidTo || '').toLowerCase();
+    const purpose = (inv.paymentPurpose || '').toLowerCase();
+
+    const matchesSearch = !q || invNum.includes(q) || custName.includes(q) || custGst.includes(q) || paidBy.includes(q) || paidTo.includes(q) || purpose.includes(q);
     const matchesStatus = statusFilter === 'All' || inv.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -615,51 +629,75 @@ export const UserDashboard = ({
   return (
     <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
 
-      {/* Welcome Banner */}
+      {/* Quick Action Document Banner */}
       <div className="glass-card rounded-3xl p-6 sm:p-8 border border-indigo-500/20 bg-gradient-to-r from-brand-900/40 via-dark-900 to-indigo-950/40 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono">
-                GSTIN Verified • {user.gstNumber}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white font-serif">
-              Welcome Back, {user.fullName}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              {user.companyName} ({user.businessType} • {user.city}, {user.state})
-            </p>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          
+          {/* Document Creation Buttons (Replacing Welcome Text area) */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* 1. Sales Invoice Button */}
+            <button
+              onClick={() => onQuickCreateInvoice(null, 'Sales Invoice')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-emerald-400/30"
+            >
+              <FileText className="w-4 h-4 text-white" /> + Sales Invoice
+            </button>
+
+            {/* 2. Purchase Invoice Button */}
+            <button
+              onClick={() => onQuickCreateInvoice(null, 'Purchase Invoice')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-blue-400/30"
+            >
+              <ShoppingBag className="w-4 h-4 text-white" /> + Purchase Invoice
+            </button>
+
+            {/* 3. Estimate Button */}
+            <button
+              onClick={() => onQuickCreateInvoice(null, 'Estimate')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-purple-400/30"
+            >
+              <Calculator className="w-4 h-4 text-white" /> + Estimate
+            </button>
+
+            {/* 4. Delivery Challan Button */}
+            <button
+              onClick={() => onQuickCreateInvoice(null, 'Delivery Challan')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-lg shadow-amber-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-amber-400/30"
+            >
+              <Truck className="w-4 h-4 text-white" /> + Delivery Challan
+            </button>
+
+            {/* 5. Payment Button */}
+            <button
+              onClick={() => onQuickCreateInvoice(null, 'Payment')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-cyan-400/30"
+            >
+              <CreditCard className="w-4 h-4 text-white" /> + Payment
+            </button>
           </div>
 
-          {/* Quick Registration Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Quick Registration Master Buttons */}
+          <div className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800 shrink-0">
             <button
               onClick={handleOpenNewCustomer}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
               <Users className="w-3.5 h-3.5 text-indigo-400" /> + Customer
             </button>
             <button
               onClick={handleOpenNewBank}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
               <Landmark className="w-3.5 h-3.5 text-amber-400" /> + Bank / Cash
             </button>
             <button
               onClick={handleOpenNewItem}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
               <Package className="w-3.5 h-3.5 text-emerald-400" /> + Item / Service
             </button>
-
-            <button
-              onClick={onQuickCreateInvoice}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Create Invoice
-            </button>
           </div>
+
         </div>
       </div>
 
@@ -925,51 +963,107 @@ export const UserDashboard = ({
         </div>
       )}
 
-      {/* INVOICE & BILLING HUB TAB CONTENT (DEDICATED INVOICE MANAGEMENT) */}
-      {activeTab === 'invoices' && (
+      {/* INVOICE & BILLING HUB TAB CONTENT (DEDICATED INVOICE / DOCUMENT DIRECTORY) */}
+      {(activeTab === 'invoices' || activeTab === 'payments') && (
         <div className="space-y-6 animate-slide-up">
 
-          {/* Dedicated Header for Invoices Hub */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-950/60 to-dark-900/60 p-6 rounded-3xl border border-indigo-500/20">
+          {/* Dynamic Header for Document Directory matching Registration Customer format */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-950/60 via-dark-900/80 to-purple-950/40 p-6 rounded-3xl border border-indigo-500/20 shadow-xl">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/20 text-brand-300 font-mono font-bold border border-brand-500/30">
-                  GST BILLING HUB
+                  {docSubTab === 'All' ? 'ALL INVOICES & DOCUMENTS DIRECTORY' : `${docSubTab.toUpperCase()} REGISTER`}
                 </span>
               </div>
-              <h2 className="text-2xl font-bold text-white font-serif">Invoices & Billing Hub</h2>
-              <p className="text-xs text-slate-300 font-mono mt-0.5">Manage, track status, filter, export, and create official GST invoices</p>
+              <h2 className="text-2xl font-black text-white tracking-wider font-serif uppercase">
+                REGISTRATION ( {docSubTab === 'All' ? 'INVOICES & DOCUMENTS' : docSubTab} )
+              </h2>
+              <p className="text-xs text-slate-300 font-mono mt-0.5">
+                {docSubTab === 'Payment'
+                  ? 'Payment Vouchers, Cash/Bank Received & Paid Out Ledger Directory'
+                  : docSubTab === 'Sales Invoice'
+                  ? 'Official Sales Tax Invoices & Customer Billing Directory'
+                  : docSubTab === 'Purchase Invoice'
+                  ? 'Vendor Purchases, Goods Received & Bills Directory'
+                  : docSubTab === 'Estimate'
+                  ? 'Quotations, Proforma Bills & Price Estimates Directory'
+                  : docSubTab === 'Delivery Challan'
+                  ? 'Goods Delivery Notes & Dispatch Challans Directory'
+                  : 'Complete Master Directory for all Sales, Purchases, Estimates, Delivery Challans & Payments'}
+              </p>
             </div>
 
             <button
-              onClick={onQuickCreateInvoice}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer w-fit"
+              onClick={() => onQuickCreateInvoice(null, docSubTab === 'All' ? 'Sales Invoice' : docSubTab)}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer w-fit"
             >
-              <Plus className="w-4 h-4" /> + Create New Tax Invoice
+              <Plus className="w-4 h-4" /> + Create New {docSubTab === 'All' ? 'Document' : docSubTab}
             </button>
+          </div>
+
+          {/* Sub Navigation Category Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-800">
+            {[
+              { id: 'All', label: 'All Documents', color: 'from-indigo-500 to-brand-500' },
+              { id: 'Sales Invoice', label: 'Sales Invoices', color: 'from-emerald-500 to-teal-600' },
+              { id: 'Purchase Invoice', label: 'Purchase Invoices', color: 'from-blue-500 to-indigo-600' },
+              { id: 'Estimate', label: 'Estimates', color: 'from-pink-500 to-rose-600' },
+              { id: 'Delivery Challan', label: 'Delivery Challans', color: 'from-amber-500 to-orange-600' },
+              { id: 'Payment', label: 'Payments', color: 'from-cyan-500 to-blue-600' },
+            ].map((tab) => {
+              const count = tab.id === 'All' 
+                ? invoices.length 
+                : invoices.filter((i) => (i.documentType || 'Sales Invoice') === tab.id).length;
+              const isActive = docSubTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setDocSubTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${
+                    isActive
+                      ? `bg-gradient-to-r ${tab.color} text-white shadow-lg shadow-indigo-500/20`
+                      : 'bg-dark-800/80 hover:bg-dark-700 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Invoice Specific KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
-              <p className="text-xs text-slate-400 font-mono">Total Invoices</p>
-              <h3 className="text-2xl font-bold font-mono text-white mt-1">{invoices.length}</h3>
-              <p className="text-[11px] text-slate-500 font-mono mt-1">Generated all-time</p>
+              <p className="text-xs text-slate-400 font-mono">Total {docSubTab} Records</p>
+              <h3 className="text-2xl font-bold font-mono text-white mt-1">{filteredInvoices.length}</h3>
+              <p className="text-[11px] text-slate-500 font-mono mt-1">Filtered count</p>
             </div>
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
-              <p className="text-xs text-slate-400 font-mono">Total Billing Amount</p>
-              <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">₹{totalSales.toLocaleString('en-IN')}</h3>
-              <p className="text-[11px] text-emerald-400 font-mono mt-1">Inclusive of GST</p>
+              <p className="text-xs text-slate-400 font-mono">Total Billed Volume</p>
+              <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">
+                ₹{filteredInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal || inv.grand_total || inv.amountPaid || 0), 0).toLocaleString('en-IN')}
+              </h3>
+              <p className="text-[11px] text-emerald-400 font-mono mt-1">Inclusive of Taxes</p>
             </div>
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
-              <p className="text-xs text-slate-400 font-mono">Paid Cleared Invoices</p>
-              <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">{paidInvoices.length}</h3>
-              <p className="text-[11px] text-emerald-400 font-mono mt-1">₹{paidAmount.toLocaleString('en-IN')} settled</p>
+              <p className="text-xs text-slate-400 font-mono">Cleared / Settled</p>
+              <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">
+                {filteredInvoices.filter((i) => i.status === 'Paid').length}
+              </h3>
+              <p className="text-[11px] text-emerald-400 font-mono mt-1">Completed records</p>
             </div>
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
-              <p className="text-xs text-slate-400 font-mono">Pending / Overdue</p>
-              <h3 className="text-2xl font-bold font-mono text-amber-300 mt-1">{pendingInvoices.length + overdueInvoices.length}</h3>
-              <p className="text-[11px] text-amber-400 font-mono mt-1">₹{(pendingAmount + outstandingAmount).toLocaleString('en-IN')} pending</p>
+              <p className="text-xs text-slate-400 font-mono">Pending / Active</p>
+              <h3 className="text-2xl font-bold font-mono text-amber-300 mt-1">
+                {filteredInvoices.filter((i) => i.status !== 'Paid' && i.status !== 'Cancelled').length}
+              </h3>
+              <p className="text-[11px] text-amber-400 font-mono mt-1">Requires attention</p>
             </div>
           </div>
 
@@ -978,8 +1072,12 @@ export const UserDashboard = ({
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white font-serif">GST Invoice Directory</h3>
-                <p className="text-xs text-slate-400 font-mono">Showing {filteredInvoices.length} of {invoices.length} total tax invoices</p>
+                <h3 className="text-lg font-bold text-white font-serif uppercase">
+                  {docSubTab === 'All' ? 'ALL DOCUMENTS MASTER LIST' : `${docSubTab} DIRECTORY`}
+                </h3>
+                <p className="text-xs text-slate-400 font-mono">
+                  Showing <span className="text-emerald-400 font-bold">{filteredInvoices.length}</span> of {invoices.length} total entries
+                </p>
               </div>
 
               {/* Filters */}
@@ -990,7 +1088,7 @@ export const UserDashboard = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search invoice number, customer, GSTIN..."
+                    placeholder="Search ID, customer, GSTIN, payment details..."
                     className="pl-8 pr-3 py-2 rounded-xl glass-input text-xs w-64 font-mono"
                   />
                   {searchQuery && (
@@ -1005,11 +1103,11 @@ export const UserDashboard = ({
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-3.5 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold cursor-pointer"
                 >
-                  <option value="All">All Status ({invoices.length})</option>
-                  <option value="Paid">Paid ({paidInvoices.length})</option>
-                  <option value="Pending">Pending ({pendingInvoices.length})</option>
-                  <option value="Overdue">Overdue ({overdueInvoices.length})</option>
-                  <option value="Cancelled">Cancelled ({cancelledInvoices.length})</option>
+                  <option value="All">All Status</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Overdue">Overdue</option>
+                  <option value="Cancelled">Cancelled</option>
                 </select>
               </div>
             </div>
@@ -1020,11 +1118,11 @@ export const UserDashboard = ({
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
-                      <th className="py-3 px-4">Invoice #</th>
-                      <th className="py-3 px-4">Customer</th>
-                      <th className="py-3 px-4">GSTIN</th>
-                      <th className="py-3 px-4">Date / Due</th>
-                      <th className="py-3 px-4">Tax (₹)</th>
+                      <th className="py-3 px-4">Doc Type & ID</th>
+                      <th className="py-3 px-4">Customer / Party</th>
+                      <th className="py-3 px-4">GSTIN & Details</th>
+                      <th className="py-3 px-4">Date / Payment Method</th>
+                      <th className="py-3 px-4">Tax / Purpose</th>
                       <th className="py-3 px-4">Grand Total</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4 text-right">Actions</th>
@@ -1032,23 +1130,41 @@ export const UserDashboard = ({
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {filteredInvoices.map((inv) => {
+                      const docType = inv.documentType || 'Sales Invoice';
                       const invNumber = inv.invoiceNumber || inv.invoice_number;
-                      const custName = inv.customerName || inv.customer_name;
-                      const custGst = inv.customerGst || inv.customer_gst;
+                      const custName = inv.customerName || inv.customer_name || inv.paidBy || 'N/A';
+                      const custGst = inv.customerGst || inv.customer_gst || (inv.paidTo ? `To: ${inv.paidTo}` : 'N/A');
                       const totalTaxVal = inv.totalTax || inv.total_tax || 0;
-                      const grandTotalVal = inv.grandTotal || inv.grand_total || 0;
+                      const grandTotalVal = inv.grandTotal || inv.grand_total || inv.amountPaid || 0;
                       const dueDateVal = inv.dueDate || inv.due_date;
+                      const paymentMethod = inv.paymentMethod || 'N/A';
+                      const paymentPurpose = inv.paymentPurpose || '';
 
                       return (
                         <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3.5 px-4 font-mono font-bold text-white whitespace-nowrap">{invNumber}</td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-white whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] text-brand-300 font-sans font-semibold uppercase">{docType}</span>
+                              <span className="text-xs">{invNumber}</span>
+                            </div>
+                          </td>
                           <td className="py-3.5 px-4 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
                           <td className="py-3.5 px-4 font-mono text-slate-400 whitespace-nowrap">{custGst}</td>
                           <td className="py-3.5 px-4 text-slate-400 font-mono whitespace-nowrap">
                             <div>{inv.date}</div>
-                            <div className="text-[10px] text-slate-500">Due: {dueDateVal}</div>
+                            {docType === 'Payment' ? (
+                              <div className="text-[10px] text-cyan-400 font-bold">Via: {paymentMethod}</div>
+                            ) : (
+                              dueDateVal && <div className="text-[10px] text-slate-500">Due: {dueDateVal}</div>
+                            )}
                           </td>
-                          <td className="py-3.5 px-4 font-mono text-indigo-300 whitespace-nowrap">₹{totalTaxVal.toLocaleString('en-IN')}</td>
+                          <td className="py-3.5 px-4 font-mono text-indigo-300 whitespace-nowrap">
+                            {docType === 'Payment' ? (
+                              <span className="text-[11px] text-slate-400">{paymentPurpose || 'Payment Entry'}</span>
+                            ) : (
+                              `₹${totalTaxVal.toLocaleString('en-IN')}`
+                            )}
+                          </td>
                           <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
@@ -1065,50 +1181,42 @@ export const UserDashboard = ({
                           </td>
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* VIEW Button */}
                               <button
                                 onClick={() => {
                                   generateInvoicePDF(inv, user);
-                                  addToast(`Tax Invoice PDF downloaded for ${inv.invoiceNumber || inv.invoice_number}`, 'success', 'PDF Generated');
+                                  addToast(`Viewing ${docType} details for ${invNumber}`, 'info', 'View Record');
+                                }}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-[11px] font-semibold transition-all cursor-pointer"
+                                title="View Record Details"
+                              >
+                                <Eye className="w-3 h-3" /> View
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  generateInvoicePDF(inv, user);
+                                  addToast(`${docType} PDF generated for ${invNumber}`, 'success', 'PDF Ready');
                                 }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-[11px] shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
-                                title="Download Tax Invoice PDF"
+                                title="Download PDF"
                               >
-                                <Download className="w-3 h-3" /> Download
+                                <Download className="w-3 h-3" /> PDF
                               </button>
                               
                               {/* EDIT Button */}
                               <button
                                 onClick={() => onQuickCreateInvoice(inv)}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[11px] font-semibold transition-all cursor-pointer"
-                                title="Edit / Update Invoice"
+                                title="Edit / Update Record"
                               >
                                 <Pencil className="w-3 h-3" /> Edit
                               </button>
 
-                              {inv.status !== 'Paid' && inv.status !== 'Cancelled' && (
-                                <button
-                                  onClick={() => handleMarkAsPaid(inv.id)}
-                                  className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[11px] font-semibold border border-emerald-500/30 transition-colors cursor-pointer"
-                                >
-                                  Mark Paid
-                                </button>
-                              )}
-
-                              {/* CANCEL Button */}
-                              {inv.status !== 'Cancelled' && (
-                                <button
-                                  onClick={() => handleCancelInvoice(inv)}
-                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 text-[11px] font-semibold transition-all cursor-pointer"
-                                  title="Cancel Invoice"
-                                >
-                                  <Ban className="w-3 h-3" /> Cancel
-                                </button>
-                              )}
-
                               <button
                                 onClick={() => handleDeleteInvoice(inv)}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
-                                title="Delete Invoice"
+                                title="Delete Record"
                               >
                                 <Trash2 className="w-3 h-3" /> Delete
                               </button>
@@ -1123,8 +1231,8 @@ export const UserDashboard = ({
             ) : (
               <div className="p-12 text-center space-y-3">
                 <Receipt className="w-10 h-10 text-slate-600 mx-auto" />
-                <h4 className="text-sm font-bold text-slate-300">No matching invoices found</h4>
-                <p className="text-xs text-slate-500">Try adjusting your status filter or search query.</p>
+                <h4 className="text-sm font-bold text-slate-300">No matching {docSubTab} records found</h4>
+                <p className="text-xs text-slate-500">Try adjusting your category tabs, status filter, or search query.</p>
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
@@ -1474,17 +1582,18 @@ export const UserDashboard = ({
                       <th className="py-3 px-4">GST Rate</th>
                       <th className="py-3 px-4">QTY Unit</th>
                       <th className="py-3 px-4">Opening Stock</th>
-                      <th className="py-3 px-4">Rate (₹)</th>
+                      <th className="py-3 px-4">Date</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {filteredProducts.map((p) => {
+                      const isService = (p.category || '').toLowerCase().includes('service') || (p.unit || '').toLowerCase().includes('service') || String(p.hsnSac || p.hsn_sac || '').startsWith('99');
                       const itemTitle = p.title;
                       const hsn = p.hsnSac || p.hsn_sac;
-                      const rateVal = p.rate || 0;
                       const taxPct = p.taxPercent || p.tax_percent || 18;
                       const opStock = p.openingStock !== undefined ? p.openingStock : (p.opening_stock !== undefined ? p.opening_stock : 100);
+                      const itemDate = p.date || (p.created_at ? new Date(p.created_at).toISOString().split('T')[0] : '2026-09-07');
 
                       return (
                         <tr
@@ -1510,13 +1619,13 @@ export const UserDashboard = ({
                             {taxPct}% GST
                           </td>
                           <td className="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
-                            {p.unit || 'Pices'}
+                            {isService ? '-' : (p.unit || 'Pices')}
                           </td>
                           <td className="py-3.5 px-4 font-mono text-slate-300 font-semibold whitespace-nowrap">
-                            {opStock} Units
+                            {isService ? '-' : `${opStock} Units`}
                           </td>
                           <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
-                            ₹{rateVal.toLocaleString('en-IN')}
+                            {isService ? '-' : itemDate}
                           </td>
                           <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
@@ -2008,45 +2117,34 @@ export const UserDashboard = ({
                   </div>
                 </div>
               ) : (
-                /* SERVICE specific fields: OPENING STOCK (and optional SAC Code) */
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">OPENING STOCK</label>
-                    <input
-                      type="number"
-                      value={itemForm.openingStock}
-                      onChange={(e) => setItemForm({ ...itemForm, openingStock: e.target.value })}
-                      placeholder="0"
-                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">SAC / HSN CODE</label>
-                    <input
-                      type="text"
-                      value={itemForm.hsnCode}
-                      onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
-                      placeholder="998222"
-                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                    />
-                  </div>
+                /* SERVICE specific fields: SAC / HSN CODE ONLY (NO OPENING STOCK) */
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">SAC / HSN CODE</label>
+                  <input
+                    type="text"
+                    value={itemForm.hsnCode}
+                    onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
+                    placeholder="998222"
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                  />
                 </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">STANDARD TARIFF / RATE (₹)</label>
-                  <input
-                    type="number"
-                    value={itemForm.rate}
-                    onChange={(e) => setItemForm({ ...itemForm, rate: e.target.value })}
-                    placeholder="12500"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                  />
-                </div>
+                {itemForm.entryType === 'Item' ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">DATE *</label>
+                    <input
+                      type="date"
+                      value={itemForm.date}
+                      onChange={(e) => setItemForm({ ...itemForm, date: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono text-white"
+                      required
+                    />
+                  </div>
+                ) : null}
 
-                <div>
+                <div className={itemForm.entryType === 'Service' ? 'sm:col-span-2' : ''}>
                   <label className="block text-xs font-semibold text-slate-200 mb-1">GST TAX PERCENT (%)</label>
                   <select
                     value={itemForm.taxPercent}
@@ -2283,32 +2381,44 @@ export const UserDashboard = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
-              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">HSN / SAC CODE</span>
-                <span className="text-indigo-300 font-bold">{selectedServiceDetail.hsnSac || selectedServiceDetail.hsn_sac || 'N/A'}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">GST TAX RATE</span>
-                <span className="text-emerald-400 font-bold">{selectedServiceDetail.taxPercent || selectedServiceDetail.tax_percent || 18}% GST</span>
-              </div>
-              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">CATEGORY</span>
-                <span className="text-white font-bold">{selectedServiceDetail.category || 'Sales / Service Item'}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
-                <span className="text-slate-500 block text-[10px]">OPENING STOCK</span>
-                <span className="text-emerald-400 font-bold">{selectedServiceDetail.openingStock !== undefined ? selectedServiceDetail.openingStock : (selectedServiceDetail.opening_stock !== undefined ? selectedServiceDetail.opening_stock : 100)} Units</span>
-              </div>
-            </div>
+            {(() => {
+              const isService = (selectedServiceDetail.category || '').toLowerCase().includes('service') || (selectedServiceDetail.unit || '').toLowerCase().includes('service') || String(selectedServiceDetail.hsnSac || selectedServiceDetail.hsn_sac || '').startsWith('99');
+              const itemDate = selectedServiceDetail.date || (selectedServiceDetail.created_at ? new Date(selectedServiceDetail.created_at).toISOString().split('T')[0] : '2026-09-07');
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                    <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                      <span className="text-slate-500 block text-[10px]">HSN / SAC CODE</span>
+                      <span className="text-indigo-300 font-bold">{selectedServiceDetail.hsnSac || selectedServiceDetail.hsn_sac || 'N/A'}</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                      <span className="text-slate-500 block text-[10px]">GST TAX RATE</span>
+                      <span className="text-emerald-400 font-bold">{selectedServiceDetail.taxPercent || selectedServiceDetail.tax_percent || 18}% GST</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                      <span className="text-slate-500 block text-[10px]">CATEGORY</span>
+                      <span className="text-white font-bold">{selectedServiceDetail.category || 'Sales / Service Item'}</span>
+                    </div>
+                    {!isService && (
+                      <div className="p-3 rounded-xl bg-dark-900 border border-slate-800">
+                        <span className="text-slate-500 block text-[10px]">OPENING STOCK</span>
+                        <span className="text-emerald-400 font-bold">{selectedServiceDetail.openingStock !== undefined ? selectedServiceDetail.openingStock : (selectedServiceDetail.opening_stock !== undefined ? selectedServiceDetail.opening_stock : 100)} Units</span>
+                      </div>
+                    )}
+                  </div>
 
-            <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-slate-400 font-mono">Standard Tariff Rate</span>
-                <h4 className="text-xl font-bold font-mono text-emerald-400">₹{(selectedServiceDetail.rate || 0).toLocaleString('en-IN')}</h4>
-              </div>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono font-semibold border border-emerald-500/30">Active Item</span>
-            </div>
+                  {!isService && (
+                    <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
+                      <div>
+                        <span className="text-xs text-slate-400 font-mono">Date</span>
+                        <h4 className="text-base font-bold font-mono text-emerald-400">{itemDate}</h4>
+                      </div>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono font-semibold border border-emerald-500/30">Active Item</span>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="flex justify-end gap-2 pt-2">
               <button

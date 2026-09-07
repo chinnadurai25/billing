@@ -49,9 +49,11 @@ function AppContent() {
   // Quick Create Invoice Modal state
   const [isQuickInvoiceOpen, setIsQuickInvoiceOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
+  const [quickInvoiceType, setQuickInvoiceType] = useState('Sales Invoice');
 
-  const handleOpenQuickInvoice = (invToEdit = null) => {
+  const handleOpenQuickInvoice = (invToEdit = null, docType = 'Sales Invoice') => {
     setEditingInvoice(invToEdit || null);
+    setQuickInvoiceType(docType || 'Sales Invoice');
     setIsQuickInvoiceOpen(true);
   };
 
@@ -103,8 +105,9 @@ function AppContent() {
     title: p.title,
     unit: p.unit || 'Pices',
     hsnSac: p.hsn_sac || p.hsnSac || '',
-    openingStock: parseInt(p.opening_stock ?? p.openingStock ?? 100),
+    openingStock: parseInt(p.opening_stock ?? p.openingStock ?? 0),
     rate: parseFloat(p.rate ?? 0),
+    date: p.date || (p.created_at ? new Date(p.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
     taxPercent: parseFloat(p.tax_percent ?? p.taxPercent ?? 18),
     category: p.category || 'Sales / Service Item',
   });
@@ -112,9 +115,14 @@ function AppContent() {
   const normaliseInvoice = (inv) => ({
     id: inv.id,
     userId: inv.user_id || inv.userId,
+    documentType: inv.documentType || inv.document_type || (inv.id?.startsWith('PUR') ? 'Purchase Invoice' : inv.id?.startsWith('EST') ? 'Estimate' : inv.id?.startsWith('DC') ? 'Delivery Challan' : inv.id?.startsWith('PAY') ? 'Payment' : 'Sales Invoice'),
     invoiceNumber: inv.invoice_number || inv.invoiceNumber || '',
     customerName: inv.customer_name || inv.customerName || '',
     customerGst: inv.customer_gst || inv.customerGst || '',
+    paidBy: inv.paidBy || inv.paid_by || '',
+    paidTo: inv.paidTo || inv.paid_to || '',
+    paymentMethod: inv.paymentMethod || inv.payment_method || '',
+    paymentPurpose: inv.paymentPurpose || inv.payment_purpose || '',
     date: inv.date || '',
     dueDate: inv.due_date || inv.dueDate || '',
     subtotal: parseFloat(inv.subtotal ?? 0),
@@ -384,6 +392,7 @@ function AppContent() {
         invoices={invoices}
         user={userData}
         editingInvoice={editingInvoice}
+        documentType={quickInvoiceType}
         onSaveInvoice={handleSaveInvoice}
       />
 

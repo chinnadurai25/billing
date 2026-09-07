@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
 // POST REGISTRATION ( SALES / SERVICES )
 router.post('/', async (req, res) => {
   try {
-    const { title, unit, hsnSac, openingStock, rate, taxPercent, category, userId } = req.body;
+    const { title, unit, hsnSac, openingStock, rate, date, taxPercent, category, userId } = req.body;
 
     if (!title || !hsnSac) {
       return res.status(400).json({ success: false, message: 'NAME OF THE ITEM and HSN CODE are required' });
@@ -51,8 +51,9 @@ router.post('/', async (req, res) => {
       title,
       unit: unit || 'Pices',
       hsn_sac: hsnSac,
-      opening_stock: parseInt(openingStock) || 100,
-      rate: parseFloat(rate) || 12500.00,
+      opening_stock: parseInt(openingStock) || 0,
+      rate: parseFloat(rate) || 0,
+      date: date || new Date().toISOString().split('T')[0],
       tax_percent: parseFloat(taxPercent) || 18.00,
       category: category || 'Sales / Service Item'
     };
@@ -82,7 +83,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, unit, hsnSac, openingStock, rate, taxPercent, category } = req.body;
+    const { title, unit, hsnSac, openingStock, rate, date, taxPercent, category } = req.body;
 
     if (isConnected()) {
       const db = getDB();
@@ -103,6 +104,7 @@ router.put('/:id', async (req, res) => {
           opening_stock: openingStock !== undefined ? parseInt(openingStock) : fallbackStore.productsServices[idx].opening_stock,
           openingStock: openingStock !== undefined ? parseInt(openingStock) : fallbackStore.productsServices[idx].openingStock,
           rate: rate !== undefined ? parseFloat(rate) : fallbackStore.productsServices[idx].rate,
+          date: date || fallbackStore.productsServices[idx].date,
           tax_percent: taxPercent !== undefined ? parseFloat(taxPercent) : fallbackStore.productsServices[idx].tax_percent,
           taxPercent: taxPercent !== undefined ? parseFloat(taxPercent) : fallbackStore.productsServices[idx].taxPercent,
           category: category || fallbackStore.productsServices[idx].category
