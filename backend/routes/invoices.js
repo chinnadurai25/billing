@@ -33,10 +33,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST Create Tax Invoice
+// POST Create Tax Invoice / Document
 router.post('/', async (req, res) => {
   try {
-    const { invoiceNumber, customerName, customerGst, date, dueDate, subtotal, cgst, sgst, igst, totalTax, grandTotal, status, userId } = req.body;
+    const { documentType, document_type, invoiceNumber, customerName, customerGst, date, dueDate, subtotal, cgst, sgst, igst, totalTax, grandTotal, status, userId, items } = req.body;
 
     if (!customerName || !grandTotal) {
       return res.status(400).json({ success: false, message: 'Customer Name and Total are required' });
@@ -45,10 +45,13 @@ router.post('/', async (req, res) => {
     const invId = req.body.id || `INV-${Date.now().toString().slice(-4)}`;
     const num = invoiceNumber || `TP-2026-${Math.floor(100 + Math.random() * 900)}`;
     const effectiveUserId = userId || 'USR-901';
+    const docType = documentType || document_type || (invId.startsWith('PUR') ? 'Purchase Invoice' : invId.startsWith('EST') ? 'Estimate' : invId.startsWith('DC') ? 'Delivery Challan' : invId.startsWith('PAY') ? 'Payment' : 'Sales Invoice');
 
     const newInvoice = {
       id: invId,
       user_id: effectiveUserId,
+      document_type: docType,
+      documentType: docType,
       invoice_number: num,
       customer_name: customerName,
       customer_gst: customerGst || '33AAACD1234F1Z5',
@@ -60,23 +63,33 @@ router.post('/', async (req, res) => {
       igst: parseFloat(igst) || 0,
       total_tax: parseFloat(totalTax) || 0,
       grand_total: parseFloat(grandTotal) || 0,
-      status: status || 'Pending'
+      status: status || 'Pending',
+      items: items || []
     };
 
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO invoices (id, user_id, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [invId, effectiveUserId, num, customerName, newInvoice.customer_gst, newInvoice.date, newInvoice.due_date, newInvoice.subtotal, newInvoice.cgst, newInvoice.sgst, newInvoice.igst, newInvoice.total_tax, newInvoice.grand_total, newInvoice.status]
+        `INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+         document_type=VALUES(document_type), invoice_number=VALUES(invoice_number), customer_name=VALUES(customer_name),
+         customer_gst=VALUES(customer_gst), date=VALUES(date), due_date=VALUES(due_date), subtotal=VALUES(subtotal),
+         cgst=VALUES(cgst), sgst=VALUES(sgst), igst=VALUES(igst), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status)`,
+        [invId, effectiveUserId, docType, num, customerName, newInvoice.customer_gst, newInvoice.date, newInvoice.due_date, newInvoice.subtotal, newInvoice.cgst, newInvoice.sgst, newInvoice.igst, newInvoice.total_tax, newInvoice.grand_total, newInvoice.status]
       );
+    }
+
+    const existingIdx = fallbackStore.invoices.findIndex(i => i.id === invId);
+    if (existingIdx >= 0) {
+      fallbackStore.invoices[existingIdx] = newInvoice;
     } else {
       fallbackStore.invoices.unshift(newInvoice);
     }
 
     res.status(201).json({
       success: true,
-      message: 'Tax Invoice generated & saved in MySQL database',
+      message: 'Document generated & saved successfully',
       invoice: newInvoice
     });
   } catch (error) {
@@ -89,11 +102,12 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { 
-      status, customerName, customer_name, customerGst, customer_gst,
+      documentType, document_type, status, customerName, customer_name, customerGst, customer_gst,
       date, dueDate, due_date, subtotal, cgst, sgst, igst, totalTax, total_tax,
       grandTotal, grand_total, items 
     } = req.body;
 
+    const docType = documentType || document_type;
     const cName = customerName || customer_name;
     const cGst = customerGst || customer_gst;
     const dDate = dueDate || due_date;
@@ -105,6 +119,7 @@ router.put('/:id', async (req, res) => {
       const db = getDB();
       await db.query(
         `UPDATE invoices SET 
+          document_type = COALESCE(?, document_type),
           status = COALESCE(?, status), 
           customer_name = COALESCE(?, customer_name), 
           customer_gst = COALESCE(?, customer_gst),
@@ -118,27 +133,29 @@ router.put('/:id', async (req, res) => {
           grand_total = COALESCE(?, grand_total),
           items = COALESCE(?, items)
          WHERE id = ?`,
-        [status, cName, cGst, date, dDate, subtotal, cgst, sgst, igst, tTax, gTotal, itemsJson, id]
+        [docType, status, cName, cGst, date, dDate, subtotal, cgst, sgst, igst, tTax, gTotal, itemsJson, id]
       );
-    } else {
-      const idx = fallbackStore.invoices.findIndex(i => i.id === id);
-      if (idx !== -1) {
-        fallbackStore.invoices[idx] = {
-          ...fallbackStore.invoices[idx],
-          ...(status && { status }),
-          ...(cName && { customerName: cName, customer_name: cName }),
-          ...(cGst && { customerGst: cGst, customer_gst: cGst }),
-          ...(date && { date }),
-          ...(dDate && { dueDate: dDate, due_date: dDate }),
-          ...(subtotal !== undefined && { subtotal }),
-          ...(cgst !== undefined && { cgst }),
-          ...(sgst !== undefined && { sgst }),
-          ...(igst !== undefined && { igst }),
-          ...(tTax !== undefined && { totalTax: tTax, total_tax: tTax }),
-          ...(gTotal !== undefined && { grandTotal: gTotal, grand_total: gTotal }),
-          ...(items && { items })
-        };
-      }
+    }
+
+    const idx = fallbackStore.invoices.findIndex(i => i.id === id);
+    if (idx !== -1) {
+      fallbackStore.invoices[idx] = {
+        ...fallbackStore.invoices[idx],
+        ...(docType && { documentType: docType, document_type: docType }),
+        ...(status && { status }),
+        ...(cName && { customerName: cName, customer_name: cName }),
+        ...(cGst && { customerGst: cGst, customer_gst: cGst }),
+        ...(date && { date }),
+        ...(dDate && { dueDate: dDate, due_date: dDate }),
+        ...(subtotal !== undefined && { subtotal }),
+        ...(cgst !== undefined && { cgst }),
+        ...(sgst !== undefined && { sgst }),
+        ...(igst !== undefined && { igst }),
+        ...(tTax !== undefined && { totalTax: tTax, total_tax: tTax }),
+        ...(gTotal !== undefined && { grandTotal: gTotal, grand_total: gTotal }),
+        ...(items && { items })
+      };
+    }
     }
 
     res.json({

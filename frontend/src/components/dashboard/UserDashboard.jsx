@@ -336,7 +336,13 @@ export const UserDashboard = ({
         status: 'Active'
       };
 
-      setBankAccounts([newBank, ...bankAccounts]);
+      setBankAccounts((prev) => {
+        const updated = [newBank, ...prev];
+        try {
+          localStorage.setItem('billson_bank_accounts', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
       try {
         const res = await api.registerBankCash({
           id: bankId,
@@ -350,7 +356,13 @@ export const UserDashboard = ({
           userId: user?.id || 'USR-901'
         });
         if (res && res.bankAccount && res.bankAccount.id && res.bankAccount.id !== bankId) {
-          setBankAccounts((prev) => prev.map((b) => b.id === bankId ? { ...b, id: res.bankAccount.id } : b));
+          setBankAccounts((prev) => {
+            const updated = prev.map((b) => b.id === bankId ? { ...b, id: res.bankAccount.id } : b);
+            try {
+              localStorage.setItem('billson_bank_accounts', JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+          });
         }
       } catch (err) {
         console.error('Error saving bank account to backend:', err);
@@ -1206,7 +1218,15 @@ export const UserDashboard = ({
                               
                               {/* EDIT Button */}
                               <button
-                                onClick={() => onQuickCreateInvoice(inv)}
+                                onClick={() => {
+                                  const effectiveDocType = inv.documentType || inv.document_type || docType || (
+                                    inv.id?.startsWith('PUR') ? 'Purchase Invoice' :
+                                    inv.id?.startsWith('EST') ? 'Estimate' :
+                                    inv.id?.startsWith('DC') ? 'Delivery Challan' :
+                                    inv.id?.startsWith('PAY') ? 'Payment' : 'Sales Invoice'
+                                  );
+                                  onQuickCreateInvoice(inv, effectiveDocType);
+                                }}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[11px] font-semibold transition-all cursor-pointer"
                                 title="Edit / Update Record"
                               >
@@ -1721,6 +1741,7 @@ export const UserDashboard = ({
           user={user}
           setUserData={setUserData}
           bankAccounts={bankAccounts}
+          setBankAccounts={setBankAccounts}
           invoices={invoices}
           customers={customers}
           products={products}
@@ -2446,38 +2467,73 @@ export const UserDashboard = ({
       {selectedInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
           <div className="glass-card rounded-3xl p-6 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-white font-serif">{selectedInvoice.invoiceNumber || selectedInvoice.invoice_number}</h3>
-                <p className="text-xs text-slate-400 font-mono">Customer: {selectedInvoice.customerName || selectedInvoice.customer_name}</p>
-              </div>
-              <button onClick={() => setSelectedInvoice(null)} className="text-slate-400 hover:text-white cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            {(() => {
+              const invNum = selectedInvoice.invoiceNumber || selectedInvoice.invoice_number || '';
+              const docType = selectedInvoice.documentType || selectedInvoice.document_type || (
+                invNum.startsWith('PUR') ? 'Purchase Invoice' :
+                invNum.startsWith('EST') ? 'Estimate' :
+                invNum.startsWith('DC') ? 'Delivery Challan' :
+                invNum.startsWith('PAY') ? 'Payment Voucher' : 'Tax Invoice'
+              );
 
-            <div className="space-y-3 text-xs text-slate-300 font-mono">
-              <p><span className="text-slate-500">GSTIN:</span> {selectedInvoice.customerGst || selectedInvoice.customer_gst}</p>
-              <p><span className="text-slate-500">Date / Due:</span> {selectedInvoice.date} / {selectedInvoice.dueDate || selectedInvoice.due_date}</p>
-              <div className="p-3 rounded-xl bg-dark-900 border border-slate-800 space-y-1">
-                <p className="flex justify-between"><span>Subtotal:</span> <span>₹{(selectedInvoice.subtotal || 0).toLocaleString('en-IN')}</span></p>
-                <p className="flex justify-between text-indigo-300"><span>Tax (CGST+SGST/IGST):</span> <span>₹{(selectedInvoice.totalTax || selectedInvoice.total_tax || 0).toLocaleString('en-IN')}</span></p>
-                <p className="flex justify-between font-bold text-white pt-1 border-t border-slate-800"><span>Grand Total:</span> <span className="text-emerald-400">₹{(selectedInvoice.grandTotal || selectedInvoice.grand_total || 0).toLocaleString('en-IN')}</span></p>
-              </div>
-            </div>
+              let badgeColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
+              let displayTitle = 'TAX INVOICE';
+              if (docType.toLowerCase().includes('estimate') || invNum.startsWith('EST')) {
+                badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                displayTitle = 'ESTIMATE';
+              } else if (docType.toLowerCase().includes('purchase') || invNum.startsWith('PUR')) {
+                badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                displayTitle = 'PURCHASE INVOICE';
+              } else if (docType.toLowerCase().includes('challan') || invNum.startsWith('DC')) {
+                badgeColor = 'bg-sky-500/10 text-sky-400 border-sky-500/30';
+                displayTitle = 'DELIVERY CHALLAN';
+              } else if (docType.toLowerCase().includes('payment') || invNum.startsWith('PAY')) {
+                badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+                displayTitle = 'PAYMENT VOUCHER';
+              }
 
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => {
-                  generateInvoicePDF(selectedInvoice, user);
-                  addToast(`Tax Invoice PDF generated for ${selectedInvoice.invoiceNumber || selectedInvoice.invoice_number}`, 'success');
-                  setSelectedInvoice(null);
-                }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all shadow-lg shadow-indigo-600/30"
-              >
-                <Download className="w-4 h-4" /> Download PDF / Print
-              </button>
-            </div>
+              return (
+                <>
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${badgeColor}`}>
+                          {displayTitle}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold text-white font-serif">{invNum}</h3>
+                      <p className="text-xs text-slate-400 font-mono">Party: {selectedInvoice.customerName || selectedInvoice.customer_name || selectedInvoice.paidTo || 'Valued Party'}</p>
+                    </div>
+                    <button onClick={() => setSelectedInvoice(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs text-slate-300 font-mono">
+                    <p><span className="text-slate-500">GSTIN:</span> {selectedInvoice.customerGst || selectedInvoice.customer_gst || 'N/A'}</p>
+                    <p><span className="text-slate-500">Date / Due:</span> {selectedInvoice.date} / {selectedInvoice.dueDate || selectedInvoice.due_date || selectedInvoice.date}</p>
+                    <div className="p-3 rounded-xl bg-dark-900 border border-slate-800 space-y-1">
+                      <p className="flex justify-between"><span>Subtotal:</span> <span>₹{(selectedInvoice.subtotal || 0).toLocaleString('en-IN')}</span></p>
+                      <p className="flex justify-between text-indigo-300"><span>Tax (CGST+SGST/IGST):</span> <span>₹{(selectedInvoice.totalTax || selectedInvoice.total_tax || 0).toLocaleString('en-IN')}</span></p>
+                      <p className="flex justify-between font-bold text-white pt-1 border-t border-slate-800"><span>Grand Total:</span> <span className="text-emerald-400">₹{(selectedInvoice.grandTotal || selectedInvoice.grand_total || 0).toLocaleString('en-IN')}</span></p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 mt-6">
+                    <button
+                      onClick={() => {
+                        generateInvoicePDF(selectedInvoice, user);
+                        addToast(`${displayTitle} PDF generated for ${invNum}`, 'success');
+                        setSelectedInvoice(null);
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all shadow-lg shadow-indigo-600/30"
+                    >
+                      <Download className="w-4 h-4" /> Download {displayTitle} PDF / Print
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

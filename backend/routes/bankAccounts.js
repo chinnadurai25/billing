@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     }
 
     if (userId) {
-      const filtered = fallbackStore.bankAccounts.filter(b => b.user_id === userId);
+      const filtered = fallbackStore.bankAccounts.filter(b => b.user_id === userId || !b.user_id);
       return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.bankAccounts });
@@ -36,13 +36,17 @@ router.get('/', async (req, res) => {
 // POST REGISTRATION ( BANK / CASH )
 router.post('/', async (req, res) => {
   try {
-    const { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, userId } = req.body;
+    let { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, userId } = req.body;
 
-    if (!accountName || !accountNumber) {
-      return res.status(400).json({ success: false, message: 'NAME OF ACCOUNT and ACCOUNT NUMBER are required' });
+    if (!accountName) {
+      return res.status(400).json({ success: false, message: 'NAME OF ACCOUNT is required' });
     }
 
-    const bankId = req.body.id || `BANK-${Date.now().toString().slice(-4)}`;
+    if (!accountNumber) {
+      accountNumber = `ACC-${Date.now().toString().slice(-6)}`;
+    }
+
+    const bankId = req.body.id || `BANK-${Date.now().toString().slice(-6)}`;
     const effectiveUserId = userId || 'USR-901';
 
     const newBank = {
@@ -54,7 +58,7 @@ router.post('/', async (req, res) => {
       bank_name: bankName || 'HDFC Bank Ltd',
       ifsc_code: ifscCode || 'HDFC0001234',
       address: address || '',
-      balance: parseFloat(balance) || 150000.00,
+      balance: parseFloat(balance) || 0.00,
       status: 'Active'
     };
 
@@ -62,19 +66,28 @@ router.post('/', async (req, res) => {
       const db = getDB();
       await db.query(
         `INSERT INTO bank_accounts (id, user_id, bank_type, account_name, account_number, bank_name, ifsc_code, address, balance, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+         bank_type=VALUES(bank_type), account_name=VALUES(account_name), account_number=VALUES(account_number),
+         bank_name=VALUES(bank_name), ifsc_code=VALUES(ifsc_code), address=VALUES(address), balance=VALUES(balance)`,
         [bankId, effectiveUserId, newBank.bank_type, accountName, accountNumber, newBank.bank_name, newBank.ifsc_code, address, newBank.balance, 'Active']
       );
+    }
+
+    const existingIdx = fallbackStore.bankAccounts.findIndex(b => b.id === bankId);
+    if (existingIdx >= 0) {
+      fallbackStore.bankAccounts[existingIdx] = newBank;
     } else {
       fallbackStore.bankAccounts.unshift(newBank);
     }
 
     res.status(201).json({
       success: true,
-      message: 'REGISTRATION (BANK / CASH) persisted successfully in MySQL',
+      message: 'REGISTRATION (BANK / CASH) persisted successfully',
       bankAccount: newBank
     });
   } catch (error) {
+    console.error('Error saving bank account:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

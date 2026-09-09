@@ -11,6 +11,7 @@ export const UserSettings = ({
   user, 
   setUserData, 
   bankAccounts = [],
+  setBankAccounts,
   invoices = [],
   customers = [],
   products = []
@@ -19,6 +20,98 @@ export const UserSettings = ({
   const [activeSettingsTab, setActiveSettingsTab] = useState('profile');
   const [isSaving, setIsSaving] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
+
+  // Manual Bank Account Modal & Registration State
+  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [newBankForm, setNewBankForm] = useState({
+    bankType: 'Bank Account',
+    accountName: '',
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
+    address: '',
+    balance: '0'
+  });
+  const [isSubmittingBank, setIsSubmittingBank] = useState(false);
+
+  const handleCreateBank = async (e) => {
+    if (e) e.preventDefault();
+    if (!newBankForm.accountName.trim()) {
+      addToast('Please enter Account / Ledger Name (e.g. HDFC Current Account)', 'warning');
+      return;
+    }
+    if (!newBankForm.bankName.trim()) {
+      addToast('Please enter Bank Name (e.g. HDFC Bank)', 'warning');
+      return;
+    }
+
+    setIsSubmittingBank(true);
+    const bankId = `BNK-${Date.now()}`;
+    const newBank = {
+      id: bankId,
+      bankType: newBankForm.bankType || 'Bank Account',
+      accountName: newBankForm.accountName.trim(),
+      bankName: newBankForm.bankName.trim(),
+      accountNumber: newBankForm.accountNumber.trim() || 'N/A',
+      ifscCode: newBankForm.ifscCode.trim() || 'N/A',
+      address: newBankForm.address.trim() || 'Main Branch',
+      balance: parseFloat(newBankForm.balance) || 0,
+      status: 'Active'
+    };
+
+    if (setBankAccounts) {
+      setBankAccounts((prev) => {
+        const updated = [newBank, ...prev];
+        try {
+          localStorage.setItem('billson_bank_accounts', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+    }
+
+    try {
+      const res = await api.registerBankCash({
+        id: bankId,
+        bankType: newBank.bankType,
+        accountName: newBank.accountName,
+        bankName: newBank.bankName,
+        accountNumber: newBank.accountNumber,
+        ifscCode: newBank.ifscCode,
+        address: newBank.address,
+        balance: newBank.balance,
+        userId: user?.id || 'USR-901'
+      });
+      if (res && res.bankAccount && res.bankAccount.id) {
+        newBank.id = res.bankAccount.id;
+      }
+    } catch (err) {
+      console.error('Error saving bank account to API:', err);
+    }
+
+    const updatedBillingPrefs = {
+      ...billingPrefs,
+      defaultBankAccountId: newBank.id
+    };
+    setBillingPrefs(updatedBillingPrefs);
+    try {
+      localStorage.setItem(`billson_billing_prefs_${user?.id}`, JSON.stringify(updatedBillingPrefs));
+    } catch (err) {
+      console.error('Failed to update localStorage billing prefs:', err);
+    }
+
+    addToast(`Bank Account "${newBank.accountName}" added & set as default payout bank!`, 'success', 'Bank Account Added');
+    setIsSubmittingBank(false);
+    setShowAddBankModal(false);
+    setNewBankForm({
+      bankType: 'Bank Account',
+      accountName: '',
+      bankName: '',
+      accountNumber: '',
+      ifscCode: '',
+      address: '',
+      balance: '0'
+    });
+  };
 
   // 1. Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -236,8 +329,10 @@ export const UserSettings = ({
     e.preventDefault();
     try {
       localStorage.setItem(`billson_billing_prefs_${user?.id}`, JSON.stringify(billingPrefs));
+      localStorage.setItem('billson_billing_prefs_USR-901', JSON.stringify(billingPrefs));
+      localStorage.setItem('billson_global_terms', billingPrefs.invoiceFooterTerms);
       localStorage.setItem(`billson_custom_tax_rates_${user?.id}`, JSON.stringify(taxRatesList));
-      addToast('Invoice & Billing preferences saved successfully!', 'success', 'Preferences Saved');
+      addToast('Invoice Terms & Conditions and Billing preferences saved successfully!', 'success', 'Preferences Saved');
     } catch (err) {
       addToast('Failed to save preferences', 'error');
     }
@@ -248,7 +343,9 @@ export const UserSettings = ({
     e.preventDefault();
     try {
       localStorage.setItem(`billson_gst_settings_${user?.id}`, JSON.stringify(gstSettings));
-      addToast('GST Governance & Tax settings updated!', 'success', 'GST Settings Saved');
+      localStorage.setItem('billson_gst_settings_USR-901', JSON.stringify(gstSettings));
+      localStorage.setItem('billson_global_gst_settings', JSON.stringify(gstSettings));
+      addToast('GST Governance & Tax settings updated successfully!', 'success', 'GST Settings Saved');
     } catch (err) {
       addToast('Failed to save GST settings', 'error');
     }
@@ -871,30 +968,61 @@ export const UserSettings = ({
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">Default Payout Bank Account</label>
-                    <select
-                      value={billingPrefs.defaultBankAccountId}
-                      onChange={(e) => setBillingPrefs({ ...billingPrefs, defaultBankAccountId: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900"
-                    >
-                      <option value="">Select Default Bank Ledger</option>
-                      {bankAccounts.map(b => (
-                        <option key={b.id} value={b.id}>
-                          {b.accountName || b.account_name} ({b.bankName || b.bank_name || 'Bank'})
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-slate-400 font-semibold">Default Payout Bank Account</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddBankModal(true)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-400 hover:text-brand-300 transition-colors cursor-pointer bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 px-2.5 py-1 rounded-lg"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add New Bank Account
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        value={billingPrefs.defaultBankAccountId}
+                        onChange={(e) => {
+                          if (e.target.value === 'ADD_NEW_BANK') {
+                            setShowAddBankModal(true);
+                          } else {
+                            setBillingPrefs({ ...billingPrefs, defaultBankAccountId: e.target.value });
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 focus:ring-2 focus:ring-brand-500"
+                      >
+                        <option value="">Select Default Bank Ledger</option>
+                        {bankAccounts.map(b => (
+                          <option key={b.id} value={b.id}>
+                            {b.accountName || b.account_name} ({b.bankName || b.bank_name || 'Bank'}) - A/C: {b.accountNumber || b.account_number || 'N/A'}
+                          </option>
+                        ))}
+                        <option value="ADD_NEW_BANK" className="text-brand-400 font-bold bg-dark-900">
+                          + Register New Bank Account...
                         </option>
-                      ))}
-                    </select>
+                      </select>
+                    </div>
                     <p className="text-[10px] text-amber-400 mt-1">Details will be printed at bottom of PDF invoices</p>
                   </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="block text-slate-400 mb-1 font-semibold">Standard Invoice Footer Terms & Conditions</label>
+                  <div className="sm:col-span-2 p-4 rounded-2xl bg-dark-900/80 border border-slate-800 space-y-2">
+                    <label className="block text-slate-200 font-semibold text-xs flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-brand-400" /> Standard Invoice Footer Terms & Conditions
+                    </label>
+                    <p className="text-[10px] text-slate-400">
+                      Edit the terms below. Each line entered here will automatically print at the bottom of generated PDF Invoices & Documents.
+                    </p>
                     <textarea
-                      rows={3}
+                      rows={4}
                       value={billingPrefs.invoiceFooterTerms}
-                      onChange={(e) => setBillingPrefs({ ...billingPrefs, invoiceFooterTerms: e.target.value })}
-                      placeholder="Enter terms and payment instructions..."
-                      className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBillingPrefs({ ...billingPrefs, invoiceFooterTerms: val });
+                        try {
+                          localStorage.setItem('billson_global_terms', val);
+                        } catch (err) {}
+                      }}
+                      placeholder="1. Payment due within 15 days of document date.&#10;2. Generated under GST Advisory Framework.&#10;3. Subject to Jurisdiction only."
+                      className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs font-mono text-white bg-dark-950 focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
                 </div>
@@ -1240,6 +1368,147 @@ export const UserSettings = ({
         </div>
 
       </div>
+
+      {/* MANUAL BANK ACCOUNT REGISTRATION MODAL */}
+      {showAddBankModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
+                  <Landmark className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white font-serif">Add New Bank Account</h3>
+                  <p className="text-xs text-slate-400 font-mono">Register bank ledger for instant invoice payout display</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddBankModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateBank} className="space-y-4 font-mono text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Account / Ledger Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. HDFC Current Account, SBI Main Business"
+                  value={newBankForm.accountName}
+                  onChange={(e) => setNewBankForm({ ...newBankForm, accountName: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Bank Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. HDFC Bank, SBI, ICICI"
+                    value={newBankForm.bankName}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, bankName: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Account Type</label>
+                  <select
+                    value={newBankForm.bankType}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, bankType: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 text-white"
+                  >
+                    <option value="Bank Account">Bank Account (Current / Savings)</option>
+                    <option value="Cash Account">Cash Account / Safe</option>
+                    <option value="UPI Wallet">UPI / Digital Wallet</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Account Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 50100456123987"
+                    value={newBankForm.accountNumber}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, accountNumber: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">IFSC Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. HDFC0001234"
+                    value={newBankForm.ifscCode}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, ifscCode: e.target.value.toUpperCase() })}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Opening Balance (₹)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={newBankForm.balance}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, balance: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Branch / Location</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Main Branch, Anna Nagar"
+                    value={newBankForm.address}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, address: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddBankModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBank}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingBank ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Save & Set as Default Bank
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

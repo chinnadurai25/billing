@@ -27,7 +27,11 @@ export const fallbackStore = {
     }
   ],
   customers: [],
-  bankAccounts: [],
+  bankAccounts: [
+    { id: 'BANK-001', user_id: 'USR-901', bank_type: 'Bank Account', account_name: 'Durai Tax Advisory Operating A/C', account_number: '50100234901234', bank_name: 'HDFC Bank Ltd', ifsc_code: 'HDFC0001234', address: 'Anna Salai, Chennai Branch', balance: 450000.00, status: 'Active' },
+    { id: 'BANK-002', user_id: 'USR-901', bank_type: 'Bank Account', account_name: 'Durai Tax Collection Reserve', account_number: '000405012345', bank_name: 'ICICI Bank Ltd', ifsc_code: 'ICIC0000004', address: 'Nungambakkam, Chennai Branch', balance: 280000.00, status: 'Active' },
+    { id: 'BANK-003', user_id: 'USR-901', bank_type: 'Cash in Hand', account_name: 'Main Petty Cash Ledger', account_number: 'CASH-LEDGER-01', bank_name: 'Cash Chest', ifsc_code: 'N/A', address: 'Office Safe', balance: 35000.00, status: 'Active' }
+  ],
   productsServices: [],
   invoices: [],
   adminUsers: [],
@@ -112,7 +116,7 @@ export const initDB = async () => {
       CREATE TABLE IF NOT EXISTS bank_accounts (
         id VARCHAR(50) PRIMARY KEY,
         user_id VARCHAR(100),
-        bank_type ENUM('Bank Account', 'Cash in Hand', 'Petty Cash') DEFAULT 'Bank Account',
+        bank_type VARCHAR(100) DEFAULT 'Bank Account',
         account_name VARCHAR(200) NOT NULL,
         account_number VARCHAR(50) NOT NULL,
         bank_name VARCHAR(150),
@@ -143,6 +147,7 @@ export const initDB = async () => {
       CREATE TABLE IF NOT EXISTS invoices (
         id VARCHAR(50) PRIMARY KEY,
         user_id VARCHAR(100),
+        document_type VARCHAR(100) DEFAULT 'Sales Invoice',
         invoice_number VARCHAR(50) UNIQUE NOT NULL,
         customer_name VARCHAR(200) NOT NULL,
         customer_gst VARCHAR(15) NOT NULL,
@@ -167,6 +172,18 @@ export const initDB = async () => {
       } catch (e) {
         // Column already exists, ignore
       }
+    }
+
+    try {
+      await connection.query(`ALTER TABLE bank_accounts MODIFY COLUMN bank_type VARCHAR(100);`);
+    } catch (e) {
+      // Column modification completed or ignored
+    }
+
+    try {
+      await connection.query(`ALTER TABLE invoices ADD COLUMN document_type VARCHAR(100) DEFAULT 'Sales Invoice';`);
+    } catch (e) {
+      // Column already exists
     }
 
     // 4. Auto-seed initial data ONLY on brand-new fresh database setup

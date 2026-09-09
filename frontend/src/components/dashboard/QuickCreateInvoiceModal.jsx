@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, Plus, Trash2, Receipt, Calculator, CheckCircle2, 
   FileText, Building, ArrowRight, RefreshCw, Search, ChevronDown, Check, User, Package
@@ -55,14 +56,43 @@ export const generateNextInvoiceNumber = (invoices = [], user = null, documentTy
 };
 
 // Searchable Customer Dropdown Component
-const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustomer }) => {
+const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustomer, labelPlaceholder = "Select Customer Entity..." }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 300 });
+  const triggerRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  const updateCoords = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      const handleScrollOrResize = () => updateCoords();
+      window.addEventListener('resize', handleScrollOrResize);
+      window.addEventListener('scroll', handleScrollOrResize, true);
+      return () => {
+        window.removeEventListener('resize', handleScrollOrResize);
+        window.removeEventListener('scroll', handleScrollOrResize, true);
+      };
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -83,7 +113,7 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
   const selectedCust = customers.find(c => c.name === selectedName);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative" ref={triggerRef}>
       <div 
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-brand-500/50 transition-all"
@@ -91,15 +121,25 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
         <div className="flex items-center gap-2 truncate">
           <User className="w-3.5 h-3.5 text-brand-400 shrink-0" />
           <span className="font-semibold text-white truncate">
-            {selectedCust ? `${selectedCust.name} (${selectedCust.city || 'TN'})` : (selectedName || 'Select Customer Entity...')}
+            {selectedCust ? `${selectedCust.name}${selectedCust.city ? ` (${selectedCust.city})` : ''}` : (selectedName || labelPlaceholder)}
           </span>
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
-      {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 glass-card rounded-2xl p-2 border border-slate-700 shadow-2xl bg-dark-900/95 backdrop-blur-xl max-h-60 overflow-y-auto space-y-1">
-          <div className="relative mb-1">
+      {isOpen && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            zIndex: 999999
+          }}
+          className="glass-card rounded-2xl p-2.5 border border-slate-700 shadow-2xl bg-dark-900/98 backdrop-blur-xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div className="relative mb-1.5">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             <input
               type="text"
@@ -114,7 +154,7 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
           {filtered.length > 0 ? (
             filtered.map((c) => (
               <div
-                key={c.id}
+                key={c.id || c.name}
                 onClick={() => {
                   onSelectCustomer(c);
                   setIsOpen(false);
@@ -126,7 +166,7 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
               >
                 <div>
                   <div className="font-semibold text-slate-200">{c.name}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">{c.gstNumber || c.gst_number || 'No GSTIN'} • {c.city}</div>
+                  <div className="text-[10px] text-slate-400 font-mono">{c.gstNumber || c.gst_number || 'No GSTIN'} • {c.city || 'TN'}</div>
                 </div>
                 {selectedName === c.name && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
               </div>
@@ -134,21 +174,204 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
           ) : (
             <div className="p-3 text-center text-xs text-slate-400">No matching customers found</div>
           )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
+// Searchable Registered Bank Account Dropdown Component
+const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankMethod }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 300 });
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  const updateCoords = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      const handleScrollOrResize = () => updateCoords();
+      window.addEventListener('resize', handleScrollOrResize);
+      window.addEventListener('scroll', handleScrollOrResize, true);
+      return () => {
+        window.removeEventListener('resize', handleScrollOrResize);
+        window.removeEventListener('scroll', handleScrollOrResize, true);
+      };
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const defaultModes = [
+    { id: 'mode-1', bankType: 'Bank Account', bankName: 'Bank Transfer (NEFT/RTGS)', accountName: 'Direct Bank Transfer', accountNumber: '' },
+    { id: 'mode-2', bankType: 'UPI', bankName: 'UPI / GPay / PhonePe', accountName: 'Instant UPI', accountNumber: '' },
+    { id: 'mode-3', bankType: 'Cash in Hand', bankName: 'Cash', accountName: 'Cash Payment', accountNumber: '' },
+    { id: 'mode-4', bankType: 'Bank Account', bankName: 'Cheque', accountName: 'Cheque Payment', accountNumber: '' },
+    { id: 'mode-5', bankType: 'Card', bankName: 'Credit / Debit Card', accountName: 'Card Payment', accountNumber: '' }
+  ];
+
+  const listToUse = (bankAccounts && bankAccounts.length > 0) ? bankAccounts : defaultModes;
+
+  const filtered = listToUse.filter(b => {
+    const q = searchTerm.toLowerCase().trim();
+    if (!q) return true;
+    const name = (b.bankName || b.bank_name || '').toLowerCase();
+    const accName = (b.accountName || b.account_name || '').toLowerCase();
+    const accNum = (b.accountNumber || b.account_number || '').toLowerCase();
+    const ifsc = (b.ifscCode || b.ifsc_code || '').toLowerCase();
+    const type = (b.bankType || b.bank_type || '').toLowerCase();
+    return name.includes(q) || accName.includes(q) || accNum.includes(q) || ifsc.includes(q) || type.includes(q);
+  });
+
+  const getBankLabel = (b) => {
+    const name = b.bankName || b.bank_name || 'Bank';
+    const accName = b.accountName || b.account_name;
+    const accNum = b.accountNumber || b.account_number;
+    if (accName && accNum) return `${name} - ${accName} (${accNum})`;
+    if (accName) return `${name} - ${accName}`;
+    if (accNum) return `${name} (${accNum})`;
+    return name;
+  };
+
+  return (
+    <div className="relative" ref={triggerRef}>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-cyan-500/50 transition-all"
+      >
+        <div className="flex items-center gap-2 truncate">
+          <Building className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+          <span className="font-semibold text-cyan-300 truncate">
+            {selectedMethod || 'Search & Select Registered Bank Account...'}
+          </span>
         </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            zIndex: 999999
+          }}
+          className="glass-card rounded-2xl p-2.5 border border-slate-700 shadow-2xl bg-dark-900/98 backdrop-blur-xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div className="relative mb-1.5">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              autoFocus
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search bank name, A/C number, IFSC, ledger..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-white"
+            />
+          </div>
+
+          {filtered.length > 0 ? (
+            filtered.map((b, idx) => {
+              const label = getBankLabel(b);
+              const isSelected = selectedMethod === label || selectedMethod === (b.bankName || b.bank_name);
+              return (
+                <div
+                  key={b.id || `bank-${idx}`}
+                  onClick={() => {
+                    onSelectBankMethod(label);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                    isSelected ? 'bg-cyan-600/30 text-white border border-cyan-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <div>
+                    <div className="font-semibold text-slate-200">{b.bankName || b.bank_name}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">
+                      {b.accountName || b.account_name ? `${b.accountName || b.account_name} ` : ''}
+                      {b.accountNumber || b.account_number ? `• A/C: ${b.accountNumber || b.account_number} ` : ''}
+                      {b.ifscCode && b.ifscCode !== 'N/A' ? `• IFSC: ${b.ifscCode}` : ''}
+                    </div>
+                  </div>
+                  {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-3 text-center text-xs text-slate-400">No matching registered bank details found</div>
+          )}
+        </div>,
+        document.body
       )}
     </div>
   );
 };
 
 // Searchable Catalog Product/Service Dropdown Component
-const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct }) => {
+const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct, onChangeCustomText }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 300 });
+  const triggerRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  const updateCoords = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 300)
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      const handleScrollOrResize = () => updateCoords();
+      window.addEventListener('resize', handleScrollOrResize);
+      window.addEventListener('scroll', handleScrollOrResize, true);
+      return () => {
+        window.removeEventListener('resize', handleScrollOrResize);
+        window.removeEventListener('scroll', handleScrollOrResize, true);
+      };
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -169,30 +392,46 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
   const selectedProd = products.find(p => p.title === selectedTitle);
 
   return (
-    <div className="relative mb-1" ref={dropdownRef}>
+    <div className="relative" ref={triggerRef}>
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs bg-dark-950 flex items-center justify-between cursor-pointer border border-slate-800 hover:border-indigo-500/50 transition-all"
+        className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-indigo-500/50 transition-all"
       >
-        <div className="flex items-center gap-1.5 truncate">
+        <div className="flex items-center gap-2 truncate">
           <Package className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
           <span className="font-semibold text-slate-200 truncate">
-            {selectedProd ? `${selectedProd.title} (₹${selectedProd.rate || 0})` : (selectedTitle || 'Search & Select Catalog Service...')}
+            {selectedProd ? `${selectedProd.title} (₹${selectedProd.rate || 0})` : (selectedTitle || 'Search & Select Item / Service...')}
           </span>
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
-      {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 glass-card rounded-2xl p-2 border border-slate-700 shadow-2xl bg-dark-900/95 backdrop-blur-xl max-h-56 overflow-y-auto space-y-1 min-w-[260px]">
-          <div className="relative mb-1">
+      {isOpen && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            zIndex: 999999
+          }}
+          className="glass-card rounded-2xl p-2.5 border border-slate-700 shadow-2xl bg-dark-900/98 backdrop-blur-xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div className="relative mb-1.5">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             <input
               type="text"
               autoFocus
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search catalog service, HSN/SAC..."
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchTerm(val);
+                if (onChangeCustomText) {
+                  onChangeCustomText(val);
+                }
+              }}
+              placeholder="Search item, HSN/SAC or type custom..."
               className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-white"
             />
           </div>
@@ -206,21 +445,36 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
                   selectedTitle === p.title ? 'bg-indigo-600/30 text-white border border-indigo-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                 }`}
               >
                 <div>
-                  <div className="font-medium text-slate-200">{p.title}</div>
+                  <div className="font-semibold text-slate-200">{p.title}</div>
                   <div className="text-[10px] text-slate-400 font-mono">HSN: {p.hsnSac || p.hsn_sac || 'N/A'} • Rate: ₹{p.rate || 0}</div>
                 </div>
                 {selectedTitle === p.title && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
               </div>
             ))
           ) : (
-            <div className="p-3 text-center text-xs text-slate-400">No catalog items match search</div>
+            <div className="p-2.5 text-center text-xs text-slate-400">
+              No matching catalog item.
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onChangeCustomText) onChangeCustomText(searchTerm);
+                    setIsOpen(false);
+                  }}
+                  className="mt-1.5 block w-full text-center px-3 py-1.5 bg-indigo-600/30 border border-indigo-500/40 rounded-lg text-indigo-300 hover:bg-indigo-600/50 font-semibold text-xs cursor-pointer"
+                >
+                  Use "{searchTerm}" as custom item
+                </button>
+              )}
+            </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -322,6 +576,7 @@ export const QuickCreateInvoiceModal = ({
   onClose, 
   customers = [], 
   products = [], 
+  bankAccounts = [],
   invoices = [],
   user = null,
   editingInvoice = null,
@@ -366,6 +621,14 @@ export const QuickCreateInvoiceModal = ({
         setInvoiceDate(editingInvoice.date || new Date().toISOString().split('T')[0]);
         setStatus(editingInvoice.status || 'Pending');
         setTaxType((editingInvoice.igst || 0) > 0 ? 'interstate' : 'intrastate');
+
+        if (documentType === 'Payment') {
+          setPaidBy('');
+          setPaidTo(editingInvoice.paidTo || editingInvoice.customerName || editingInvoice.customer_name || '');
+          setPaymentMethod(editingInvoice.paymentMethod || 'Bank Transfer (NEFT/RTGS)');
+          setPaymentPurpose(editingInvoice.paymentPurpose || '');
+          setPaymentAmount(editingInvoice.grandTotal || editingInvoice.grand_total || editingInvoice.subtotal || '');
+        }
         
         if (editingInvoice.items && Array.isArray(editingInvoice.items) && editingInvoice.items.length > 0) {
           setItems(editingInvoice.items);
@@ -386,7 +649,26 @@ export const QuickCreateInvoiceModal = ({
 
         if (documentType === 'Payment') {
           setPaidBy('');
-          setPaidTo('');
+          if (customers && customers.length > 0) {
+            setPaidTo(customers[0].name);
+            setCustomerName(customers[0].name);
+            setCustomerGst(customers[0].gstNumber || customers[0].gst_number || '');
+          } else {
+            setPaidTo('');
+          }
+          if (bankAccounts && bankAccounts.length > 0) {
+            const b = bankAccounts[0];
+            const name = b.bankName || b.bank_name || 'Bank';
+            const accName = b.accountName || b.account_name;
+            const accNum = b.accountNumber || b.account_number;
+            let label = name;
+            if (accName && accNum) label = `${name} - ${accName} (${accNum})`;
+            else if (accName) label = `${name} - ${accName}`;
+            else if (accNum) label = `${name} (${accNum})`;
+            setPaymentMethod(label);
+          } else {
+            setPaymentMethod('Bank Transfer (NEFT/RTGS)');
+          }
           setPaymentPurpose('');
           setPaymentAmount('');
         }
@@ -429,7 +711,7 @@ export const QuickCreateInvoiceModal = ({
         }
       }
     }
-  }, [isOpen, editingInvoice, customers, products, documentType]);
+  }, [isOpen, editingInvoice, customers, products, bankAccounts, documentType]);
 
   if (!isOpen) return null;
 
@@ -459,6 +741,7 @@ export const QuickCreateInvoiceModal = ({
       newItems[index].description = prod.title;
       newItems[index].hsnSac = prod.hsnSac || prod.hsn_sac || '';
       newItems[index].unitPrice = prod.rate || 0;
+      newItems[index].taxPercent = prod.taxPercent ?? prod.tax_percent ?? 18;
       newItems[index].isService = isServ;
       newItems[index].quantity = isServ ? 'N/A' : 1;
       newItems[index].amount = prod.rate || 0;
@@ -494,13 +777,22 @@ export const QuickCreateInvoiceModal = ({
     const isServ = checkIsServiceItem(item, products);
     const q = isServ ? 1 : (item.quantity === '' || item.quantity === undefined ? 1 : (parseFloat(item.quantity) || 0));
     const u = item.unitPrice === '' || item.unitPrice === undefined ? 12500 : (parseFloat(item.unitPrice) || 0);
-    const itemAmount = (item.quantity !== '' && item.unitPrice !== '' && item.amount && !isServ) ? item.amount : (q * u);
+    const itemAmount = (item.quantity !== '' && item.unitPrice !== '' && item.amount !== undefined && !isServ) ? item.amount : (q * u);
     return acc + itemAmount;
   }, 0);
-  const totalTaxAmount = subtotal * 0.18;
-  const cgst = taxType === 'intrastate' ? totalTaxAmount / 2 : 0;
-  const sgst = taxType === 'intrastate' ? totalTaxAmount / 2 : 0;
-  const igst = taxType === 'interstate' ? totalTaxAmount : 0;
+
+  const totalTaxAmount = items.reduce((acc, item) => {
+    const isServ = checkIsServiceItem(item, products);
+    const q = isServ ? 1 : (item.quantity === '' || item.quantity === undefined ? 1 : (parseFloat(item.quantity) || 0));
+    const u = item.unitPrice === '' || item.unitPrice === undefined ? 12500 : (parseFloat(item.unitPrice) || 0);
+    const itemAmount = (item.quantity !== '' && item.unitPrice !== '' && item.amount !== undefined && !isServ) ? item.amount : (q * u);
+    const taxP = item.taxPercent === '' || item.taxPercent === undefined ? 18 : (parseFloat(item.taxPercent) || 0);
+    return acc + (itemAmount * (taxP / 100));
+  }, 0);
+
+  const cgst = totalTaxAmount / 2;
+  const sgst = totalTaxAmount / 2;
+  const igst = totalTaxAmount;
   const grandTotal = subtotal + totalTaxAmount;
 
   const handleSubmit = (e) => {
@@ -575,9 +867,14 @@ export const QuickCreateInvoiceModal = ({
       };
     });
 
+    const effectiveSavedDocType = editingInvoice
+      ? (editingInvoice.documentType || editingInvoice.document_type || documentType)
+      : documentType;
+
     const savedInvoice = {
-      id: editingInvoice ? editingInvoice.id : `${documentType.substring(0, 3).toUpperCase()}-${Date.now()}`,
-      documentType: documentType,
+      id: editingInvoice ? editingInvoice.id : `${effectiveSavedDocType.substring(0, 3).toUpperCase()}-${Date.now()}`,
+      documentType: effectiveSavedDocType,
+      document_type: effectiveSavedDocType,
       invoiceNumber: finalInvNumber,
       customerName: effectiveCustName,
       customerGst: effectiveCustGst || '33AAACD9999F1Z0',
@@ -647,43 +944,27 @@ export const QuickCreateInvoiceModal = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Method *</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-xs bg-dark-900 text-cyan-400 font-bold"
-                >
-                  <option value="Bank Transfer (NEFT/RTGS)">Bank Transfer (NEFT / RTGS)</option>
-                  <option value="UPI / GPay / PhonePe">UPI / GPay / PhonePe</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Credit / Debit Card">Credit / Debit Card</option>
-                </select>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Method (Registered Bank Details) *</label>
+                <SearchableBankSelect
+                  bankAccounts={bankAccounts}
+                  selectedMethod={paymentMethod}
+                  onSelectBankMethod={(m) => setPaymentMethod(m)}
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Paid By (Payer) *</label>
-                <input
-                  type="text"
-                  value={paidBy}
-                  onChange={(e) => setPaidBy(e.target.value)}
-                  placeholder="e.g. Chinna Durai / Customer Name"
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-xs text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Paid To (Payee) *</label>
-                <input
-                  type="text"
-                  value={paidTo}
-                  onChange={(e) => setPaidTo(e.target.value)}
-                  placeholder="e.g. Vendor / Company / Service Provider Name"
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-xs text-white"
-                  required
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Paid To (Registered Customer) *</label>
+                <SearchableCustomerSelect
+                  customers={customers}
+                  selectedName={paidTo}
+                  labelPlaceholder="Search & Select Registered Payee Customer..."
+                  onSelectCustomer={(c) => {
+                    setPaidTo(c.name);
+                    setCustomerName(c.name);
+                    setCustomerGst(c.gstNumber || c.gst_number || '');
+                  }}
                 />
               </div>
             </div>
@@ -765,7 +1046,7 @@ export const QuickCreateInvoiceModal = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-indigo-300">{documentType} Number (Auto Sequential)</label>
@@ -795,18 +1076,6 @@ export const QuickCreateInvoiceModal = ({
                   className="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono text-white"
                 />
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">GST Tax Type</label>
-                <select
-                  value={taxType}
-                  onChange={(e) => setTaxType(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 text-emerald-400 font-semibold"
-                >
-                  <option value="intrastate">Intrastate (CGST 9% + SGST 9%)</option>
-                  <option value="interstate">Interstate (IGST 18%)</option>
-                </select>
-              </div>
             </div>
 
             {/* Line Items Table */}
@@ -827,11 +1096,12 @@ export const QuickCreateInvoiceModal = ({
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-400 font-mono">
                       <th className="py-2 px-3">Description / Item</th>
-                      <th className="py-2 px-3 w-28">HSN/SAC</th>
+                      <th className="py-2 px-3 w-24">HSN/SAC</th>
                       <th className="py-2 px-3 w-20">Qty</th>
-                      <th className="py-2 px-3 w-28">Unit Price (₹)</th>
-                      <th className="py-2 px-3 w-24">Tax %</th>
+                      <th className="py-2 px-3 w-24">Unit Price (₹)</th>
+                      <th className="py-2 px-3 w-20">Tax %</th>
                       <th className="py-2 px-3 w-28 text-right">Amount (₹)</th>
+                      <th className="py-2 px-3 w-32 text-right">GST Amount (₹)</th>
                       <th className="py-2 px-2 w-10"></th>
                     </tr>
                   </thead>
@@ -841,29 +1111,18 @@ export const QuickCreateInvoiceModal = ({
                       const qNum = isServ ? 1 : (parseFloat(item.quantity) || 1);
                       const uNum = parseFloat(item.unitPrice) || 0;
                       const rowAmount = qNum * uNum;
+                      const itemTaxPercent = item.taxPercent === '' || item.taxPercent === undefined ? 18 : (parseFloat(item.taxPercent) || 0);
+                      const rowGstAmount = rowAmount * (itemTaxPercent / 100);
 
                       return (
                         <tr key={index} className="group">
-                          <td className="py-2 px-3">
-                            <div className="space-y-1">
-                              {products && products.length > 0 && (
-                                <select
-                                  onChange={(e) => handleSelectProduct(index, e.target.value)}
-                                  className="w-full p-1 text-[11px] bg-dark-900 rounded border border-slate-800 text-indigo-300 font-mono mb-1"
-                                  defaultValue=""
-                                >
-                                  <option value="" disabled>-- Load from Item Catalog --</option>
-                                  {products.map(p => (
-                                    <option key={p.id} value={p.id}>{p.title} (HSN: {p.hsnSac || p.hsn_sac})</option>
-                                  ))}
-                                </select>
-                              )}
-                              <input
-                                type="text"
-                                value={item.description}
-                                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                                placeholder="Service description"
-                                className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs"
+                          <td className="py-2 px-3 relative z-30">
+                            <div className="min-w-[220px]">
+                              <SearchableProductSelect
+                                products={products}
+                                selectedTitle={item.description}
+                                onSelectProduct={(p) => handleSelectProduct(index, p.id)}
+                                onChangeCustomText={(text) => handleItemChange(index, 'description', text)}
                               />
                             </div>
                           </td>
@@ -908,11 +1167,14 @@ export const QuickCreateInvoiceModal = ({
                               className="w-full px-2 py-1.5 rounded-lg glass-input text-xs font-mono"
                             />
                           </td>
-                          <td className="py-2 px-3 font-mono text-emerald-400 font-semibold">
-                            18%
+                          <td className="py-2 px-3 font-mono text-emerald-400 font-bold whitespace-nowrap">
+                            {itemTaxPercent}%
                           </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-white">
-                            ₹{rowAmount.toLocaleString('en-IN')}
+                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-200">
+                            ₹{rowAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400">
+                            ₹{rowGstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="py-2 px-2 text-center">
                             <button
@@ -935,28 +1197,15 @@ export const QuickCreateInvoiceModal = ({
             <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800 space-y-2 text-xs font-mono">
               <div className="flex justify-between text-slate-300">
                 <span>Subtotal (Excl. GST):</span>
-                <span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              {taxType === 'intrastate' ? (
-                <>
-                  <div className="flex justify-between text-slate-400">
-                    <span>CGST (9%):</span>
-                    <span>₹{cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>SGST (9%):</span>
-                    <span>₹{sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex justify-between text-slate-400">
-                  <span>IGST (18%):</span>
-                  <span>₹{igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-emerald-400 font-semibold">
+                <span>Total GST Amount:</span>
+                <span>₹{totalTaxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
               <div className="flex justify-between font-bold text-sm text-emerald-400 pt-2 border-t border-slate-800">
                 <span>Grand Total (Incl. GST):</span>
-                <span>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 

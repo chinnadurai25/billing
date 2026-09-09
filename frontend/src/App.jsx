@@ -51,9 +51,21 @@ function AppContent() {
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [quickInvoiceType, setQuickInvoiceType] = useState('Sales Invoice');
 
-  const handleOpenQuickInvoice = (invToEdit = null, docType = 'Sales Invoice') => {
+  const handleOpenQuickInvoice = (invToEdit = null, docType = null) => {
     setEditingInvoice(invToEdit || null);
-    setQuickInvoiceType(docType || 'Sales Invoice');
+    
+    let effectiveType = docType;
+    if (invToEdit) {
+      effectiveType = invToEdit.documentType || invToEdit.document_type || (
+        invToEdit.id?.startsWith('PUR') ? 'Purchase Invoice' :
+        invToEdit.id?.startsWith('EST') ? 'Estimate' :
+        invToEdit.id?.startsWith('DC') ? 'Delivery Challan' :
+        invToEdit.id?.startsWith('PAY') ? 'Payment' : (docType || 'Sales Invoice')
+      );
+    }
+    if (!effectiveType) effectiveType = 'Sales Invoice';
+
+    setQuickInvoiceType(effectiveType);
     setIsQuickInvoiceOpen(true);
   };
 
@@ -63,11 +75,22 @@ function AppContent() {
   const [products, setProducts] = useState(() => savedUser ? [] : initialProductsServices);
   const [invoices, setInvoices] = useState(() => savedUser ? [] : initialInvoices);
   const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
-  const [bankAccounts, setBankAccounts] = useState(() => savedUser ? [] : [
-    { id: 'BANK-001', bankType: 'Bank Account', accountName: 'Durai Tax Advisory Operating A/C', accountNumber: '50100234901234', bankName: 'HDFC Bank Ltd', ifscCode: 'HDFC0001234', address: 'Anna Salai, Chennai Branch', balance: 450000, status: 'Active' },
-    { id: 'BANK-002', bankType: 'Bank Account', accountName: 'Durai Tax Collection Reserve', accountNumber: '000405012345', bankName: 'ICICI Bank Ltd', ifscCode: 'ICIC0000004', address: 'Nungambakkam, Chennai Branch', balance: 280000, status: 'Active' },
-    { id: 'BANK-003', bankType: 'Cash in Hand', accountName: 'Main Petty Cash Ledger', accountNumber: 'CASH-LEDGER-01', bankName: 'Cash Chest', ifscCode: 'N/A', address: 'Office Safe', balance: 35000, status: 'Active' }
-  ]);
+  const [bankAccounts, setBankAccounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('billson_bank_accounts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading bank accounts from localStorage:', e);
+    }
+    return [
+      { id: 'BANK-001', userId: 'USR-901', bankType: 'Bank Account', accountName: 'Durai Tax Advisory Operating A/C', accountNumber: '50100234901234', bankName: 'HDFC Bank Ltd', ifscCode: 'HDFC0001234', address: 'Anna Salai, Chennai Branch', balance: 450000, status: 'Active' },
+      { id: 'BANK-002', userId: 'USR-901', bankType: 'Bank Account', accountName: 'Durai Tax Collection Reserve', accountNumber: '000405012345', bankName: 'ICICI Bank Ltd', ifscCode: 'ICIC0000004', address: 'Nungambakkam, Chennai Branch', balance: 280000, status: 'Active' },
+      { id: 'BANK-003', userId: 'USR-901', bankType: 'Cash in Hand', accountName: 'Main Petty Cash Ledger', accountNumber: 'CASH-LEDGER-01', bankName: 'Cash Chest', ifscCode: 'N/A', address: 'Office Safe', balance: 35000, status: 'Active' }
+    ];
+  });
 
   // ─── Normalise helpers (MySQL snake_case → camelCase) ─────────────────────
   const normaliseCustomer = (c) => ({
@@ -154,7 +177,11 @@ function AppContent() {
       ]);
 
       setCustomers(custRes?.success && custRes.data ? custRes.data.map(normaliseCustomer) : []);
-      setBankAccounts(bankRes?.success && bankRes.data ? bankRes.data.map(normaliseBank) : []);
+      if (bankRes?.success && Array.isArray(bankRes.data) && bankRes.data.length > 0) {
+        const normalizedBanks = bankRes.data.map(normaliseBank);
+        setBankAccounts(normalizedBanks);
+        localStorage.setItem('billson_bank_accounts', JSON.stringify(normalizedBanks));
+      }
       setProducts(prodRes?.success && prodRes.data ? prodRes.data.map(normaliseProduct) : []);
       setInvoices(invRes?.success && invRes.data ? invRes.data.map(normaliseInvoice) : []);
     } catch (err) {
@@ -389,6 +416,7 @@ function AppContent() {
         }}
         customers={customers}
         products={products}
+        bankAccounts={bankAccounts}
         invoices={invoices}
         user={userData}
         editingInvoice={editingInvoice}
