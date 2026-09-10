@@ -400,7 +400,7 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
         <div className="flex items-center gap-2 truncate">
           <Package className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
           <span className="font-semibold text-slate-200 truncate">
-            {selectedProd ? `${selectedProd.title} (₹${selectedProd.rate || 0})` : (selectedTitle || 'Search & Select Item / Service...')}
+            {selectedProd ? `${selectedProd.title}${selectedProd.rate ? ` (₹${selectedProd.rate})` : ''}` : (selectedTitle || 'Search & Select Item / Service...')}
           </span>
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
@@ -451,7 +451,7 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
               >
                 <div>
                   <div className="font-semibold text-slate-200">{p.title}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">HSN: {p.hsnSac || p.hsn_sac || 'N/A'} • Rate: ₹{p.rate || 0}</div>
+                  <div className="text-[10px] text-slate-400 font-mono">HSN: {p.hsnSac || p.hsn_sac || 'N/A'}{p.rate ? ` • Rate: ₹${p.rate}` : ''}</div>
                 </div>
                 {selectedTitle === p.title && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
               </div>
@@ -603,6 +603,7 @@ export const QuickCreateInvoiceModal = ({
   const [items, setItems] = useState([
     {
       description: '',
+      itemNotes: '',
       hsnSac: '',
       quantity: '',
       unitPrice: '',
@@ -631,10 +632,14 @@ export const QuickCreateInvoiceModal = ({
         }
         
         if (editingInvoice.items && Array.isArray(editingInvoice.items) && editingInvoice.items.length > 0) {
-          setItems(editingInvoice.items);
+          setItems(editingInvoice.items.map(i => ({
+            ...i,
+            itemNotes: i.itemNotes || i.item_notes || i.details || i.itemDescription || ''
+          })));
         } else {
           setItems([{
             description: 'GSTR Monthly Tax Filing',
+            itemNotes: '',
             hsnSac: '998222',
             quantity: 1,
             unitPrice: editingInvoice.grandTotal || editingInvoice.grand_total || 12500,
@@ -690,17 +695,19 @@ export const QuickCreateInvoiceModal = ({
           setItems([
             {
               description: products[0].title,
+              itemNotes: products[0].description || products[0].notes || '',
               hsnSac: products[0].hsnSac || products[0].hsn_sac || '',
               quantity: 1,
-              unitPrice: products[0].rate || 12500,
+              unitPrice: products[0].rate || '',
               taxPercent: products[0].taxPercent || products[0].tax_percent || 18,
-              amount: products[0].rate || 12500
+              amount: products[0].rate || 0
             }
           ]);
         } else {
           setItems([
             {
               description: '',
+              itemNotes: '',
               hsnSac: '',
               quantity: '',
               unitPrice: '',
@@ -739,8 +746,9 @@ export const QuickCreateInvoiceModal = ({
       const newItems = [...items];
       newItems[index].productId = prod.id;
       newItems[index].description = prod.title;
+      newItems[index].itemNotes = prod.description || prod.notes || newItems[index].itemNotes || '';
       newItems[index].hsnSac = prod.hsnSac || prod.hsn_sac || '';
-      newItems[index].unitPrice = prod.rate || 0;
+      newItems[index].unitPrice = prod.rate || '';
       newItems[index].taxPercent = prod.taxPercent ?? prod.tax_percent ?? 18;
       newItems[index].isService = isServ;
       newItems[index].quantity = isServ ? 'N/A' : 1;
@@ -754,6 +762,7 @@ export const QuickCreateInvoiceModal = ({
       ...items,
       {
         description: '',
+        itemNotes: '',
         hsnSac: '',
         quantity: '',
         unitPrice: '',
@@ -855,10 +864,11 @@ export const QuickCreateInvoiceModal = ({
     const processedItems = items.map((item) => {
       const isServ = checkIsServiceItem(item, products);
       const q = isServ ? 1 : (item.quantity === '' || item.quantity === undefined ? 1 : (parseFloat(item.quantity) || 1));
-      const u = item.unitPrice === '' || item.unitPrice === undefined ? 12500 : (parseFloat(item.unitPrice) || 12500);
+      const u = item.unitPrice === '' || item.unitPrice === undefined ? 0 : (parseFloat(item.unitPrice) || 0);
       return {
         ...item,
         description: item.description || 'Tax Advisory & Audit Service',
+        itemNotes: item.itemNotes || '',
         hsnSac: item.hsnSac || '1185',
         quantity: isServ ? 'N/A' : q,
         unitPrice: u,
@@ -1123,6 +1133,13 @@ export const QuickCreateInvoiceModal = ({
                                 selectedTitle={item.description}
                                 onSelectProduct={(p) => handleSelectProduct(index, p.id)}
                                 onChangeCustomText={(text) => handleItemChange(index, 'description', text)}
+                              />
+                              <input
+                                type="text"
+                                value={item.itemNotes || ''}
+                                onChange={(e) => handleItemChange(index, 'itemNotes', e.target.value)}
+                                placeholder="Add item description / notes (shown on PDF)..."
+                                className="w-full mt-1.5 px-2.5 py-1 rounded-lg glass-input text-[11px] font-sans text-slate-200 placeholder:text-slate-500 border-slate-700/60"
                               />
                             </div>
                           </td>

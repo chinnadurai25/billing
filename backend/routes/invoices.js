@@ -156,7 +156,6 @@ router.put('/:id', async (req, res) => {
         ...(items && { items })
       };
     }
-    }
 
     res.json({
       success: true,

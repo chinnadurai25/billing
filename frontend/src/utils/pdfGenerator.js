@@ -268,6 +268,7 @@ export const generateInvoicePDF = (invoice, user) => {
           <tbody>
             ${items.map((item, idx) => {
               const desc = item.description || item.title || item.name || 'Service / Product Item';
+              const itemNotes = item.itemNotes || item.item_notes || item.details || item.itemDescription || '';
               const hsn = item.hsnSac || item.hsn_sac || '998222';
               const qty = item.quantity !== undefined ? item.quantity : 1;
               const rate = parseFloat(item.unitPrice || item.rate || item.amount || 0);
@@ -277,14 +278,17 @@ export const generateInvoicePDF = (invoice, user) => {
 
               return `
                 <tr>
-                  <td style="text-align: center;">${idx + 1}</td>
-                  <td><strong>${desc}</strong></td>
-                  <td style="font-family: monospace;">${hsn}</td>
-                  <td style="text-align: center;">${qty}</td>
-                  <td style="text-align: right; font-family: monospace;">₹${rate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td style="text-align: center; font-family: monospace; color: #10b981; font-weight: bold;">${taxPct}%</td>
-                  <td style="text-align: right; font-family: monospace; font-weight: bold;">₹${itemAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td style="text-align: right; font-family: monospace; font-weight: bold; color: #10b981;">₹${gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td style="text-align: center; vertical-align: top;">${idx + 1}</td>
+                  <td style="vertical-align: top;">
+                    <strong style="color: #0f172a;">${desc}</strong>
+                    ${itemNotes ? `<div style="font-size: 10.5px; color: #475569; margin-top: 3px; font-style: italic; font-weight: normal; line-height: 1.3;">${itemNotes.replace(/\n/g, '<br/>')}</div>` : ''}
+                  </td>
+                  <td style="font-family: monospace; vertical-align: top;">${hsn}</td>
+                  <td style="text-align: center; vertical-align: top;">${qty}</td>
+                  <td style="text-align: right; font-family: monospace; vertical-align: top;">₹${rate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td style="text-align: center; font-family: monospace; color: #10b981; font-weight: bold; vertical-align: top;">${taxPct}%</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold; vertical-align: top;">₹${itemAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td style="text-align: right; font-family: monospace; font-weight: bold; color: #10b981; vertical-align: top;">₹${gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               `;
             }).join('')}
