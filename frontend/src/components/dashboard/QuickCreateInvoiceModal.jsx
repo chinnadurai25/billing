@@ -694,13 +694,13 @@ export const QuickCreateInvoiceModal = ({
         if (products && products.length > 0) {
           setItems([
             {
-              description: products[0].title,
-              itemNotes: products[0].description || products[0].notes || '',
-              hsnSac: products[0].hsnSac || products[0].hsn_sac || '',
-              quantity: 1,
-              unitPrice: products[0].rate || '',
-              taxPercent: products[0].taxPercent || products[0].tax_percent || 18,
-              amount: products[0].rate || 0
+              description: '',
+              itemNotes: '',
+              hsnSac: '',
+              quantity: '',
+              unitPrice: '',
+              taxPercent: 18,
+              amount: 0
             }
           ]);
         } else {
@@ -781,20 +781,19 @@ export const QuickCreateInvoiceModal = ({
     setItems(items.filter((_, i) => i !== index));
   };
 
-  // Calculations
+  // Calculations: Calculate strictly based on quantity * unitPrice
   const subtotal = items.reduce((acc, item) => {
     const isServ = checkIsServiceItem(item, products);
-    const q = isServ ? 1 : (item.quantity === '' || item.quantity === undefined ? 1 : (parseFloat(item.quantity) || 0));
-    const u = item.unitPrice === '' || item.unitPrice === undefined ? 12500 : (parseFloat(item.unitPrice) || 0);
-    const itemAmount = (item.quantity !== '' && item.unitPrice !== '' && item.amount !== undefined && !isServ) ? item.amount : (q * u);
-    return acc + itemAmount;
+    const q = isServ ? 1 : (parseFloat(item.quantity) || 0);
+    const u = parseFloat(item.unitPrice) || 0;
+    return acc + (q * u);
   }, 0);
 
   const totalTaxAmount = items.reduce((acc, item) => {
     const isServ = checkIsServiceItem(item, products);
-    const q = isServ ? 1 : (item.quantity === '' || item.quantity === undefined ? 1 : (parseFloat(item.quantity) || 0));
-    const u = item.unitPrice === '' || item.unitPrice === undefined ? 12500 : (parseFloat(item.unitPrice) || 0);
-    const itemAmount = (item.quantity !== '' && item.unitPrice !== '' && item.amount !== undefined && !isServ) ? item.amount : (q * u);
+    const q = isServ ? 1 : (parseFloat(item.quantity) || 0);
+    const u = parseFloat(item.unitPrice) || 0;
+    const itemAmount = q * u;
     const taxP = item.taxPercent === '' || item.taxPercent === undefined ? 18 : (parseFloat(item.taxPercent) || 0);
     return acc + (itemAmount * (taxP / 100));
   }, 0);
@@ -1180,7 +1179,7 @@ export const QuickCreateInvoiceModal = ({
                               type="number"
                               value={item.unitPrice}
                               onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
-                              placeholder="12500"
+                              placeholder="0.00"
                               className="w-full px-2 py-1.5 rounded-lg glass-input text-xs font-mono"
                             />
                           </td>
