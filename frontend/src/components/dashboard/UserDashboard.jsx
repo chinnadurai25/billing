@@ -189,9 +189,10 @@ export const UserDashboard = ({
       addToast(`Customer ${custForm.name} updated successfully!`, 'success', 'Customer Updated');
     } else {
       // CREATE new customer
-      const custId = `CUST-00${customers.length + 1}`;
+      const custId = `CUST-${Date.now().toString().slice(-6)}`;
       const newCustomer = {
         id: custId,
+        userId: user?.id || 'USR-901',
         name: custForm.name,
         ledger: custForm.ledger,
         address: custForm.address,
@@ -205,7 +206,15 @@ export const UserDashboard = ({
         status: 'Active'
       };
 
-      setCustomers([newCustomer, ...customers]);
+      setCustomers((prev) => {
+        const updated = [newCustomer, ...prev];
+        try {
+          const key = user?.id ? `billson_customers_${user.id}` : 'billson_customers_global';
+          localStorage.setItem(key, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+
       try {
         const res = await api.registerCustomer({
           id: custId,
@@ -220,8 +229,32 @@ export const UserDashboard = ({
           state: custForm.state,
           userId: user?.id || 'USR-901'
         });
-        if (res && res.customer && res.customer.id && res.customer.id !== custId) {
-          setCustomers((prev) => prev.map((c) => c.id === custId ? { ...c, id: res.customer.id } : c));
+
+        if (res && res.customer) {
+          const norm = {
+            id: res.customer.id || custId,
+            userId: res.customer.user_id || res.customer.userId || user?.id || 'USR-901',
+            name: res.customer.name || custForm.name,
+            ledger: res.customer.ledger || custForm.ledger,
+            address: res.customer.address || custForm.address,
+            gstNumber: res.customer.gst_number || res.customer.gstNumber || custForm.gstNo,
+            panNumber: res.customer.pan_number || res.customer.panNumber || custForm.pan,
+            phone: res.customer.mobile || res.customer.phone || custForm.mobile,
+            email: res.customer.email || custForm.email,
+            city: res.customer.city || custForm.city,
+            state: res.customer.state || custForm.state,
+            totalBilled: parseFloat(res.customer.total_billed || 0),
+            status: res.customer.status || 'Active'
+          };
+
+          setCustomers((prev) => {
+            const updated = prev.map((c) => (c.id === custId ? norm : c));
+            try {
+              const key = user?.id ? `billson_customers_${user.id}` : 'billson_customers_global';
+              localStorage.setItem(key, JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+          });
         }
       } catch (err) {
         console.error('Error saving customer to backend:', err);

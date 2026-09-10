@@ -176,16 +176,78 @@ function AppContent() {
         api.getInvoices(activeUserId)
       ]);
 
-      setCustomers(custRes?.success && custRes.data ? custRes.data.map(normaliseCustomer) : []);
+      if (custRes?.success && Array.isArray(custRes.data) && custRes.data.length > 0) {
+        const norm = custRes.data.map(normaliseCustomer);
+        setCustomers(norm);
+        try {
+          localStorage.setItem(`billson_customers_${activeUserId}`, JSON.stringify(norm));
+        } catch (e) {}
+      } else {
+        const cached = localStorage.getItem(`billson_customers_${activeUserId}`) || localStorage.getItem('billson_customers_global');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setCustomers(parsed);
+          } catch (e) {}
+        }
+      }
+
       if (bankRes?.success && Array.isArray(bankRes.data) && bankRes.data.length > 0) {
         const normalizedBanks = bankRes.data.map(normaliseBank);
         setBankAccounts(normalizedBanks);
-        localStorage.setItem('billson_bank_accounts', JSON.stringify(normalizedBanks));
+        try {
+          localStorage.setItem(`billson_bank_accounts_${activeUserId}`, JSON.stringify(normalizedBanks));
+        } catch (e) {}
+      } else {
+        const cached = localStorage.getItem(`billson_bank_accounts_${activeUserId}`) || localStorage.getItem('billson_bank_accounts');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setBankAccounts(parsed);
+          } catch (e) {}
+        }
       }
-      setProducts(prodRes?.success && prodRes.data ? prodRes.data.map(normaliseProduct) : []);
-      setInvoices(invRes?.success && invRes.data ? invRes.data.map(normaliseInvoice) : []);
+
+      if (prodRes?.success && Array.isArray(prodRes.data) && prodRes.data.length > 0) {
+        const norm = prodRes.data.map(normaliseProduct);
+        setProducts(norm);
+        try {
+          localStorage.setItem(`billson_products_${activeUserId}`, JSON.stringify(norm));
+        } catch (e) {}
+      } else {
+        const cached = localStorage.getItem(`billson_products_${activeUserId}`) || localStorage.getItem('billson_products');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setProducts(parsed);
+          } catch (e) {}
+        }
+      }
+
+      if (invRes?.success && Array.isArray(invRes.data) && invRes.data.length > 0) {
+        const norm = invRes.data.map(normaliseInvoice);
+        setInvoices(norm);
+        try {
+          localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(norm));
+        } catch (e) {}
+      } else {
+        const cached = localStorage.getItem(`billson_invoices_${activeUserId}`) || localStorage.getItem('billson_invoices');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) setInvoices(parsed);
+          } catch (e) {}
+        }
+      }
     } catch (err) {
       console.warn('Backend connection note:', err.message);
+      const cachedCust = localStorage.getItem(`billson_customers_${activeUserId}`) || localStorage.getItem('billson_customers_global');
+      if (cachedCust) {
+        try {
+          const parsed = JSON.parse(cachedCust);
+          if (Array.isArray(parsed) && parsed.length > 0) setCustomers(parsed);
+        } catch (e) {}
+      }
     }
   }, []);
 

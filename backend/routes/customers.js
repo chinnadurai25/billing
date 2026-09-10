@@ -42,7 +42,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'NAME and GST NO are required for customer registration' });
     }
 
-    const custId = req.body.id || `CUST-${Date.now().toString().slice(-4)}`;
+    const custId = req.body.id || `CUST-${Date.now().toString().slice(-6)}`;
     const effectiveUserId = userId || 'USR-901';
 
     const newCustomer = {
@@ -65,16 +65,33 @@ router.post('/', async (req, res) => {
       const db = getDB();
       await db.query(
         `INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           user_id = VALUES(user_id),
+           name = VALUES(name),
+           ledger = VALUES(ledger),
+           address = VALUES(address),
+           gst_number = VALUES(gst_number),
+           pan_number = VALUES(pan_number),
+           mobile = VALUES(mobile),
+           email = VALUES(email),
+           city = VALUES(city),
+           state = VALUES(state),
+           status = VALUES(status)`,
         [custId, effectiveUserId, name, newCustomer.ledger, address, gstNumber, newCustomer.pan_number, mobile, email, newCustomer.city, newCustomer.state, 0, 'Active']
       );
+    }
+
+    const existingIdx = fallbackStore.customers.findIndex(c => c.id === custId);
+    if (existingIdx >= 0) {
+      fallbackStore.customers[existingIdx] = newCustomer;
     } else {
       fallbackStore.customers.unshift(newCustomer);
     }
 
     res.status(201).json({
       success: true,
-      message: 'REGISTRATION (CUSTOMER) persisted successfully in MySQL',
+      message: 'REGISTRATION (CUSTOMER) persisted successfully',
       customer: newCustomer
     });
   } catch (error) {

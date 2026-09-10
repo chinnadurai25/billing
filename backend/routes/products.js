@@ -42,7 +42,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'NAME OF THE ITEM and HSN CODE are required' });
     }
 
-    const prodId = req.body.id || `SRV-${Date.now().toString().slice(-4)}`;
+    const prodId = req.body.id || `SRV-${Date.now().toString().slice(-6)}`;
     const effectiveUserId = userId || 'USR-901';
 
     const newItem = {
@@ -62,16 +62,30 @@ router.post('/', async (req, res) => {
       const db = getDB();
       await db.query(
         `INSERT INTO products_services (id, user_id, title, unit, hsn_sac, opening_stock, rate, tax_percent, category)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           user_id = VALUES(user_id),
+           title = VALUES(title),
+           unit = VALUES(unit),
+           hsn_sac = VALUES(hsn_sac),
+           opening_stock = VALUES(opening_stock),
+           rate = VALUES(rate),
+           tax_percent = VALUES(tax_percent),
+           category = VALUES(category)`,
         [prodId, effectiveUserId, title, newItem.unit, hsnSac, newItem.opening_stock, newItem.rate, newItem.tax_percent, newItem.category]
       );
+    }
+
+    const existingIdx = fallbackStore.productsServices.findIndex(p => p.id === prodId);
+    if (existingIdx >= 0) {
+      fallbackStore.productsServices[existingIdx] = newItem;
     } else {
       fallbackStore.productsServices.unshift(newItem);
     }
 
     res.status(201).json({
       success: true,
-      message: 'REGISTRATION (SALES / SERVICES) persisted successfully in MySQL',
+      message: 'REGISTRATION (SALES / SERVICES) persisted successfully',
       product: newItem
     });
   } catch (error) {
