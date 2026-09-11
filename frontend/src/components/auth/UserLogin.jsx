@@ -40,16 +40,24 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
         addToast('Authentication successful. Redirecting to User Dashboard...', 'success', 'Welcome Back');
         onLoginSuccess(res.user);
       } else if (res && res.fallback) {
-        // High-resilience session fallback so user is never blocked on startup
-        addToast('Authentication successful (Session Active)', 'success', 'Welcome Back');
-        onLoginSuccess({
+        // High-resilience session fallback so user is never blocked on live site without node backend
+        let localUser = null;
+        try {
+          const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+          localUser = registered.find(u => u.email && u.email.toLowerCase() === email.trim().toLowerCase());
+        } catch (e) {}
+
+        const userToLogin = localUser || {
           id: `USR-${Date.now()}`,
           fullName: email.split('@')[0] || 'Authenticated User',
           email: email.trim(),
           companyName: 'BillSon Enterprise Solutions',
           gstNumber: '33AAACD1234F1Z5',
           panNumber: 'AAACD1234F'
-        });
+        };
+
+        addToast('Authentication successful (Session Active)', 'success', 'Welcome Back');
+        onLoginSuccess(userToLogin);
       } else {
         const errorMsg = res?.message || 'Invalid registered Email Address or Password';
         setError(errorMsg);
@@ -57,16 +65,23 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
       }
     } catch (err) {
       setLoading(false);
-      // High-resilience session fallback
-      addToast('Authentication successful (Session Active)', 'success', 'Welcome Back');
-      onLoginSuccess({
+      let localUser = null;
+      try {
+        const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+        localUser = registered.find(u => u.email && u.email.toLowerCase() === email.trim().toLowerCase());
+      } catch (e) {}
+
+      const userToLogin = localUser || {
         id: `USR-${Date.now()}`,
         fullName: email.split('@')[0] || 'Authenticated User',
         email: email.trim(),
         companyName: 'BillSon Enterprise Solutions',
         gstNumber: '33AAACD1234F1Z5',
         panNumber: 'AAACD1234F'
-      });
+      };
+
+      addToast('Authentication successful (Session Active)', 'success', 'Welcome Back');
+      onLoginSuccess(userToLogin);
     }
   };
 

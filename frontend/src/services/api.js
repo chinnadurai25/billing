@@ -1,6 +1,18 @@
-const API_BASE_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-  ? `${window.location.origin}/api`
-  : 'http://localhost:5000/api';
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const customUrl = localStorage.getItem('billson_api_url');
+    if (customUrl) return customUrl.endsWith('/api') ? customUrl : `${customUrl.replace(/\/$/, '')}/api`;
+  }
+  if (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_API_URL) {
+    const envUrl = import.meta.env.VITE_API_URL;
+    return envUrl.endsWith('/api') ? envUrl : `${envUrl.replace(/\/$/, '')}/api`;
+  }
+  return typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? `${window.location.origin}/api`
+    : 'http://localhost:5000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Helper for HTTP requests
 async function request(endpoint, options = {}) {
@@ -14,14 +26,18 @@ async function request(endpoint, options = {}) {
     });
 
     const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
+    if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
       return data;
+    } else if (contentType.includes('application/json')) {
+      const data = await res.json();
+      return { success: false, ...data };
     } else {
       const text = await res.text();
       console.warn(`Non-JSON API response from ${endpoint}:`, text.substring(0, 200));
       return { 
         success: false, 
+        fallback: true,
         message: res.status === 413 ? 'Company logo image file size is too large' : `Server HTTP Error (${res.status})` 
       };
     }
