@@ -181,6 +181,12 @@ export const initDB = async () => {
     }
 
     try {
+      await connection.query(`ALTER TABLE bank_accounts ADD COLUMN date VARCHAR(20);`);
+    } catch (e) {
+      // Column already exists
+    }
+
+    try {
       await connection.query(`ALTER TABLE invoices ADD COLUMN document_type VARCHAR(100) DEFAULT 'Sales Invoice';`);
     } catch (e) {
       // Column already exists

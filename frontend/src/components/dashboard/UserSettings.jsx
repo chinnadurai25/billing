@@ -30,7 +30,8 @@ export const UserSettings = ({
     accountNumber: '',
     ifscCode: '',
     address: '',
-    balance: '0'
+    balance: '0',
+    date: new Date().toISOString().split('T')[0]
   });
   const [isSubmittingBank, setIsSubmittingBank] = useState(false);
 
@@ -56,6 +57,7 @@ export const UserSettings = ({
       ifscCode: newBankForm.ifscCode.trim() || 'N/A',
       address: newBankForm.address.trim() || 'Main Branch',
       balance: parseFloat(newBankForm.balance) || 0,
+      date: newBankForm.date || new Date().toISOString().split('T')[0],
       status: 'Active'
     };
 
@@ -1482,6 +1484,16 @@ export const UserSettings = ({
                     className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Date</label>
+                <input
+                  type="date"
+                  value={newBankForm.date}
+                  onChange={(e) => setNewBankForm({ ...newBankForm, date: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white font-mono"
+                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-4">

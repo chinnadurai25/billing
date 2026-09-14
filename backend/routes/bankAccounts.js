@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
 // POST REGISTRATION ( BANK / CASH )
 router.post('/', async (req, res) => {
   try {
-    let { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, userId } = req.body;
+    let { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, userId, date } = req.body;
 
     if (!accountName) {
       return res.status(400).json({ success: false, message: 'NAME OF ACCOUNT is required' });
@@ -48,6 +48,7 @@ router.post('/', async (req, res) => {
 
     const bankId = req.body.id || `BANK-${Date.now().toString().slice(-6)}`;
     const effectiveUserId = userId || 'USR-901';
+    const effectiveDate = date || new Date().toISOString().split('T')[0];
 
     const newBank = {
       id: bankId,
@@ -59,18 +60,19 @@ router.post('/', async (req, res) => {
       ifsc_code: ifscCode || 'HDFC0001234',
       address: address || '',
       balance: parseFloat(balance) || 0.00,
-      status: 'Active'
+      status: 'Active',
+      date: effectiveDate
     };
 
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO bank_accounts (id, user_id, bank_type, account_name, account_number, bank_name, ifsc_code, address, balance, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO bank_accounts (id, user_id, bank_type, account_name, account_number, bank_name, ifsc_code, address, balance, status, date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE 
          bank_type=VALUES(bank_type), account_name=VALUES(account_name), account_number=VALUES(account_number),
-         bank_name=VALUES(bank_name), ifsc_code=VALUES(ifsc_code), address=VALUES(address), balance=VALUES(balance)`,
-        [bankId, effectiveUserId, newBank.bank_type, accountName, accountNumber, newBank.bank_name, newBank.ifsc_code, address, newBank.balance, 'Active']
+         bank_name=VALUES(bank_name), ifsc_code=VALUES(ifsc_code), address=VALUES(address), balance=VALUES(balance), date=VALUES(date)`,
+        [bankId, effectiveUserId, newBank.bank_type, accountName, accountNumber, newBank.bank_name, newBank.ifsc_code, address, newBank.balance, 'Active', effectiveDate]
       );
     }
 
@@ -96,14 +98,14 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, status } = req.body;
+    const { bankType, accountName, accountNumber, bankName, ifscCode, address, balance, status, date } = req.body;
 
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `UPDATE bank_accounts SET bank_type = ?, account_name = ?, account_number = ?, bank_name = ?, ifsc_code = ?, address = ?, balance = COALESCE(?, balance), status = COALESCE(?, status)
+        `UPDATE bank_accounts SET bank_type = ?, account_name = ?, account_number = ?, bank_name = ?, ifsc_code = ?, address = ?, balance = COALESCE(?, balance), status = COALESCE(?, status), date = COALESCE(?, date)
          WHERE id = ?`,
-        [bankType, accountName, accountNumber, bankName, ifscCode, address, balance, status, id]
+        [bankType, accountName, accountNumber, bankName, ifscCode, address, balance, status, date, id]
       );
     } else {
       const idx = fallbackStore.bankAccounts.findIndex(b => b.id === id);
@@ -122,7 +124,8 @@ router.put('/:id', async (req, res) => {
           ifscCode: ifscCode !== undefined ? ifscCode : fallbackStore.bankAccounts[idx].ifscCode,
           address: address !== undefined ? address : fallbackStore.bankAccounts[idx].address,
           balance: balance !== undefined ? balance : fallbackStore.bankAccounts[idx].balance,
-          status: status || fallbackStore.bankAccounts[idx].status
+          status: status || fallbackStore.bankAccounts[idx].status,
+          date: date || fallbackStore.bankAccounts[idx].date
         };
       }
     }

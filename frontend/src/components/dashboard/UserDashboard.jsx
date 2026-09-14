@@ -86,7 +86,8 @@ export const UserDashboard = ({
     bankName: '',
     ifscCode: '',
     address: '',
-    balance: 150000
+    balance: 150000,
+    date: new Date().toISOString().split('T')[0]
   });
 
   // 3. REGISTRATION ( SALES / SERVICES ) Form State
@@ -153,8 +154,8 @@ export const UserDashboard = ({
 
   const handleRegisterCustomer = async (e) => {
     e.preventDefault();
-    if (!custForm.name.trim() || !custForm.gstNo.trim()) {
-      addToast('Customer NAME and GST NO are required', 'error');
+    if (!custForm.name.trim()) {
+      addToast('Customer NAME is required', 'error');
       return;
     }
 
@@ -293,7 +294,8 @@ export const UserDashboard = ({
       bankName: '',
       ifscCode: '',
       address: '',
-      balance: 150000
+      balance: 150000,
+      date: new Date().toISOString().split('T')[0]
     });
     setShowBankModal(true);
   };
@@ -307,7 +309,8 @@ export const UserDashboard = ({
       bankName: bank.bankName || bank.bank_name || '',
       ifscCode: bank.ifscCode || bank.ifsc_code || '',
       address: bank.address || '',
-      balance: bank.balance !== undefined ? bank.balance : 150000
+      balance: bank.balance !== undefined ? bank.balance : 150000,
+      date: bank.date || (bank.created_at ? new Date(bank.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
     });
     setShowBankModal(true);
   };
@@ -339,7 +342,8 @@ export const UserDashboard = ({
         bankName: effectiveBankName,
         ifscCode: effectiveIfsc,
         address: bankForm.address || (isCashAccount ? 'Office Safe' : 'Main Branch'),
-        balance: parseFloat(bankForm.balance) || 0
+        balance: parseFloat(bankForm.balance) || 0,
+        date: bankForm.date
       };
 
       setBankAccounts((prev) => prev.map((b) => b.id === editingBank.id ? updatedBank : b));
@@ -350,7 +354,8 @@ export const UserDashboard = ({
         bankName: effectiveBankName,
         ifscCode: effectiveIfsc,
         address: bankForm.address,
-        balance: parseFloat(bankForm.balance) || 0
+        balance: parseFloat(bankForm.balance) || 0,
+        date: bankForm.date
       });
 
       addToast(`Account "${bankForm.accountName}" updated successfully!`, 'success', 'Account Updated');
@@ -366,6 +371,7 @@ export const UserDashboard = ({
         ifscCode: effectiveIfsc,
         address: bankForm.address || (isCashAccount ? 'Office Safe' : 'Main Branch'),
         balance: parseFloat(bankForm.balance) || 35000,
+        date: bankForm.date,
         status: 'Active'
       };
 
@@ -386,6 +392,7 @@ export const UserDashboard = ({
           ifscCode: effectiveIfsc,
           address: bankForm.address,
           balance: parseFloat(bankForm.balance) || 35000,
+          date: bankForm.date,
           userId: user?.id || 'USR-901'
         });
         if (res && res.bankAccount && res.bankAccount.id && res.bankAccount.id !== bankId) {
@@ -406,7 +413,7 @@ export const UserDashboard = ({
 
     setShowBankModal(false);
     setEditingBank(null);
-    setBankForm({ bankType: 'Bank Account', accountName: '', accountNumber: '', bankName: '', ifscCode: '', address: '', balance: 150000 });
+    setBankForm({ bankType: 'Bank Account', accountName: '', accountNumber: '', bankName: '', ifscCode: '', address: '', balance: 150000, date: new Date().toISOString().split('T')[0] });
   };
 
   const handleDeleteBank = (bank) => {
@@ -1495,6 +1502,7 @@ export const UserDashboard = ({
                       <th className="py-3 px-4">Account Type</th>
                       <th className="py-3 px-4">Bank Name</th>
                       <th className="py-3 px-4">A/C Number & IFSC</th>
+                      <th className="py-3 px-4">Date</th>
                       <th className="py-3 px-4">Branch / Address</th>
                       <th className="py-3 px-4">Ledger Balance</th>
                       <th className="py-3 px-4 text-right">Actions</th>
@@ -1524,6 +1532,9 @@ export const UserDashboard = ({
                         <td className="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
                           <div>{b.accountNumber || b.account_number}</div>
                           <div className="text-[11px] text-amber-300/80"><span className="text-slate-500">IFSC:</span> {b.ifscCode || b.ifsc_code || 'N/A'}</div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-amber-200/90 whitespace-nowrap">
+                          {b.date || (b.created_at ? new Date(b.created_at).toISOString().split('T')[0] : '2026-09-08')}
                         </td>
                         <td className="py-3.5 px-4 text-slate-300 max-w-xs truncate">
                           {b.address || 'Chennai Central'}
@@ -1826,7 +1837,7 @@ export const UserDashboard = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">GST NO *</label>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">GST NO <span className="text-slate-500 font-normal">(optional)</span></label>
                   <input
                     type="text"
                     maxLength="15"
@@ -1834,7 +1845,6 @@ export const UserDashboard = ({
                     onChange={(e) => handleCustGstChange(e.target.value)}
                     placeholder="33AAACD1234F1Z5"
                     className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono uppercase"
-                    required
                   />
                 </div>
               </div>
@@ -1966,7 +1976,7 @@ export const UserDashboard = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-amber-200 mb-1">
-                      {isCashAcc ? 'NAME OF THE CASH ACCOUNT *' : 'NAME OF THE BANK / ACCOUNT *'}
+                      {isCashAcc ? 'NAME OF THE CASH ACCOUNT *' : 'NAME OF THE BANK *'}
                     </label>
                     <input
                       type="text"
@@ -2041,6 +2051,16 @@ export const UserDashboard = ({
                       onChange={(e) => setBankForm({ ...bankForm, address: e.target.value })}
                       placeholder={isCashAcc ? 'e.g. Office Safe / Petty Cash Box' : 'Branch Address e.g. Anna Salai Chennai'}
                       className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-200 mb-1">DATE</label>
+                    <input
+                      type="date"
+                      value={bankForm.date}
+                      onChange={(e) => setBankForm({ ...bankForm, date: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
                     />
                   </div>
 
@@ -2357,22 +2377,30 @@ export const UserDashboard = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-mono">
               <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
                 <span className="text-amber-200/60 block text-[10px]">NAME OF BANK</span>
-                <span className="text-white font-bold">{selectedBankDetail.bankName || selectedBankDetail.bank_name || 'N/A'}</span>
+                <span className="text-white font-bold truncate block">{selectedBankDetail.bankName || selectedBankDetail.bank_name || 'N/A'}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
                 <span className="text-amber-200/60 block text-[10px]">ACCOUNT NUMBER</span>
-                <span className="text-amber-300 font-bold">{selectedBankDetail.accountNumber || selectedBankDetail.account_number}</span>
+                <span className="text-amber-300 font-bold truncate block">{selectedBankDetail.accountNumber || selectedBankDetail.account_number}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
                 <span className="text-amber-200/60 block text-[10px]">IFSC CODE</span>
                 <span className="text-white font-bold">{selectedBankDetail.ifscCode || selectedBankDetail.ifsc_code || 'N/A'}</span>
               </div>
               <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
+                <span className="text-amber-200/60 block text-[10px]">DATE</span>
+                <span className="text-amber-300 font-bold">{selectedBankDetail.date || (selectedBankDetail.created_at ? new Date(selectedBankDetail.created_at).toISOString().split('T')[0] : '2026-09-08')}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
                 <span className="text-amber-200/60 block text-[10px]">STATUS</span>
                 <span className="text-emerald-400 font-bold">{selectedBankDetail.status || 'Active'}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-dark-900 border border-amber-500/20">
+                <span className="text-amber-200/60 block text-[10px]">ACCOUNT TYPE</span>
+                <span className="text-amber-300 font-bold truncate block">{selectedBankDetail.bankType || selectedBankDetail.bank_type || 'Bank Account'}</span>
               </div>
             </div>
 
@@ -2547,7 +2575,24 @@ export const UserDashboard = ({
                     <p><span className="text-slate-500">Date / Due:</span> {selectedInvoice.date} / {selectedInvoice.dueDate || selectedInvoice.due_date || selectedInvoice.date}</p>
                     <div className="p-3 rounded-xl bg-dark-900 border border-slate-800 space-y-1">
                       <p className="flex justify-between"><span>Subtotal:</span> <span>₹{(selectedInvoice.subtotal || 0).toLocaleString('en-IN')}</span></p>
-                      <p className="flex justify-between text-indigo-300"><span>Tax (CGST+SGST/IGST):</span> <span>₹{(selectedInvoice.totalTax || selectedInvoice.total_tax || 0).toLocaleString('en-IN')}</span></p>
+                      {parseFloat(selectedInvoice.igst || 0) > 0 || selectedInvoice.taxType === 'interstate' ? (
+                        <p className="flex justify-between text-indigo-300">
+                          <span>Integrated IGST (18%):</span>
+                          <span>₹{(selectedInvoice.igst || selectedInvoice.totalTax || 0).toLocaleString('en-IN')}</span>
+                        </p>
+                      ) : (
+                        <>
+                          <p className="flex justify-between text-indigo-300">
+                            <span>Central CGST (9%):</span>
+                            <span>₹{(selectedInvoice.cgst !== undefined ? selectedInvoice.cgst : (selectedInvoice.totalTax || 0) / 2).toLocaleString('en-IN')}</span>
+                          </p>
+                          <p className="flex justify-between text-indigo-300">
+                            <span>State SGST (9%):</span>
+                            <span>₹{(selectedInvoice.sgst !== undefined ? selectedInvoice.sgst : (selectedInvoice.totalTax || 0) / 2).toLocaleString('en-IN')}</span>
+                          </p>
+                        </>
+                      )}
+                      <p className="flex justify-between text-emerald-400"><span>Total Tax:</span> <span>₹{(selectedInvoice.totalTax || selectedInvoice.total_tax || 0).toLocaleString('en-IN')}</span></p>
                       <p className="flex justify-between font-bold text-white pt-1 border-t border-slate-800"><span>Grand Total:</span> <span className="text-emerald-400">₹{(selectedInvoice.grandTotal || selectedInvoice.grand_total || 0).toLocaleString('en-IN')}</span></p>
                     </div>
                   </div>

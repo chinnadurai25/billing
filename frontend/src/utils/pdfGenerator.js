@@ -107,6 +107,11 @@ export const generateInvoicePDF = (invoice, user) => {
   const totalTax = invoice.totalTax || invoice.total_tax || (items.reduce((acc, i) => acc + ((parseFloat(i.amount || 0) * (parseFloat(i.taxPercent || 18))) / 100), 0));
   const grandTotal = invoice.grandTotal || invoice.grand_total || (subtotal + totalTax);
 
+  const isInterstate = (parseFloat(invoice.igst || 0) > 0) || invoice.taxType === 'interstate';
+  const cgstVal = isInterstate ? 0 : (invoice.cgst !== undefined ? parseFloat(invoice.cgst) : totalTax / 2);
+  const sgstVal = isInterstate ? 0 : (invoice.sgst !== undefined ? parseFloat(invoice.sgst) : totalTax / 2);
+  const igstVal = isInterstate ? (invoice.igst !== undefined ? parseFloat(invoice.igst) : totalTax) : 0;
+
   // Retrieve Terms & Conditions dynamically from Settings
   let termsText = invoice?.footerTerms || invoice?.terms || user?.invoiceFooterTerms || user?.footerTerms || null;
   if (!termsText) {
@@ -302,6 +307,21 @@ export const generateInvoicePDF = (invoice, user) => {
               <td style="color: #64748b; font-weight: 600;">Subtotal (Excl. GST):</td>
               <td style="text-align: right; font-family: monospace; font-weight: 600;">₹${subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             </tr>
+            ${isInterstate ? `
+              <tr>
+                <td style="color: #4f46e5; font-weight: 600;">Integrated Tax (IGST 18%):</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 700; color: #4f46e5;">₹${igstVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+            ` : `
+              <tr>
+                <td style="color: #4f46e5; font-weight: 600;">Central Tax (CGST 9%):</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 700; color: #4f46e5;">₹${cgstVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              <tr>
+                <td style="color: #4f46e5; font-weight: 600;">State Tax (SGST 9%):</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 700; color: #4f46e5;">₹${sgstVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+            `}
             <tr>
               <td style="color: #10b981; font-weight: 600;">Total GST Amount:</td>
               <td style="text-align: right; font-family: monospace; font-weight: 700; color: #10b981;">₹${totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>

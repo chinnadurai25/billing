@@ -571,6 +571,78 @@ const getDocThemeConfig = (docType) => {
   }
 };
 
+export const INDIAN_STATES = [
+  { code: '33', name: 'Tamil Nadu' },
+  { code: '29', name: 'Karnataka' },
+  { code: '27', name: 'Maharashtra' },
+  { code: '07', name: 'Delhi' },
+  { code: '32', name: 'Kerala' },
+  { code: '36', name: 'Telangana' },
+  { code: '37', name: 'Andhra Pradesh' },
+  { code: '24', name: 'Gujarat' },
+  { code: '09', name: 'Uttar Pradesh' },
+  { code: '19', name: 'West Bengal' },
+  { code: '08', name: 'Rajasthan' },
+  { code: '23', name: 'Madhya Pradesh' },
+  { code: '03', name: 'Punjab' },
+  { code: '06', name: 'Haryana' },
+  { code: '10', name: 'Bihar' },
+  { code: '21', name: 'Odisha' },
+  { code: '30', name: 'Goa' },
+  { code: '34', name: 'Puducherry' },
+  { code: '05', name: 'Uttarakhand' },
+  { code: '02', name: 'Himachal Pradesh' },
+  { code: '01', name: 'Jammu & Kashmir' },
+  { code: '20', name: 'Jharkhand' },
+  { code: '22', name: 'Chhattisgarh' },
+  { code: '18', name: 'Assam' }
+];
+
+export const detectStateFromGstOrName = (gst, stateName) => {
+  if (gst && typeof gst === 'string') {
+    const clean = gst.trim().toUpperCase();
+    if (clean.length >= 2) {
+      const code = clean.substring(0, 2);
+      const foundByCode = INDIAN_STATES.find(s => s.code === code);
+      if (foundByCode) return foundByCode;
+    }
+  }
+  if (stateName && typeof stateName === 'string') {
+    const sLower = stateName.toLowerCase().trim();
+    const foundByName = INDIAN_STATES.find(s => s.name.toLowerCase() === sLower || sLower.includes(s.name.toLowerCase()));
+    if (foundByName) return foundByName;
+  }
+  return { code: '33', name: 'Tamil Nadu' };
+};
+
+export const checkIsSameState = (user, customer, customerGstOverride = null) => {
+  if (!customer && !customerGstOverride) return true;
+
+  const clientState = (user?.state || '').trim().toLowerCase();
+  const custState = (customer?.state || '').trim().toLowerCase();
+
+  const clientGst = (user?.gstNumber || user?.gst_number || '').trim().toUpperCase();
+  const custGst = (customerGstOverride || customer?.gstNumber || customer?.gst_number || '').trim().toUpperCase();
+
+  // If both have 2-digit state code in GSTIN
+  if (clientGst.length >= 2 && custGst.length >= 2 && /^\d{2}$/.test(clientGst.slice(0, 2)) && /^\d{2}$/.test(custGst.slice(0, 2))) {
+    return clientGst.slice(0, 2) === custGst.slice(0, 2);
+  }
+
+  // If both have state name specified
+  if (clientState && custState) {
+    return clientState === custState;
+  }
+
+  // If customer GST has state code, compare with client code
+  if (custGst.length >= 2 && /^\d{2}$/.test(custGst.slice(0, 2))) {
+    const clientCode = detectStateFromGstOrName(clientGst, user?.state || 'Tamil Nadu').code;
+    return custGst.slice(0, 2) === clientCode;
+  }
+
+  return true;
+};
+
 export const QuickCreateInvoiceModal = ({ 
   isOpen, 
   onClose, 
@@ -618,10 +690,13 @@ export const QuickCreateInvoiceModal = ({
       if (editingInvoice) {
         setInvoiceNumber(editingInvoice.invoiceNumber || editingInvoice.invoice_number || '');
         setCustomerName(editingInvoice.customerName || editingInvoice.customer_name || '');
-        setCustomerGst(editingInvoice.customerGst || editingInvoice.customer_gst || '');
+        const editGst = editingInvoice.customerGst || editingInvoice.customer_gst || '';
+        setCustomerGst(editGst);
         setInvoiceDate(editingInvoice.date || new Date().toISOString().split('T')[0]);
         setStatus(editingInvoice.status || 'Pending');
-        setTaxType((editingInvoice.igst || 0) > 0 ? 'interstate' : 'intrastate');
+
+        const isOtherState = (editingInvoice.igst || 0) > 0 || editingInvoice.taxType === 'interstate';
+        setTaxType(isOtherState ? 'interstate' : 'intrastate');
 
         if (documentType === 'Payment') {
           setPaidBy('');
@@ -679,16 +754,20 @@ export const QuickCreateInvoiceModal = ({
         }
 
         if (customers && customers.length > 0) {
-          const found = customers.find(c => c.name === customerName);
-          if (!found) {
-            setCustomerName(customers[0].name);
-            setCustomerGst(customers[0].gstNumber || customers[0].gst_number || '');
-          } else {
-            setCustomerGst(found.gstNumber || found.gst_number || '');
-          }
+          const found = customers.find(c => c.name === customerName) || customers[0];
+          setCustomerName(found.name);
+          const gstVal = found.gstNumber || found.gst_number || '';
+          setCustomerGst(gstVal);
+
+          // 2 CONDITIONS AUTOMATIC APPLICATION:
+          // If Client State === Customer State: Condition 1 (Same State: SGST + CGST)
+          // If Client State !== Customer State: Condition 2 (Other State: IGST)
+          const same = checkIsSameState(user, found, gstVal);
+          setTaxType(same ? 'intrastate' : 'interstate');
         } else {
           setCustomerName('');
           setCustomerGst('');
+          setTaxType('intrastate');
         }
 
         if (products && products.length > 0) {
@@ -781,6 +860,31 @@ export const QuickCreateInvoiceModal = ({
     setItems(items.filter((_, i) => i !== index));
   };
 
+  const clientGst = user?.gstNumber || user?.gst_number || '';
+  const clientStateName = user?.state || 'Tamil Nadu';
+  const clientStateObj = detectStateFromGstOrName(clientGst, clientStateName);
+
+  const selectedCust = customers.find(c => c.name === customerName);
+  const custStateName = selectedCust?.state || selectedCust?.city || '';
+  const custStateObj = detectStateFromGstOrName(customerGst, custStateName);
+
+  // 2 Conditions State Evaluation Handlers (Automated)
+  const handleSelectCustomer = (c) => {
+    setCustomerName(c.name);
+    const gstVal = c.gstNumber || c.gst_number || '';
+    setCustomerGst(gstVal);
+    const isSame = checkIsSameState(user, c, gstVal);
+    setTaxType(isSame ? 'intrastate' : 'interstate');
+  };
+
+  const handleCustGstChange = (val) => {
+    const uppercaseVal = val.toUpperCase();
+    setCustomerGst(uppercaseVal);
+    const currentCust = customers.find(c => c.name === customerName);
+    const isSame = checkIsSameState(user, currentCust, uppercaseVal);
+    setTaxType(isSame ? 'intrastate' : 'interstate');
+  };
+
   // Calculations: Calculate strictly based on quantity * unitPrice
   const subtotal = items.reduce((acc, item) => {
     const isServ = checkIsServiceItem(item, products);
@@ -798,9 +902,13 @@ export const QuickCreateInvoiceModal = ({
     return acc + (itemAmount * (taxP / 100));
   }, 0);
 
-  const cgst = totalTaxAmount / 2;
-  const sgst = totalTaxAmount / 2;
-  const igst = totalTaxAmount;
+  const isIntrastate = taxType === 'intrastate';
+  // 2 CONDITIONS LOGIC:
+  // Condition 1 (Same State): SGST + CGST applicable (e.g., 18% => SGST 9% + CGST 9%)
+  // Condition 2 (Other State): IGST applicable (e.g., 18% => IGST 18%)
+  const cgst = isIntrastate ? (totalTaxAmount / 2) : 0;
+  const sgst = isIntrastate ? (totalTaxAmount / 2) : 0;
+  const igst = isIntrastate ? 0 : totalTaxAmount;
   const grandTotal = subtotal + totalTaxAmount;
 
   const handleSubmit = (e) => {
@@ -887,6 +995,10 @@ export const QuickCreateInvoiceModal = ({
       invoiceNumber: finalInvNumber,
       customerName: effectiveCustName,
       customerGst: effectiveCustGst || '33AAACD9999F1Z0',
+      clientState: clientStateObj.name,
+      customerState: custStateObj.name,
+      placeOfSupply: custStateObj.name,
+      taxType: isIntrastate ? 'intrastate' : 'interstate',
       date: invoiceDate,
       subtotal,
       cgst,
@@ -1029,17 +1141,14 @@ export const QuickCreateInvoiceModal = ({
           /* STANDARD TAX DOCUMENT INVOICE FORM */
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Customer & Tax Type Selection */}
+            {/* Customer & State / Place of Supply Selection */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Select Customer Entity *</label>
                 <SearchableCustomerSelect 
                   customers={customers}
                   selectedName={customerName}
-                  onSelectCustomer={(c) => {
-                    setCustomerName(c.name);
-                    setCustomerGst(c.gstNumber || c.gst_number || '');
-                  }}
+                  onSelectCustomer={handleSelectCustomer}
                 />
               </div>
 
@@ -1048,11 +1157,46 @@ export const QuickCreateInvoiceModal = ({
                 <input
                   type="text"
                   value={customerGst}
-                  onChange={(e) => setCustomerGst(e.target.value)}
+                  onChange={(e) => handleCustGstChange(e.target.value)}
                   placeholder="29AABCA1234B1Z2"
                   className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase"
                 />
               </div>
+            </div>
+
+            {/* AUTO GST CONDITION BANNER — read-only, no manual selection */}
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-mono ${
+              isIntrastate
+                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                : 'bg-indigo-950/40 border-indigo-500/40 text-indigo-300'
+            }`}>
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${isIntrastate ? 'bg-emerald-400' : 'bg-indigo-400'}`} />
+              <div className="flex-1">
+                {isIntrastate ? (
+                  <>
+                    <span className="font-bold text-emerald-300">✓ Same State — SGST + CGST Applicable</span>
+                    <span className="text-emerald-400/70 ml-2">
+                      (Client: {clientStateObj.name} = Customer: {custStateObj.name})
+                    </span>
+                    <div className="text-[11px] text-emerald-400/60 mt-0.5">e.g. 18% GST → SGST 9% + CGST 9%  |  IGST: Not Applicable</div>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-bold text-indigo-300">✓ Different State — IGST Applicable</span>
+                    <span className="text-indigo-400/70 ml-2">
+                      (Client: {clientStateObj.name} ≠ Customer: {custStateObj.name})
+                    </span>
+                    <div className="text-[11px] text-indigo-400/60 mt-0.5">e.g. 18% GST → IGST 18%  |  CGST + SGST: Not Applicable</div>
+                  </>
+                )}
+              </div>
+              <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border shrink-0 ${
+                isIntrastate
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+              }`}>
+                AUTO-APPLIED
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1184,13 +1328,23 @@ export const QuickCreateInvoiceModal = ({
                             />
                           </td>
                           <td className="py-2 px-3 font-mono text-emerald-400 font-bold whitespace-nowrap">
-                            {itemTaxPercent}%
+                            <div>{itemTaxPercent}%</div>
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              {isIntrastate 
+                                ? `(SGST ${(itemTaxPercent / 2)}% + CGST ${(itemTaxPercent / 2)}%)` 
+                                : `(IGST ${itemTaxPercent}%)`}
+                            </div>
                           </td>
                           <td className="py-2 px-3 text-right font-mono font-bold text-slate-200">
                             ₹{rowAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400">
-                            ₹{rowGstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
+                            <div>₹{rowGstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                            <div className="text-[10px] font-normal text-indigo-300">
+                              {isIntrastate 
+                                ? `₹${(rowGstAmount / 2).toFixed(2)} + ₹${(rowGstAmount / 2).toFixed(2)}` 
+                                : `IGST ₹${rowGstAmount.toFixed(2)}`}
+                            </div>
                           </td>
                           <td className="py-2 px-2 text-center">
                             <button
@@ -1213,15 +1367,54 @@ export const QuickCreateInvoiceModal = ({
             <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800 space-y-2 text-xs font-mono">
               <div className="flex justify-between text-slate-300">
                 <span>Subtotal (Excl. GST):</span>
-                <span>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="font-bold text-white">₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex justify-between text-emerald-400 font-semibold">
+
+              {isIntrastate ? (
+                <>
+                  <div className="flex justify-between text-indigo-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Central CGST (9%):
+                    </span>
+                    <span className="font-bold">₹{cgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-indigo-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> State SGST (9%):
+                    </span>
+                    <span className="font-bold">₹{sgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>Integrated IGST (Same State):</span>
+                    <span>₹0.00 <span className="text-[10px] text-slate-600">(Not Applicable)</span></span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-purple-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span> Integrated IGST (18%):
+                    </span>
+                    <span className="font-bold">₹{igst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>Central CGST (Other State):</span>
+                    <span>₹0.00 <span className="text-[10px] text-slate-600">(Not Applicable)</span></span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                    <span>State SGST (Other State):</span>
+                    <span>₹0.00 <span className="text-[10px] text-slate-600">(Not Applicable)</span></span>
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-between text-emerald-400 font-semibold pt-1 border-t border-slate-800">
                 <span>Total GST Amount:</span>
-                <span>₹{totalTaxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="font-bold">₹{totalTaxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex justify-between font-bold text-sm text-emerald-400 pt-2 border-t border-slate-800">
+              <div className="flex justify-between font-bold text-sm text-emerald-400 pt-1 border-t border-slate-700">
                 <span>Grand Total (Incl. GST):</span>
-                <span>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-base text-emerald-300">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 
