@@ -100,12 +100,12 @@ export const initDB = async () => {
         name VARCHAR(200) NOT NULL,
         ledger ENUM('SUNDRY DEBTORS', 'SUNDRY CREDITORS') DEFAULT 'SUNDRY DEBTORS',
         address TEXT,
-        gst_number VARCHAR(15) NOT NULL,
+        gst_number VARCHAR(15) DEFAULT '',
         pan_number VARCHAR(10),
         mobile VARCHAR(20),
         email VARCHAR(150),
-        city VARCHAR(100) DEFAULT 'Chennai',
-        state VARCHAR(100) DEFAULT 'Tamil Nadu',
+        city VARCHAR(100) DEFAULT '',
+        state VARCHAR(100) DEFAULT '',
         total_billed DECIMAL(15,2) DEFAULT 0.00,
         status VARCHAR(20) DEFAULT 'Active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -176,6 +176,9 @@ export const initDB = async () => {
 
     try {
       await connection.query(`ALTER TABLE bank_accounts MODIFY COLUMN bank_type VARCHAR(100);`);
+      await connection.query(`ALTER TABLE customers MODIFY COLUMN gst_number VARCHAR(15) DEFAULT '';`);
+      await connection.query(`ALTER TABLE customers MODIFY COLUMN city VARCHAR(100) DEFAULT '';`);
+      await connection.query(`ALTER TABLE customers MODIFY COLUMN state VARCHAR(100) DEFAULT '';`);
     } catch (e) {
       // Column modification completed or ignored
     }

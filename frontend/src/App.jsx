@@ -69,9 +69,21 @@ function AppContent() {
     setIsQuickInvoiceOpen(true);
   };
 
-  // App Master Data States - start clean and empty for new authenticated users
+  // App Master Data States - start with cached data to prevent loss on reload
   const [userData, setUserData] = useState(() => savedUser || initialUserData);
-  const [customers, setCustomers] = useState(() => savedUser ? [] : initialCustomers);
+  const [customers, setCustomers] = useState(() => {
+    try {
+      const activeId = savedUser?.id || 'USR-901';
+      const cached = localStorage.getItem(`billson_customers_${activeId}`) ||
+                     localStorage.getItem('billson_customers_global') ||
+                     localStorage.getItem('billson_customers');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return savedUser ? [] : initialCustomers;
+  });
   const [products, setProducts] = useState(() => savedUser ? [] : initialProductsServices);
   const [invoices, setInvoices] = useState(() => savedUser ? [] : initialInvoices);
   const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
@@ -103,8 +115,8 @@ function AppContent() {
     panNumber: c.pan_number || c.panNumber || '',
     phone: c.mobile || c.phone || '',
     email: c.email || '',
-    city: c.city || 'Chennai',
-    state: c.state || 'Tamil Nadu',
+    city: c.city || '',
+    state: c.state || '',
     totalBilled: parseFloat(c.total_billed ?? c.totalBilled ?? 0),
     status: c.status || 'Active',
   });
@@ -178,12 +190,20 @@ function AppContent() {
 
       if (custRes?.success && Array.isArray(custRes.data) && custRes.data.length > 0) {
         const norm = custRes.data.map(normaliseCustomer);
-        setCustomers(norm);
-        try {
-          localStorage.setItem(`billson_customers_${activeUserId}`, JSON.stringify(norm));
-        } catch (e) {}
+        setCustomers((prev) => {
+          const existingIds = new Set(norm.map(c => c.id));
+          const localOnly = prev.filter(c => !existingIds.has(c.id));
+          const merged = [...norm, ...localOnly];
+          try {
+            localStorage.setItem(`billson_customers_${activeUserId}`, JSON.stringify(merged));
+            localStorage.setItem('billson_customers_global', JSON.stringify(merged));
+          } catch (e) {}
+          return merged;
+        });
       } else {
-        const cached = localStorage.getItem(`billson_customers_${activeUserId}`) || localStorage.getItem('billson_customers_global');
+        const cached = localStorage.getItem(`billson_customers_${activeUserId}`) || 
+                       localStorage.getItem('billson_customers_global') || 
+                       localStorage.getItem('billson_customers');
         if (cached) {
           try {
             const parsed = JSON.parse(cached);

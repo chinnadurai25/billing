@@ -14,6 +14,8 @@ import { useToast } from '../../context/ToastContext';
 import { api } from '../../services/api';
 import { generateInvoicePDF } from '../../utils/pdfGenerator';
 import { UserSettings } from './UserSettings';
+import SearchableDropdown from '../common/SearchableDropdown';
+import { INDIAN_STATES, INDIA_STATES_CITIES, GST_STATE_CODES } from '../../data/indiaData';
 
 export const UserDashboard = ({
   activeTab,
@@ -73,8 +75,8 @@ export const UserDashboard = ({
     pan: '',
     mobile: '',
     email: '',
-    city: 'Chennai',
-    state: 'Tamil Nadu'
+    city: '',
+    state: ''
   });
 
   // 2. REGISTRATION ( BANK / CASH ) Form State
@@ -102,18 +104,31 @@ export const UserDashboard = ({
     category: 'Sales Item'
   });
 
-  // Auto-fill PAN when GSTIN is typed in Customer Form
+  // Auto-fill PAN & State when GSTIN is typed in Customer Form
   const handleCustGstChange = (val) => {
     const uppercaseVal = val.toUpperCase();
     setCustForm((prev) => {
       let updatedPan = prev.pan;
+      let updatedState = prev.state;
+      if (uppercaseVal.length >= 2) {
+        const code = uppercaseVal.substring(0, 2);
+        if (GST_STATE_CODES[code]) {
+          updatedState = GST_STATE_CODES[code];
+        }
+      }
       if (uppercaseVal.length === 15) {
         const extracted = uppercaseVal.substring(2, 12);
         if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extracted)) {
           updatedPan = extracted;
         }
       }
-      return { ...prev, gstNo: uppercaseVal, pan: updatedPan };
+      return {
+        ...prev,
+        gstNo: uppercaseVal,
+        pan: updatedPan,
+        state: updatedState,
+        city: prev.state !== updatedState ? '' : prev.city
+      };
     });
   };
 
@@ -130,8 +145,8 @@ export const UserDashboard = ({
       pan: '',
       mobile: '',
       email: '',
-      city: 'Chennai',
-      state: 'Tamil Nadu'
+      city: '',
+      state: ''
     });
     setShowCustomerModal(true);
   };
@@ -146,8 +161,8 @@ export const UserDashboard = ({
       pan: customer.panNumber || customer.pan_number || '',
       mobile: customer.phone || customer.mobile || '',
       email: customer.email || '',
-      city: customer.city || 'Chennai',
-      state: customer.state || 'Tamil Nadu'
+      city: customer.city || '',
+      state: customer.state || ''
     });
     setShowCustomerModal(true);
   };
@@ -170,8 +185,8 @@ export const UserDashboard = ({
         panNumber: custForm.pan,
         phone: custForm.mobile,
         email: custForm.email,
-        city: custForm.city || editingCustomer.city || 'Chennai',
-        state: custForm.state || editingCustomer.state || 'Tamil Nadu'
+        city: custForm.city || editingCustomer.city || '',
+        state: custForm.state || editingCustomer.state || ''
       };
 
       setCustomers((prev) => prev.map((c) => c.id === editingCustomer.id ? updatedCustomer : c));
@@ -199,10 +214,10 @@ export const UserDashboard = ({
         address: custForm.address,
         gstNumber: custForm.gstNo,
         panNumber: custForm.pan,
-        phone: custForm.mobile || '+91 98765 43210',
-        email: custForm.email || `${custForm.name.toLowerCase().replace(/\s+/g, '')}@demo.com`,
-        city: custForm.city || 'Chennai',
-        state: custForm.state || 'Tamil Nadu',
+        phone: custForm.mobile || '',
+        email: custForm.email || '',
+        city: custForm.city || '',
+        state: custForm.state || '',
         totalBilled: 0,
         status: 'Active'
       };
@@ -212,6 +227,8 @@ export const UserDashboard = ({
         try {
           const key = user?.id ? `billson_customers_${user.id}` : 'billson_customers_global';
           localStorage.setItem(key, JSON.stringify(updated));
+          localStorage.setItem('billson_customers_global', JSON.stringify(updated));
+          localStorage.setItem('billson_customers', JSON.stringify(updated));
         } catch (e) {}
         return updated;
       });
@@ -251,9 +268,11 @@ export const UserDashboard = ({
           setCustomers((prev) => {
             const updated = prev.map((c) => (c.id === custId ? norm : c));
             try {
-              const key = user?.id ? `billson_customers_${user.id}` : 'billson_customers_global';
-              localStorage.setItem(key, JSON.stringify(updated));
-            } catch (e) {}
+            const key = user?.id ? `billson_customers_${user.id}` : 'billson_customers_global';
+            localStorage.setItem(key, JSON.stringify(updated));
+            localStorage.setItem('billson_customers_global', JSON.stringify(updated));
+            localStorage.setItem('billson_customers', JSON.stringify(updated));
+          } catch (e) {}
             return updated;
           });
         }
@@ -266,7 +285,7 @@ export const UserDashboard = ({
 
     setShowCustomerModal(false);
     setEditingCustomer(null);
-    setCustForm({ name: '', ledger: 'SUNDRY DEBTORS', address: '', gstNo: '', pan: '', mobile: '', email: '', city: 'Chennai', state: 'Tamil Nadu' });
+    setCustForm({ name: '', ledger: 'SUNDRY DEBTORS', address: '', gstNo: '', pan: '', mobile: '', email: '', city: '', state: '' });
   };
 
   const handleDeleteCustomer = (customer) => {
@@ -1887,23 +1906,33 @@ export const UserDashboard = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">CITY</label>
-                  <input
-                    type="text"
-                    value={custForm.city}
-                    onChange={(e) => setCustForm({ ...custForm, city: e.target.value })}
-                    placeholder="Chennai"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">STATE</label>
+                  <SearchableDropdown
+                    value={custForm.state}
+                    onChange={(selectedState) => {
+                      setCustForm((prev) => ({
+                        ...prev,
+                        state: selectedState,
+                        city: prev.state !== selectedState ? '' : prev.city
+                      }));
+                    }}
+                    options={INDIAN_STATES}
+                    placeholder="Select State"
+                    searchPlaceholder="Search Indian State..."
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">STATE</label>
-                  <input
-                    type="text"
-                    value={custForm.state}
-                    onChange={(e) => setCustForm({ ...custForm, state: e.target.value })}
-                    placeholder="Tamil Nadu"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">CITY</label>
+                  <SearchableDropdown
+                    value={custForm.city}
+                    onChange={(selectedCity) => {
+                      setCustForm((prev) => ({ ...prev, city: selectedCity }));
+                    }}
+                    options={custForm.state ? (INDIA_STATES_CITIES[custForm.state] || []) : []}
+                    placeholder={custForm.state ? "Select City" : "Select State First"}
+                    searchPlaceholder="Search City..."
+                    disabled={!custForm.state}
                   />
                 </div>
               </div>

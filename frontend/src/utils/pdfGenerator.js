@@ -46,8 +46,37 @@ export const generateInvoicePDF = (invoice, user) => {
 
   const status = invoice.status || 'Pending';
 
-  const custName = invoice.customerName || invoice.customer_name || invoice.paidTo || invoice.paid_to || 'chinn';
-  const custGst = invoice.customerGst || invoice.customer_gst || 'ROFM';
+  const custName = invoice.customerName || invoice.customer_name || invoice.paidTo || invoice.paid_to || 'Customer';
+  const custGst = invoice.customerGst || invoice.customer_gst || 'N/A';
+
+  // Retrieve Customer Registered Address dynamically
+  let custAddr = invoice.customerAddress || invoice.customer_address || invoice.address || '';
+  let custCity = invoice.customerCity || invoice.customer_city || invoice.city || '';
+  let custState = invoice.customerState || invoice.customer_state || invoice.state || '';
+
+  if (!custAddr && !custCity && !custState) {
+    try {
+      const savedCusts = localStorage.getItem(`billson_customers_${user?.id}`) || localStorage.getItem('billson_customers_global');
+      if (savedCusts) {
+        const parsed = JSON.parse(savedCusts);
+        const match = parsed.find(c => 
+          (c.name && c.name.trim().toLowerCase() === custName.trim().toLowerCase()) || 
+          (custGst && custGst !== 'N/A' && (c.gstNumber === custGst || c.gst_number === custGst))
+        );
+        if (match) {
+          custAddr = match.address || '';
+          custCity = match.city || '';
+          custState = match.state || '';
+        }
+      }
+    } catch (e) {}
+  }
+
+  let fullCustLocation = '';
+  if (custAddr) fullCustLocation += custAddr;
+  if (custCity) fullCustLocation += (fullCustLocation ? ', ' : '') + custCity;
+  if (custState) fullCustLocation += (fullCustLocation ? ', ' : '') + custState;
+  if (!fullCustLocation) fullCustLocation = 'India';
 
   // Retrieve GST Governance Settings dynamically
   let placeOfSupply = invoice?.placeOfSupply || invoice?.place_of_supply || user?.placeOfSupply || null;
@@ -252,7 +281,7 @@ export const generateInvoicePDF = (invoice, user) => {
             <h3>${partyLabel}</h3>
             <p style="font-size: 14px; font-weight: 800; color: #0f172a;">${custName}</p>
             <p style="font-family: monospace; color: #475569; margin-top: 4px;"><strong>GSTIN:</strong> ${custGst}</p>
-            <p style="color: #64748b; margin-top: 2px;">Chennai, Tamil Nadu, India</p>
+            <p style="color: #64748b; margin-top: 2px;">${fullCustLocation}</p>
           </div>
         </div>
 

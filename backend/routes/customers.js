@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
       const params = [];
 
       if (userId) {
-        query += ' WHERE user_id = ?';
+        query += ' WHERE (user_id = ? OR user_id IS NULL OR user_id = "" OR user_id = "USR-901")';
         params.push(userId);
       }
       query += ' ORDER BY created_at DESC';
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     }
 
     if (userId) {
-      const filtered = fallbackStore.customers.filter(c => c.user_id === userId);
+      const filtered = fallbackStore.customers.filter(c => !c.user_id || c.user_id === userId || c.user_id === 'USR-901');
       return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.customers });
@@ -38,8 +38,8 @@ router.post('/', async (req, res) => {
   try {
     const { name, ledger, address, gstNumber, panNumber, mobile, email, city, state, userId } = req.body;
 
-    if (!name || !gstNumber) {
-      return res.status(400).json({ success: false, message: 'NAME and GST NO are required for customer registration' });
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'NAME is required for customer registration' });
     }
 
     const custId = req.body.id || `CUST-${Date.now().toString().slice(-6)}`;
@@ -51,12 +51,12 @@ router.post('/', async (req, res) => {
       name,
       ledger: ledger || 'SUNDRY DEBTORS',
       address: address || '',
-      gst_number: gstNumber,
+      gst_number: gstNumber || '',
       pan_number: panNumber || '',
       mobile: mobile || '',
       email: email || '',
-      city: city || 'Chennai',
-      state: state || 'Tamil Nadu',
+      city: city || '',
+      state: state || '',
       total_billed: 0.00,
       status: 'Active'
     };
@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
            city = VALUES(city),
            state = VALUES(state),
            status = VALUES(status)`,
-        [custId, effectiveUserId, name, newCustomer.ledger, address, gstNumber, newCustomer.pan_number, mobile, email, newCustomer.city, newCustomer.state, 0, 'Active']
+        [custId, effectiveUserId, name, newCustomer.ledger, newCustomer.address, newCustomer.gst_number, newCustomer.pan_number, newCustomer.mobile, newCustomer.email, newCustomer.city, newCustomer.state, 0, 'Active']
       );
     }
 
@@ -110,7 +110,7 @@ router.put('/:id', async (req, res) => {
       await db.query(
         `UPDATE customers SET name = ?, ledger = ?, address = ?, gst_number = ?, pan_number = ?, mobile = ?, email = ?, city = ?, state = ?
          WHERE id = ?`,
-        [name, ledger, address, gstNumber, panNumber, mobile, email, city || 'Chennai', state || 'Tamil Nadu', id]
+        [name, ledger, address || '', gstNumber || '', panNumber || '', mobile || '', email || '', city || '', state || '', id]
       );
     } else {
       const idx = fallbackStore.customers.findIndex(c => c.id === id);
@@ -120,12 +120,12 @@ router.put('/:id', async (req, res) => {
           name: name || fallbackStore.customers[idx].name,
           ledger: ledger || fallbackStore.customers[idx].ledger,
           address: address !== undefined ? address : fallbackStore.customers[idx].address,
-          gst_number: gstNumber || fallbackStore.customers[idx].gst_number,
+          gst_number: gstNumber !== undefined ? gstNumber : fallbackStore.customers[idx].gst_number,
           pan_number: panNumber !== undefined ? panNumber : fallbackStore.customers[idx].pan_number,
           mobile: mobile !== undefined ? mobile : fallbackStore.customers[idx].mobile,
           email: email !== undefined ? email : fallbackStore.customers[idx].email,
-          city: city || fallbackStore.customers[idx].city,
-          state: state || fallbackStore.customers[idx].state
+          city: city !== undefined ? city : fallbackStore.customers[idx].city,
+          state: state !== undefined ? state : fallbackStore.customers[idx].state
         };
       }
     }

@@ -988,15 +988,22 @@ export const QuickCreateInvoiceModal = ({
       ? (editingInvoice.documentType || editingInvoice.document_type || documentType)
       : documentType;
 
+    const foundCustomer = customers.find(c => c.name === effectiveCustName);
+    const custAddress = foundCustomer?.address || '';
+    const custCity = foundCustomer?.city || '';
+    const custState = foundCustomer?.state || custStateObj.name || '';
+
     const savedInvoice = {
       id: editingInvoice ? editingInvoice.id : `${effectiveSavedDocType.substring(0, 3).toUpperCase()}-${Date.now()}`,
       documentType: effectiveSavedDocType,
       document_type: effectiveSavedDocType,
       invoiceNumber: finalInvNumber,
       customerName: effectiveCustName,
-      customerGst: effectiveCustGst || '33AAACD9999F1Z0',
+      customerGst: effectiveCustGst || '',
+      customerAddress: custAddress,
+      customerCity: custCity,
+      customerState: custState,
       clientState: clientStateObj.name,
-      customerState: custStateObj.name,
       placeOfSupply: custStateObj.name,
       taxType: isIntrastate ? 'intrastate' : 'interstate',
       date: invoiceDate,
