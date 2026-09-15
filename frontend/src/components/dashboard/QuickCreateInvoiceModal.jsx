@@ -1171,40 +1171,6 @@ export const QuickCreateInvoiceModal = ({
               </div>
             </div>
 
-            {/* AUTO GST CONDITION BANNER — read-only, no manual selection */}
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-mono ${
-              isIntrastate
-                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-                : 'bg-indigo-950/40 border-indigo-500/40 text-indigo-300'
-            }`}>
-              <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${isIntrastate ? 'bg-emerald-400' : 'bg-indigo-400'}`} />
-              <div className="flex-1">
-                {isIntrastate ? (
-                  <>
-                    <span className="font-bold text-emerald-300">✓ Same State — SGST + CGST Applicable</span>
-                    <span className="text-emerald-400/70 ml-2">
-                      (Client: {clientStateObj.name} = Customer: {custStateObj.name})
-                    </span>
-                    <div className="text-[11px] text-emerald-400/60 mt-0.5">e.g. 18% GST → SGST 9% + CGST 9%  |  IGST: Not Applicable</div>
-                  </>
-                ) : (
-                  <>
-                    <span className="font-bold text-indigo-300">✓ Different State — IGST Applicable</span>
-                    <span className="text-indigo-400/70 ml-2">
-                      (Client: {clientStateObj.name} ≠ Customer: {custStateObj.name})
-                    </span>
-                    <div className="text-[11px] text-indigo-400/60 mt-0.5">e.g. 18% GST → IGST 18%  |  CGST + SGST: Not Applicable</div>
-                  </>
-                )}
-              </div>
-              <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border shrink-0 ${
-                isIntrastate
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                  : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-              }`}>
-                AUTO-APPLIED
-              </span>
-            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
