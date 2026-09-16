@@ -348,7 +348,7 @@ export const UserDashboard = ({
     }
 
     const effectiveAccNumber = bankForm.accountNumber.trim() || (isCashAccount ? (editingBank?.accountNumber || `CASH-${Date.now().toString().slice(-6)}`) : 'N/A');
-    const effectiveBankName = isCashAccount ? bankForm.bankType : (bankForm.bankName.trim() || 'Standard Bank');
+    const effectiveBankName = isCashAccount ? bankForm.bankType : (bankForm.bankName.trim() || bankForm.accountName.trim() || 'Standard Bank');
     const effectiveIfsc = isCashAccount ? 'N/A' : (bankForm.ifscCode.trim() || 'N/A');
 
     if (editingBank) {
@@ -2032,21 +2032,6 @@ export const UserDashboard = ({
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-amber-200 mb-1">NAME OF THE BANK</label>
-                        <input
-                          type="text"
-                          value={bankForm.bankName}
-                          onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
-                          placeholder="e.g. HDFC Bank Ltd"
-                          className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {!isCashAcc && (
-                      <div>
                         <label className="block text-xs font-semibold text-amber-200 mb-1">IFSC CODE</label>
                         <input
                           type="text"
@@ -2056,18 +2041,18 @@ export const UserDashboard = ({
                           className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono uppercase"
                         />
                       </div>
-                    )}
-
-                    <div className={isCashAcc ? "col-span-2 sm:col-span-1" : ""}>
-                      <label className="block text-xs font-semibold text-amber-200 mb-1">OPENING LEDGER BALANCE (₹)</label>
-                      <input
-                        type="number"
-                        value={bankForm.balance}
-                        onChange={(e) => setBankForm({ ...bankForm, balance: e.target.value })}
-                        placeholder="150000"
-                        className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
-                      />
                     </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-200 mb-1">OPENING LEDGER BALANCE (₹)</label>
+                    <input
+                      type="number"
+                      value={bankForm.balance}
+                      onChange={(e) => setBankForm({ ...bankForm, balance: e.target.value })}
+                      placeholder="150000"
+                      className="w-full px-3.5 py-2 rounded-xl glass-input glass-input-gold text-xs font-mono"
+                    />
                   </div>
 
                   <div>
