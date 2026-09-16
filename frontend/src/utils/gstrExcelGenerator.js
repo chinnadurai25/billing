@@ -124,33 +124,20 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
         stateOfSupply: stateOfSupply
       });
     } else {
-      const key = `${stateOfSupply}__${taxRateStr}`;
-      if (!b2cGroupMap.has(key)) {
-        b2cGroupMap.set(key, {
-          stateOfSupply,
-          taxRate: taxRateStr,
-          taxableValue: 0,
-          igst: 0,
-          cgst: 0,
-          sgst: 0
-        });
-      }
-      const existing = b2cGroupMap.get(key);
-      existing.taxableValue += taxableValue;
-      existing.igst += igst;
-      existing.cgst += cgst;
-      existing.sgst += sgst;
+      b2cRows.push({
+        slNo: b2cRows.length + 1,
+        invoiceNo: inv.invoiceNumber || inv.id,
+        customerName: inv.customerName || matchedCust?.name || 'Retail Customer',
+        invoiceDate: inv.date || '',
+        taxRate: taxRateStr,
+        taxableValue: Math.round(taxableValue * 100) / 100,
+        igst: Math.round(igst * 100) / 100,
+        cgst: Math.round(cgst * 100) / 100,
+        sgst: Math.round(sgst * 100) / 100,
+        stateOfSupply: stateOfSupply
+      });
     }
   });
-
-  const b2cRows = Array.from(b2cGroupMap.values()).map(row => ({
-    stateOfSupply: row.stateOfSupply,
-    taxRate: row.taxRate,
-    taxableValue: Math.round(row.taxableValue * 100) / 100,
-    igst: Math.round(row.igst * 100) / 100,
-    cgst: Math.round(row.cgst * 100) / 100,
-    sgst: Math.round(row.sgst * 100) / 100
-  }));
 
   return { b2bRows, b2cRows, filteredInvoices };
 };
@@ -245,12 +232,16 @@ export const downloadGSTRExcelReport = ({ companyName = 'MY COMPANY', monthYearL
   // 2. Build B2C Sheet (Sheet Name: "b2c")
   // -------------------------------------------------------------
   const b2cHeader = [
-    'State of Supply',
+    'SL NO',
+    'Invoice No',
+    'customer Name',
+    'Invoice Date',
     'Tax Rate',
-    'Total Taxable Value',
+    'Taxable Value',
     'IGST',
     'CGST',
-    'SGST'
+    'SGST',
+    'State of Supply'
   ];
 
   let b2cTotalTaxable = 0;
@@ -258,29 +249,37 @@ export const downloadGSTRExcelReport = ({ companyName = 'MY COMPANY', monthYearL
   let b2cTotalCGST = 0;
   let b2cTotalSGST = 0;
 
-  const b2cDataRows = b2cRows.map((r) => {
+  const b2cDataRows = b2cRows.map((r, idx) => {
     b2cTotalTaxable += r.taxableValue;
     b2cTotalIGST += r.igst;
     b2cTotalCGST += r.cgst;
     b2cTotalSGST += r.sgst;
 
     return [
-      r.stateOfSupply,
+      idx + 1,
+      r.invoiceNo,
+      r.customerName,
+      r.invoiceDate,
       r.taxRate,
       r.taxableValue,
       r.igst,
       r.cgst,
-      r.sgst
+      r.sgst,
+      r.stateOfSupply
     ];
   });
 
   const b2cTotalsRow = [
     'TOTAL',
     '',
+    '',
+    '',
+    '',
     Math.round(b2cTotalTaxable * 100) / 100,
     Math.round(b2cTotalIGST * 100) / 100,
     Math.round(b2cTotalCGST * 100) / 100,
-    Math.round(b2cTotalSGST * 100) / 100
+    Math.round(b2cTotalSGST * 100) / 100,
+    ''
   ];
 
   const b2cSheetAOA = [
@@ -292,12 +291,16 @@ export const downloadGSTRExcelReport = ({ companyName = 'MY COMPANY', monthYearL
 
   const wsB2C = XLSX.utils.aoa_to_sheet(b2cSheetAOA);
   wsB2C['!cols'] = [
-    { wch: 22 }, // State of Supply
+    { wch: 8 },  // SL NO
+    { wch: 18 }, // Invoice No
+    { wch: 26 }, // customer Name
+    { wch: 14 }, // Invoice Date
     { wch: 12 }, // Tax Rate
-    { wch: 20 }, // Total Taxable Value
-    { wch: 14 }, // IGST
-    { wch: 14 }, // CGST
-    { wch: 14 }  // SGST
+    { wch: 16 }, // Taxable Value
+    { wch: 12 }, // IGST
+    { wch: 12 }, // CGST
+    { wch: 12 }, // SGST
+    { wch: 18 }  // State of Supply
   ];
 
   XLSX.utils.book_append_sheet(wb, wsB2C, 'b2c');

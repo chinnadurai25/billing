@@ -2019,29 +2019,37 @@ export const UserDashboard = ({
                     <table className="w-full text-left text-xs">
                       <thead className="bg-dark-900 text-slate-300 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
                         <tr>
-                          <th className="py-3 px-4">State of Supply</th>
-                          <th className="py-3 px-4 text-center">Tax Rate</th>
-                          <th className="py-3 px-4 text-right">Total Taxable Value</th>
-                          <th className="py-3 px-4 text-right">IGST</th>
-                          <th className="py-3 px-4 text-right">CGST</th>
-                          <th className="py-3 px-4 text-right">SGST</th>
+                          <th className="py-3 px-3">SL NO</th>
+                          <th className="py-3 px-3">Invoice No</th>
+                          <th className="py-3 px-3">customer Name</th>
+                          <th className="py-3 px-3">Invoice Date</th>
+                          <th className="py-3 px-3 text-center">Tax Rate</th>
+                          <th className="py-3 px-3 text-right">Taxable Value</th>
+                          <th className="py-3 px-3 text-right">IGST</th>
+                          <th className="py-3 px-3 text-right">CGST</th>
+                          <th className="py-3 px-3 text-right">SGST</th>
+                          <th className="py-3 px-3">State of Supply</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
                         {b2cRows.length > 0 ? (
-                          b2cRows.map((r, idx) => (
-                            <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
-                              <td className="py-3 px-4 font-sans font-semibold text-white">{r.stateOfSupply}</td>
-                              <td className="py-3 px-4 text-center font-bold text-amber-300">{r.taxRate}</td>
-                              <td className="py-3 px-4 text-right font-bold text-white">₹{r.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                              <td className="py-3 px-4 text-right text-purple-300">₹{r.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                              <td className="py-3 px-4 text-right text-indigo-300">₹{r.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                              <td className="py-3 px-4 text-right text-indigo-300">₹{r.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          b2cRows.map((r) => (
+                            <tr key={r.slNo} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="py-2.5 px-3 text-slate-400">{r.slNo}</td>
+                              <td className="py-2.5 px-3 font-bold text-white">{r.invoiceNo}</td>
+                              <td className="py-2.5 px-3 font-sans text-slate-200">{r.customerName}</td>
+                              <td className="py-2.5 px-3 text-slate-400">{r.invoiceDate}</td>
+                              <td className="py-2.5 px-3 text-center font-bold text-amber-300">{r.taxRate}</td>
+                              <td className="py-2.5 px-3 text-right font-bold text-white">₹{r.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-purple-300">₹{r.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 font-sans text-slate-300">{r.stateOfSupply}</td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan="6" className="text-center py-8 text-slate-500 font-sans">
+                            <td colSpan="10" className="text-center py-8 text-slate-500 font-sans">
                               No B2C (unregistered client) invoices found for {periodLabel}.
                             </td>
                           </tr>
@@ -2050,11 +2058,12 @@ export const UserDashboard = ({
                       {b2cRows.length > 0 && (
                         <tfoot className="bg-dark-900/90 font-mono text-xs font-bold border-t border-slate-700 text-white">
                           <tr>
-                            <td colSpan="2" className="py-3 px-4 text-amber-400">TOTAL B2C SUMMARY</td>
-                            <td className="py-3 px-4 text-right text-white">₹{b2cTotals.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            <td className="py-3 px-4 text-right text-purple-300">₹{b2cTotals.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            <td className="py-3 px-4 text-right text-indigo-300">₹{b2cTotals.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            <td className="py-3 px-4 text-right text-indigo-300">₹{b2cTotals.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td colSpan="5" className="py-3 px-3 text-amber-400">TOTAL B2C SUMMARY</td>
+                            <td className="py-3 px-3 text-right text-white">₹{b2cTotals.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-purple-300">₹{b2cTotals.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-indigo-300">₹{b2cTotals.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-indigo-300">₹{b2cTotals.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3"></td>
                           </tr>
                         </tfoot>
                       )}
