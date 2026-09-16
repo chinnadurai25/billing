@@ -67,7 +67,10 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
 
   const customerMap = new Map();
   customers.forEach((c) => {
-    if (c.id) customerMap.set(c.id, c);
+    if (c.id) {
+      customerMap.set(String(c.id), c);
+      customerMap.set(String(c.id).toLowerCase(), c);
+    }
     if (c.name) customerMap.set(c.name.toLowerCase().trim(), c);
   });
 
@@ -75,11 +78,30 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
   const b2cRows = [];
 
   filteredInvoices.forEach((inv) => {
-    const matchedCust = customerMap.get(inv.customerId) || customerMap.get(inv.customerName?.toLowerCase()?.trim());
-    const gstNo = (inv.customerGst || matchedCust?.gstNumber || matchedCust?.gst_number || '').trim().toUpperCase();
-    const stateOfSupply = getStateFromGstOrAddress(gstNo, matchedCust?.state || inv.state || userState);
+    const custIdKey = inv.customerId || inv.customer_id || inv.userId;
+    const custNameKey = (inv.customerName || inv.customer_name || '').toLowerCase().trim();
 
-    const isB2B = Boolean(gstNo && gstNo.length >= 10);
+    const matchedCust = customerMap.get(String(custIdKey)) || 
+                        customerMap.get(String(custIdKey).toLowerCase()) || 
+                        customerMap.get(custNameKey);
+
+    const rawGst = (
+      inv.customerGst ||
+      inv.customer_gst ||
+      inv.customerGstNo ||
+      inv.customer_gst_no ||
+      inv.gstNumber ||
+      inv.gst_number ||
+      matchedCust?.gstNumber ||
+      matchedCust?.gst_number ||
+      matchedCust?.gstNo ||
+      matchedCust?.gst_no ||
+      ''
+    ).toString().trim().toUpperCase();
+
+    const stateOfSupply = getStateFromGstOrAddress(rawGst, inv.state || matchedCust?.state || userState);
+
+    const isB2B = Boolean(rawGst && rawGst.length >= 10 && rawGst !== 'N/A' && rawGst !== 'NONE' && rawGst !== 'NULL');
     const taxableValue = parseFloat(inv.subtotal ?? (inv.grandTotal - (inv.totalTax || 0))) || 0;
     
     // Compute CGST, SGST, IGST
@@ -109,13 +131,17 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
       taxRateStr = `${calcPct}%`;
     }
 
+    const invNo = inv.invoiceNumber || inv.invoice_number || inv.id;
+    const custName = inv.customerName || inv.customer_name || matchedCust?.name || (isB2B ? 'B2B Corporate Client' : 'Retail Customer');
+    const invDate = inv.date || inv.created_at || '';
+
     if (isB2B) {
       b2bRows.push({
         slNo: b2bRows.length + 1,
-        invoiceNo: inv.invoiceNumber || inv.id,
-        customerName: inv.customerName || matchedCust?.name || 'Valued Client',
-        gstNumber: gstNo,
-        invoiceDate: inv.date || '',
+        invoiceNo: invNo,
+        customerName: custName,
+        gstNumber: rawGst,
+        invoiceDate: invDate,
         taxRate: taxRateStr,
         taxableValue: Math.round(taxableValue * 100) / 100,
         igst: Math.round(igst * 100) / 100,
@@ -126,9 +152,9 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
     } else {
       b2cRows.push({
         slNo: b2cRows.length + 1,
-        invoiceNo: inv.invoiceNumber || inv.id,
-        customerName: inv.customerName || matchedCust?.name || 'Retail Customer',
-        invoiceDate: inv.date || '',
+        invoiceNo: invNo,
+        customerName: custName,
+        invoiceDate: invDate,
         taxRate: taxRateStr,
         taxableValue: Math.round(taxableValue * 100) / 100,
         igst: Math.round(igst * 100) / 100,
