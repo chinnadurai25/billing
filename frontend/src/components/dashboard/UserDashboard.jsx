@@ -113,7 +113,7 @@ export const UserDashboard = ({
     setCustForm((prev) => {
       let updatedPan = prev.pan;
       let updatedState = prev.state;
-      if (uppercaseVal.length >= 2) {
+      if (!prev.state && uppercaseVal.length >= 2) {
         const code = uppercaseVal.substring(0, 2);
         if (GST_STATE_CODES[code]) {
           updatedState = GST_STATE_CODES[code];

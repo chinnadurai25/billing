@@ -34,14 +34,17 @@ const GST_STATE_CODES = {
   '38': 'Ladakh'
 };
 
-export const getStateFromGstOrAddress = (gstNum, fallbackState = 'Tamil Nadu') => {
+export const getStateFromGstOrAddress = (gstNum, fallbackState = '') => {
+  if (fallbackState && typeof fallbackState === 'string' && fallbackState.trim() && fallbackState.trim() !== 'India') {
+    return fallbackState.trim();
+  }
   if (gstNum && typeof gstNum === 'string' && gstNum.length >= 2) {
     const code = gstNum.slice(0, 2);
     if (GST_STATE_CODES[code]) {
       return GST_STATE_CODES[code];
     }
   }
-  return fallbackState || 'Tamil Nadu';
+  return 'Tamil Nadu';
 };
 
 export const processGSTRData = (invoices = [], customers = [], userState = 'Tamil Nadu', selectedMonthYear = 'all') => {
