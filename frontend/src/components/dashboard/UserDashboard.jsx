@@ -41,7 +41,7 @@ export const UserDashboard = ({
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [gstrSelectedMonthYear, setGstrSelectedMonthYear] = useState('2026-08');
+  const [gstrSelectedMonthYear, setGstrSelectedMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
   const [gstrReportSubTab, setGstrReportSubTab] = useState('b2b'); // 'b2b' or 'b2c'
 
   // Modal State Triggers
@@ -1778,6 +1778,35 @@ export const UserDashboard = ({
           return `${monthNames[mIdx] || 'AUGUST'} ${yr}`;
         };
 
+        const dynamicMonthOptions = (() => {
+          const monthSet = new Set();
+          const currentYM = new Date().toISOString().slice(0, 7);
+          monthSet.add(currentYM);
+          monthSet.add('2026-08');
+
+          (invoices || []).forEach((inv) => {
+            const dStr = (inv.date || '').toString().trim();
+            if (dStr && dStr.length >= 7) {
+              const ym = dStr.slice(0, 7);
+              if (/^\d{4}-\d{2}$/.test(ym)) {
+                monthSet.add(ym);
+              }
+            }
+          });
+
+          const monthNames = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+          ];
+
+          return Array.from(monthSet).sort().reverse().map((ym) => {
+            const [y, m] = ym.split('-');
+            const mIdx = parseInt(m, 10) - 1;
+            const label = `${monthNames[mIdx] || m} ${y}`;
+            return { value: ym, label };
+          });
+        })();
+
         const periodLabel = getMonthYearLabel(gstrSelectedMonthYear);
 
         const { b2bRows, b2cRows, filteredInvoices } = processGSTRData(
@@ -1836,13 +1865,12 @@ export const UserDashboard = ({
                       onChange={(e) => setGstrSelectedMonthYear(e.target.value)}
                       className="bg-transparent text-xs font-bold font-mono text-emerald-400 focus:outline-none cursor-pointer"
                     >
-                      <option value="2026-08" className="bg-dark-950 text-white">August 2026</option>
-                      <option value="2026-09" className="bg-dark-950 text-white">September 2026</option>
-                      <option value="2026-07" className="bg-dark-950 text-white">July 2026</option>
-                      <option value="2026-06" className="bg-dark-950 text-white">June 2026</option>
-                      <option value="2026-05" className="bg-dark-950 text-white">May 2026</option>
-                      <option value="2026-04" className="bg-dark-950 text-white">April 2026</option>
                       <option value="all" className="bg-dark-950 text-white">All Months (FY 2026)</option>
+                      {dynamicMonthOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value} className="bg-dark-950 text-white">
+                          {opt.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

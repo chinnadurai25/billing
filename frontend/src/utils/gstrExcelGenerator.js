@@ -44,13 +44,24 @@ export const getStateFromGstOrAddress = (gstNum, fallbackState = 'Tamil Nadu') =
   return fallbackState || 'Tamil Nadu';
 };
 
-export const processGSTRData = (invoices = [], customers = [], userState = 'Tamil Nadu', selectedMonthYear = '2026-08') => {
+export const processGSTRData = (invoices = [], customers = [], userState = 'Tamil Nadu', selectedMonthYear = 'all') => {
   let filteredInvoices = invoices;
 
   if (selectedMonthYear && selectedMonthYear !== 'all') {
     filteredInvoices = invoices.filter((inv) => {
-      if (!inv.date) return false;
-      return inv.date.startsWith(selectedMonthYear);
+      const dateVal = inv.date || inv.created_at || '';
+      if (!dateVal) return false;
+      const strVal = String(dateVal).trim();
+      if (strVal.startsWith(selectedMonthYear)) return true;
+      try {
+        const d = new Date(strVal);
+        if (!isNaN(d.getTime())) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          return `${yyyy}-${mm}` === selectedMonthYear;
+        }
+      } catch (e) {}
+      return false;
     });
   }
 
