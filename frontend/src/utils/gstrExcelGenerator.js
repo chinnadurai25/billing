@@ -72,7 +72,7 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
   });
 
   const b2bRows = [];
-  const b2cGroupMap = new Map(); // key: state_taxRate -> totals
+  const b2cRows = [];
 
   filteredInvoices.forEach((inv) => {
     const matchedCust = customerMap.get(inv.customerId) || customerMap.get(inv.customerName?.toLowerCase()?.trim());
