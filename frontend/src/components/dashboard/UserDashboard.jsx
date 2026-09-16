@@ -13,6 +13,7 @@ import {
 import { useToast } from '../../context/ToastContext';
 import { api } from '../../services/api';
 import { generateInvoicePDF } from '../../utils/pdfGenerator';
+import { processGSTRData, downloadGSTRExcelReport } from '../../utils/gstrExcelGenerator';
 import { UserSettings } from './UserSettings';
 import SearchableDropdown from '../common/SearchableDropdown';
 import { INDIAN_STATES, INDIA_STATES_CITIES, GST_STATE_CODES } from '../../data/indiaData';
@@ -40,6 +41,8 @@ export const UserDashboard = ({
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [gstrSelectedMonthYear, setGstrSelectedMonthYear] = useState('2026-08');
+  const [gstrReportSubTab, setGstrReportSubTab] = useState('b2b'); // 'b2b' or 'b2c'
 
   // Modal State Triggers
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -1761,42 +1764,280 @@ export const UserDashboard = ({
       )}
 
       {/* GSTR & TAX REPORTS TAB CONTENT */}
-      {activeTab === 'tax-reports' && (
-        <div className="space-y-6 animate-slide-up">
-          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-white font-serif">GSTR-1 & Tax Compliance Export</h2>
-                <p className="text-xs text-slate-400 font-mono">Generate official GST return JSON & Excel files for August 2026</p>
+      {activeTab === 'tax-reports' && (() => {
+        const companyName = user?.companyName || user?.company_name || user?.fullName || 'MY COMPANY';
+
+        const getMonthYearLabel = (mVal) => {
+          if (!mVal || mVal === 'all') return 'ALL MONTHS 2026';
+          const [yr, mo] = mVal.split('-');
+          const monthNames = [
+            'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+            'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+          ];
+          const mIdx = parseInt(mo, 10) - 1;
+          return `${monthNames[mIdx] || 'AUGUST'} ${yr}`;
+        };
+
+        const periodLabel = getMonthYearLabel(gstrSelectedMonthYear);
+
+        const { b2bRows, b2cRows, filteredInvoices } = processGSTRData(
+          invoices,
+          customers,
+          user?.state || 'Tamil Nadu',
+          gstrSelectedMonthYear
+        );
+
+        const b2bTotals = b2bRows.reduce((acc, r) => ({
+          taxable: acc.taxable + r.taxableValue,
+          igst: acc.igst + r.igst,
+          cgst: acc.cgst + r.cgst,
+          sgst: acc.sgst + r.sgst
+        }), { taxable: 0, igst: 0, cgst: 0, sgst: 0 });
+
+        const b2cTotals = b2cRows.reduce((acc, r) => ({
+          taxable: acc.taxable + r.taxableValue,
+          igst: acc.igst + r.igst,
+          cgst: acc.cgst + r.cgst,
+          sgst: acc.sgst + r.sgst
+        }), { taxable: 0, igst: 0, cgst: 0, sgst: 0 });
+
+        const handleDownloadExcel = () => {
+          downloadGSTRExcelReport({
+            companyName,
+            monthYearLabel: periodLabel,
+            b2bRows,
+            b2cRows
+          });
+          addToast(`GSTR-1 Excel report (.xlsx) downloaded with 'b2b' and 'b2c' sheets for ${periodLabel}!`, 'success', 'Excel Generated');
+        };
+
+        return (
+          <div className="space-y-6 animate-slide-up">
+            {/* Header & Controls Bar */}
+            <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-4 border-b border-slate-800 gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white font-serif flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-emerald-400" />
+                    GSTR-1 Tax Return Excel Report Generator
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono mt-1">
+                    Select month to view, preview B2B (Sheet 1) & B2C (Sheet 2), and download multi-sheet Excel file (.xlsx).
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Month Selection Dropdown */}
+                  <div className="flex items-center gap-2 bg-dark-900 px-3.5 py-2 rounded-xl border border-slate-700">
+                    <Clock className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-semibold text-slate-300">Month / Period:</span>
+                    <select
+                      value={gstrSelectedMonthYear}
+                      onChange={(e) => setGstrSelectedMonthYear(e.target.value)}
+                      className="bg-transparent text-xs font-bold font-mono text-emerald-400 focus:outline-none cursor-pointer"
+                    >
+                      <option value="2026-08" className="bg-dark-950 text-white">August 2026</option>
+                      <option value="2026-09" className="bg-dark-950 text-white">September 2026</option>
+                      <option value="2026-07" className="bg-dark-950 text-white">July 2026</option>
+                      <option value="2026-06" className="bg-dark-950 text-white">June 2026</option>
+                      <option value="2026-05" className="bg-dark-950 text-white">May 2026</option>
+                      <option value="2026-04" className="bg-dark-950 text-white">April 2026</option>
+                      <option value="all" className="bg-dark-950 text-white">All Months (FY 2026)</option>
+                    </select>
+                  </div>
+
+                  {/* Download Excel Button */}
+                  <button
+                    onClick={handleDownloadExcel}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" /> Download GSTR Excel (.xlsx)
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => addToast('GSTR-1 tax export file generated & downloaded!', 'success', 'Export Ready')}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer w-fit"
-              >
-                <Download className="w-4 h-4" /> Export GSTR-1 CSV
-              </button>
+
+              {/* Summary Metrics */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-1">
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
+                  <p className="text-xs text-slate-400 font-medium">Period Selected</p>
+                  <h4 className="text-sm font-bold text-emerald-400 font-mono mt-1">{periodLabel}</h4>
+                  <p className="text-[10px] text-slate-500 mt-1">{filteredInvoices.length} total invoices in cycle</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
+                  <p className="text-xs text-slate-400 font-medium">B2B Supplies (Sheet 1)</p>
+                  <h4 className="text-xl font-bold text-white font-mono mt-1">₹{b2bTotals.taxable.toLocaleString('en-IN')}</h4>
+                  <p className="text-[10px] text-indigo-400 mt-1">{b2bRows.length} GST Registered Client Records</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
+                  <p className="text-xs text-slate-400 font-medium">B2C Supplies (Sheet 2)</p>
+                  <h4 className="text-xl font-bold text-amber-300 font-mono mt-1">₹{b2cTotals.taxable.toLocaleString('en-IN')}</h4>
+                  <p className="text-[10px] text-amber-400/80 mt-1">{b2cRows.length} State/Rate Tax Summaries</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
+                  <p className="text-xs text-slate-400 font-medium">Total Output Tax (GST)</p>
+                  <h4 className="text-xl font-bold text-purple-300 font-mono mt-1">₹{(b2bTotals.igst + b2bTotals.cgst + b2bTotals.sgst + b2cTotals.igst + b2cTotals.cgst + b2cTotals.sgst).toLocaleString('en-IN')}</h4>
+                  <p className="text-[10px] text-purple-400 mt-1">IGST + CGST + SGST</p>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-              <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                <p className="text-xs text-slate-400 font-medium">Outward Supplies (B2B)</p>
-                <h4 className="text-xl font-bold text-white font-mono mt-1">₹{totalSales.toLocaleString('en-IN')}</h4>
-                <p className="text-[10px] text-slate-400 mt-1">Eligible for ITC Credit</p>
+            {/* Excel Sheet Tabs & Table Preview Container */}
+            <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-3">
+                <div className="flex items-center gap-2 bg-dark-900 p-1.5 rounded-2xl border border-slate-800 w-fit">
+                  <button
+                    onClick={() => setGstrReportSubTab('b2b')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                      gstrReportSubTab === 'b2b'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Sheet 1: b2b (With GST Number) ({b2bRows.length})
+                  </button>
+                  <button
+                    onClick={() => setGstrReportSubTab('b2c')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                      gstrReportSubTab === 'b2c'
+                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Sheet 2: b2c (Without GST Number) ({b2cRows.length})
+                  </button>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-xs font-mono font-bold text-slate-300">
+                    {companyName.toUpperCase()} — {periodLabel}
+                  </span>
+                </div>
               </div>
-              <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                <p className="text-xs text-slate-400 font-medium">Output CGST + SGST</p>
-                <h4 className="text-xl font-bold text-indigo-300 font-mono mt-1">₹{(totalTax * 0.84).toLocaleString('en-IN')}</h4>
-                <p className="text-[10px] text-indigo-400 mt-1">State & Central Treasury</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                <p className="text-xs text-slate-400 font-medium">Integrated IGST</p>
-                <h4 className="text-xl font-bold text-brand-accent font-mono mt-1">₹{(totalTax * 0.16).toLocaleString('en-IN')}</h4>
-                <p className="text-[10px] text-purple-400 mt-1">Interstate Transfer</p>
-              </div>
+
+              {/* SHEET 1: B2B TABLE PREVIEW */}
+              {gstrReportSubTab === 'b2b' && (
+                <div className="space-y-3">
+                  <div className="text-center py-2 bg-dark-950/80 border border-slate-800 rounded-xl text-xs font-bold font-mono tracking-wide text-emerald-300">
+                    {companyName.toUpperCase()} {periodLabel}
+                  </div>
+
+                  <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-dark-900 text-slate-300 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
+                        <tr>
+                          <th className="py-3 px-3">SL NO</th>
+                          <th className="py-3 px-3">Invoice No</th>
+                          <th className="py-3 px-3">customer Name</th>
+                          <th className="py-3 px-3">GST Number</th>
+                          <th className="py-3 px-3">Invoice Date</th>
+                          <th className="py-3 px-3 text-center">Tax of Rate</th>
+                          <th className="py-3 px-3 text-right">Taxable Value</th>
+                          <th className="py-3 px-3 text-right">IGST</th>
+                          <th className="py-3 px-3 text-right">CGST</th>
+                          <th className="py-3 px-3 text-right">SGST</th>
+                          <th className="py-3 px-3">state of Supply</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+                        {b2bRows.length > 0 ? (
+                          b2bRows.map((r) => (
+                            <tr key={r.slNo} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="py-2.5 px-3 text-slate-400">{r.slNo}</td>
+                              <td className="py-2.5 px-3 font-bold text-white">{r.invoiceNo}</td>
+                              <td className="py-2.5 px-3 font-sans text-slate-200">{r.customerName}</td>
+                              <td className="py-2.5 px-3 text-emerald-400 font-bold">{r.gstNumber}</td>
+                              <td className="py-2.5 px-3 text-slate-400">{r.invoiceDate}</td>
+                              <td className="py-2.5 px-3 text-center font-bold text-indigo-300">{r.taxRate}</td>
+                              <td className="py-2.5 px-3 text-right font-bold text-white">₹{r.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-purple-300">₹{r.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 font-sans text-slate-300">{r.stateOfSupply}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="11" className="text-center py-8 text-slate-500 font-sans">
+                              No B2B (GST registered customer) invoices found for {periodLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {b2bRows.length > 0 && (
+                        <tfoot className="bg-dark-900/90 font-mono text-xs font-bold border-t border-slate-700 text-white">
+                          <tr>
+                            <td colSpan="6" className="py-3 px-3 text-emerald-400">TOTAL B2B SUMMARY</td>
+                            <td className="py-3 px-3 text-right text-white">₹{b2bTotals.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-purple-300">₹{b2bTotals.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-indigo-300">₹{b2bTotals.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-indigo-300">₹{b2bTotals.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3"></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* SHEET 2: B2C TABLE PREVIEW */}
+              {gstrReportSubTab === 'b2c' && (
+                <div className="space-y-3">
+                  <div className="text-center py-2 bg-dark-950/80 border border-slate-800 rounded-xl text-xs font-bold font-mono tracking-wide text-amber-300">
+                    {companyName.toUpperCase()} {periodLabel}
+                  </div>
+
+                  <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-dark-900 text-slate-300 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
+                        <tr>
+                          <th className="py-3 px-4">State of Supply</th>
+                          <th className="py-3 px-4 text-center">Tax Rate</th>
+                          <th className="py-3 px-4 text-right">Total Taxable Value</th>
+                          <th className="py-3 px-4 text-right">IGST</th>
+                          <th className="py-3 px-4 text-right">CGST</th>
+                          <th className="py-3 px-4 text-right">SGST</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+                        {b2cRows.length > 0 ? (
+                          b2cRows.map((r, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="py-3 px-4 font-sans font-semibold text-white">{r.stateOfSupply}</td>
+                              <td className="py-3 px-4 text-center font-bold text-amber-300">{r.taxRate}</td>
+                              <td className="py-3 px-4 text-right font-bold text-white">₹{r.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 px-4 text-right text-purple-300">₹{r.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 px-4 text-right text-indigo-300">₹{r.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 px-4 text-right text-indigo-300">₹{r.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="6" className="text-center py-8 text-slate-500 font-sans">
+                              No B2C (unregistered client) invoices found for {periodLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {b2cRows.length > 0 && (
+                        <tfoot className="bg-dark-900/90 font-mono text-xs font-bold border-t border-slate-700 text-white">
+                          <tr>
+                            <td colSpan="2" className="py-3 px-4 text-amber-400">TOTAL B2C SUMMARY</td>
+                            <td className="py-3 px-4 text-right text-white">₹{b2cTotals.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-4 text-right text-purple-300">₹{b2cTotals.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-4 text-right text-indigo-300">₹{b2cTotals.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-4 text-right text-indigo-300">₹{b2cTotals.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SETTINGS TAB CONTENT */}
       {activeTab === 'settings' && (
