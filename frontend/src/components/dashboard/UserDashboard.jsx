@@ -228,10 +228,11 @@ export const UserDashboard = ({
       setCustomers((prev) => {
         const updated = [newCustomer, ...prev];
         try {
-          const key = user?.id ? `billson_customers_${user.id}` : 'billson_customers_global';
-          localStorage.setItem(key, JSON.stringify(updated));
-          localStorage.setItem('billson_customers_global', JSON.stringify(updated));
-          localStorage.setItem('billson_customers', JSON.stringify(updated));
+          if (user?.id) {
+            localStorage.setItem(`billson_customers_${user.id}`, JSON.stringify(updated));
+          } else {
+            localStorage.setItem('billson_customers_global', JSON.stringify(updated));
+          }
         } catch (e) {}
         return updated;
       });
@@ -271,11 +272,12 @@ export const UserDashboard = ({
           setCustomers((prev) => {
             const updated = prev.map((c) => (c.id === custId ? norm : c));
             try {
-            const key = user?.id ? `billson_customers_${user.id}` : 'billson_customers_global';
-            localStorage.setItem(key, JSON.stringify(updated));
-            localStorage.setItem('billson_customers_global', JSON.stringify(updated));
-            localStorage.setItem('billson_customers', JSON.stringify(updated));
-          } catch (e) {}
+              if (user?.id) {
+                localStorage.setItem(`billson_customers_${user.id}`, JSON.stringify(updated));
+              } else {
+                localStorage.setItem('billson_customers_global', JSON.stringify(updated));
+              }
+            } catch (e) {}
             return updated;
           });
         }

@@ -92,13 +92,16 @@ function AppContent() {
   const [userData, setUserData] = useState(() => savedUser || initialUserData);
   const [customers, setCustomers] = useState(() => {
     try {
-      const activeId = savedUser?.id || 'USR-901';
-      const cached = localStorage.getItem(`billson_customers_${activeId}`) ||
-                     localStorage.getItem('billson_customers_global') ||
-                     localStorage.getItem('billson_customers');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const activeId = savedUser?.id;
+      if (activeId) {
+        const cached = localStorage.getItem(`billson_customers_${activeId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            return activeId === 'USR-901' ? parsed : parsed.filter(c => !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id));
+          }
+        }
+        return [];
       }
     } catch (e) {}
     return savedUser ? [] : initialCustomers;
@@ -207,27 +210,34 @@ function AppContent() {
         api.getInvoices(activeUserId)
       ]);
 
-      if (custRes?.success && Array.isArray(custRes.data) && custRes.data.length > 0) {
+      if (custRes?.success && Array.isArray(custRes.data)) {
         const norm = custRes.data.map(normaliseCustomer);
+        const cleanNorm = norm.filter(c => activeUserId === 'USR-901' || !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id));
         setCustomers((prev) => {
-          const existingIds = new Set(norm.map(c => c.id));
-          const localOnly = prev.filter(c => !existingIds.has(c.id));
-          const merged = [...norm, ...localOnly];
+          const existingIds = new Set(cleanNorm.map(c => c.id));
+          const localOnly = prev.filter(c => 
+            !existingIds.has(c.id) && 
+            (activeUserId === 'USR-901' || !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id)) &&
+            (c.userId === activeUserId)
+          );
+          const merged = [...cleanNorm, ...localOnly];
           try {
             localStorage.setItem(`billson_customers_${activeUserId}`, JSON.stringify(merged));
-            localStorage.setItem('billson_customers_global', JSON.stringify(merged));
           } catch (e) {}
           return merged;
         });
       } else {
-        const cached = localStorage.getItem(`billson_customers_${activeUserId}`) || 
-                       localStorage.getItem('billson_customers_global') || 
-                       localStorage.getItem('billson_customers');
+        const cached = localStorage.getItem(`billson_customers_${activeUserId}`);
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setCustomers(parsed);
+            if (Array.isArray(parsed)) {
+              const cleanCached = parsed.filter(c => activeUserId === 'USR-901' || !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id));
+              setCustomers(cleanCached);
+            }
           } catch (e) {}
+        } else {
+          setCustomers([]);
         }
       }
 

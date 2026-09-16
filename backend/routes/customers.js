@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
       const params = [];
 
       if (userId) {
-        query += ' WHERE (user_id = ? OR user_id IS NULL OR user_id = "" OR user_id = "USR-901")';
+        query += ' WHERE user_id = ?';
         params.push(userId);
       }
       query += ' ORDER BY created_at DESC';
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     }
 
     if (userId) {
-      const filtered = fallbackStore.customers.filter(c => !c.user_id || c.user_id === userId || c.user_id === 'USR-901');
+      const filtered = fallbackStore.customers.filter(c => c.user_id === userId);
       return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.customers });
