@@ -22,6 +22,23 @@ import {
   adminActivityLogs 
 } from './data/mockData';
 
+const resolveViewFromPath = (pathOrHash) => {
+  const raw = (pathOrHash || '').replace(/^\/+/, '').replace('#', '');
+  if (raw === 'admin' || raw === 'admin-login') return 'admin-login';
+  if (raw === 'admin-dashboard' || raw === 'admindashboard') return 'admin-dashboard';
+  if (raw === 'login' || raw === 'user-login') return 'user-login';
+  if (raw === 'register' || raw === 'user-register') return 'user-register';
+  if (raw === 'dashboard' || raw === 'user-dashboard') return 'user-dashboard';
+  if (raw === 'landing' || raw === '') return '';
+  return raw;
+};
+
+const getViewPath = (view) => {
+  if (view === 'landing' || !view) return '/';
+  if (view === 'admin-login') return '/admin';
+  return `/${view}`;
+};
+
 function AppContent() {
   // Restore logged-in user from localStorage on refresh
   const [savedUser] = useState(() => {
@@ -34,8 +51,10 @@ function AppContent() {
   });
 
   const [currentView, setCurrentViewInternal] = useState(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash) return hash;
+    const fromPath = resolveViewFromPath(window.location.pathname);
+    if (fromPath) return fromPath;
+    const fromHash = resolveViewFromPath(window.location.hash);
+    if (fromHash) return fromHash;
     return savedUser ? 'user-dashboard' : 'landing';
   });
   
@@ -286,19 +305,29 @@ function AppContent() {
   // Synchronized view setter with browser history pushState
   const setCurrentView = useCallback((newView, isBackAction = false) => {
     if (!isBackAction) {
-      window.history.pushState({ view: newView }, '', `#${newView}`);
+      window.history.pushState({ view: newView }, '', getViewPath(newView));
     }
     setCurrentViewInternal(newView);
   }, []);
 
   // Initialize history state and popstate listener
   useEffect(() => {
-    const initialV = savedUser ? 'user-dashboard' : 'landing';
-    window.history.replaceState({ view: initialV }, '', `#${initialV}`);
+    const getInitialView = () => {
+      const fromPath = resolveViewFromPath(window.location.pathname);
+      if (fromPath) return fromPath;
+      const fromHash = resolveViewFromPath(window.location.hash);
+      if (fromHash) return fromHash;
+      return savedUser ? 'user-dashboard' : 'landing';
+    };
+    const initialV = getInitialView();
+    window.history.replaceState({ view: initialV }, '', getViewPath(initialV));
 
     const handlePopState = (e) => {
       if (e.state && e.state.view) {
         setCurrentViewInternal(e.state.view);
+      } else {
+        const fromPath = resolveViewFromPath(window.location.pathname);
+        setCurrentViewInternal(fromPath || (savedUser ? 'user-dashboard' : 'landing'));
       }
     };
 

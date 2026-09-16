@@ -50,13 +50,6 @@ export const LandingPage = ({ setCurrentView }) => {
             >
               <Users className="w-4 h-4 text-indigo-400" /> User Portal Login
             </button>
-
-            <button
-              onClick={() => setCurrentView('admin-login')}
-              className="flex items-center gap-2 px-6 py-3.5 rounded-2xl glass-card-gold hover:bg-amber-950/40 border border-amber-500/40 text-amber-300 font-semibold text-sm shadow-lg shadow-amber-500/10 transition-all duration-300 transform hover:-translate-y-0.5"
-            >
-              <ShieldCheck className="w-4 h-4 text-amber-400" /> Admin Portal
-            </button>
           </div>
         </div>
 

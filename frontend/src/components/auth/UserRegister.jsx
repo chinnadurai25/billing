@@ -96,7 +96,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
   // Browser History & Popstate listener for step-by-step back navigation
   useEffect(() => {
-    window.history.replaceState({ view: 'user-register', step: 1 }, '', '#register-step-1');
+    window.history.replaceState({ view: 'user-register', step: 1 }, '', '/user-register');
 
     const handlePopState = (e) => {
       if (e.state && e.state.view === 'user-register' && e.state.step) {
@@ -268,7 +268,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
   };
 
   const goToStep = (targetStep) => {
-    window.history.pushState({ view: 'user-register', step: targetStep }, '', `#register-step-${targetStep}`);
+    window.history.pushState({ view: 'user-register', step: targetStep }, '', `/user-register?step=${targetStep}`);
     setStep(targetStep);
   };
 

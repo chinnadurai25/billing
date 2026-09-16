@@ -107,41 +107,7 @@ export const Header = ({
                 </span>
               </div>
             </div>
-          ) : (
-            <div className="hidden md:flex items-center gap-1 bg-dark-900/60 p-1.5 rounded-2xl border border-slate-800">
-              <button
-                onClick={() => setCurrentView('landing')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                  currentView === 'landing' 
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setCurrentView('user-login')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                  currentView === 'user-login' || currentView === 'user-register' 
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
-              >
-                User Portal
-              </button>
-              <button
-                onClick={() => setCurrentView('admin-login')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
-                  currentView === 'admin-login' 
-                    ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/30' 
-                    : 'text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Admin Portal
-              </button>
-            </div>
-          )}
+          ) : null}
 
           {/* Right Action Bar */}
           <div className="flex items-center gap-2 shrink-0">
