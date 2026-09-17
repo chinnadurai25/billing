@@ -48,7 +48,7 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
         } catch (e) {}
 
         const userToLogin = localUser || {
-          id: `USR-${Date.now()}`,
+          id: `USR-${email.trim().toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
           fullName: email.split('@')[0] || 'Authenticated User',
           email: email.trim(),
           companyName: 'BillSon Enterprise Solutions',
@@ -72,7 +72,7 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
       } catch (e) {}
 
       const userToLogin = localUser || {
-        id: `USR-${Date.now()}`,
+        id: `USR-${email.trim().toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
         fullName: email.split('@')[0] || 'Authenticated User',
         email: email.trim(),
         companyName: 'BillSon Enterprise Solutions',

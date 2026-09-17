@@ -290,12 +290,26 @@ function AppContent() {
       if (invRes?.success && Array.isArray(invRes.data)) {
         const norm = invRes.data.map(normaliseInvoice);
         setInvoices((prev) => {
+          const cachedStr = localStorage.getItem(`billson_invoices_${activeUserId}`) || 
+                            localStorage.getItem('billson_invoices_global') || 
+                            localStorage.getItem('billson_invoices');
+          let cachedList = [];
+          if (cachedStr) {
+            try {
+              const p = JSON.parse(cachedStr);
+              if (Array.isArray(p)) cachedList = p;
+            } catch (e) {}
+          }
+          const sourceLocal = prev.length > 0 ? prev : cachedList;
           const existingIds = new Set(norm.map(i => i.id));
-          const localOnly = prev.filter(i => !existingIds.has(i.id) && (i.userId === activeUserId || !i.userId));
+          const localOnly = sourceLocal.filter(i => !existingIds.has(i.id) && (i.userId === activeUserId || !i.userId));
           const merged = [...norm, ...localOnly];
           try {
-            localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(merged));
-            localStorage.setItem('billson_invoices_global', JSON.stringify(merged));
+            if (merged.length > 0) {
+              localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(merged));
+              localStorage.setItem('billson_invoices_global', JSON.stringify(merged));
+              localStorage.setItem('billson_invoices', JSON.stringify(merged));
+            }
           } catch (e) {}
           return merged;
         });
