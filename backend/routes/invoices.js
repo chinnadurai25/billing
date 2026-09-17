@@ -20,7 +20,11 @@ router.get('/', async (req, res) => {
       query += ' ORDER BY created_at DESC';
 
       const [rows] = await db.query(query, params);
-      return res.json({ success: true, data: rows });
+      const formatted = rows.map(r => ({
+        ...r,
+        items: typeof r.items === 'string' ? (JSON.parse(r.items || '[]')) : (r.items || [])
+      }));
+      return res.json({ success: true, data: formatted });
     }
 
     if (userId) {
@@ -38,7 +42,7 @@ router.post('/', async (req, res) => {
   try {
     const { documentType, document_type, invoiceNumber, customerName, customerGst, date, dueDate, subtotal, cgst, sgst, igst, totalTax, grandTotal, status, userId, items } = req.body;
 
-    if (!customerName || !grandTotal) {
+    if (!customerName || grandTotal === undefined) {
       return res.status(400).json({ success: false, message: 'Customer Name and Total are required' });
     }
 
@@ -46,6 +50,7 @@ router.post('/', async (req, res) => {
     const num = invoiceNumber || `TP-2026-${Math.floor(100 + Math.random() * 900)}`;
     const effectiveUserId = userId || 'USR-901';
     const docType = documentType || document_type || (invId.startsWith('PUR') ? 'Purchase Invoice' : invId.startsWith('EST') ? 'Estimate' : invId.startsWith('DC') ? 'Delivery Challan' : invId.startsWith('PAY') ? 'Payment' : 'Sales Invoice');
+    const itemsJson = JSON.stringify(items || []);
 
     const newInvoice = {
       id: invId,
@@ -70,13 +75,13 @@ router.post('/', async (req, res) => {
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
          document_type=VALUES(document_type), invoice_number=VALUES(invoice_number), customer_name=VALUES(customer_name),
          customer_gst=VALUES(customer_gst), date=VALUES(date), due_date=VALUES(due_date), subtotal=VALUES(subtotal),
-         cgst=VALUES(cgst), sgst=VALUES(sgst), igst=VALUES(igst), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status)`,
-        [invId, effectiveUserId, docType, num, customerName, newInvoice.customer_gst, newInvoice.date, newInvoice.due_date, newInvoice.subtotal, newInvoice.cgst, newInvoice.sgst, newInvoice.igst, newInvoice.total_tax, newInvoice.grand_total, newInvoice.status]
+         cgst=VALUES(cgst), sgst=VALUES(sgst), igst=VALUES(igst), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status), items=VALUES(items)`,
+        [invId, effectiveUserId, docType, num, customerName, newInvoice.customer_gst, newInvoice.date, newInvoice.due_date, newInvoice.subtotal, newInvoice.cgst, newInvoice.sgst, newInvoice.igst, newInvoice.total_tax, newInvoice.grand_total, newInvoice.status, itemsJson]
       );
     }
 

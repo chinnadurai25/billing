@@ -585,15 +585,28 @@ export const UserDashboard = ({
   };
 
   // ----------------------------------------------------
-  // 4. INVOICES HANDLERS (Mark Paid, Delete)
+  // 4. INVOICES HANDLERS (Mark Paid, Delete, Cancel)
   // ----------------------------------------------------
+  const updateLocalInvoices = (newInvoices) => {
+    try {
+      const activeId = user?.id || 'USR-901';
+      localStorage.setItem(`billson_invoices_${activeId}`, JSON.stringify(newInvoices));
+      localStorage.setItem('billson_invoices_global', JSON.stringify(newInvoices));
+      localStorage.setItem('billson_invoices', JSON.stringify(newInvoices));
+    } catch (e) {}
+  };
+
   const handleDeleteInvoice = (inv) => {
     setDeleteModal({
       isOpen: true,
       title: 'Delete Tax Invoice',
       message: `Are you sure you want to delete Tax Invoice "${inv.invoiceNumber}" for ${inv.customerName}?`,
       onConfirm: () => {
-        setInvoices((prev) => prev.filter((i) => i.id !== inv.id));
+        setInvoices((prev) => {
+          const updated = prev.filter((i) => i.id !== inv.id);
+          updateLocalInvoices(updated);
+          return updated;
+        });
         api.deleteInvoice(inv.id);
         addToast(`Invoice ${inv.invoiceNumber} deleted successfully.`, 'info', 'Invoice Deleted');
       }
@@ -601,7 +614,11 @@ export const UserDashboard = ({
   };
 
   const handleMarkAsPaid = (invId) => {
-    setInvoices((prev) => prev.map((inv) => inv.id === invId ? { ...inv, status: 'Paid' } : inv));
+    setInvoices((prev) => {
+      const updated = prev.map((inv) => inv.id === invId ? { ...inv, status: 'Paid' } : inv);
+      updateLocalInvoices(updated);
+      return updated;
+    });
     api.updateInvoice(invId, { status: 'Paid' });
     addToast('Invoice updated to Paid status!', 'success');
   };
@@ -614,7 +631,11 @@ export const UserDashboard = ({
       title: 'Cancel / Void Tax Invoice',
       message: `Are you sure you want to cancel Tax Invoice "${invNum}" for ${custName}? Its status will be marked as Cancelled.`,
       onConfirm: () => {
-        setInvoices((prev) => prev.map((i) => i.id === inv.id ? { ...i, status: 'Cancelled' } : i));
+        setInvoices((prev) => {
+          const updated = prev.map((i) => i.id === inv.id ? { ...i, status: 'Cancelled' } : i);
+          updateLocalInvoices(updated);
+          return updated;
+        });
         api.updateInvoice(inv.id, { status: 'Cancelled' });
         addToast(`Invoice ${invNum} has been cancelled.`, 'info', 'Invoice Cancelled');
       }

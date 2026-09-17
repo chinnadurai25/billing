@@ -159,7 +159,8 @@ export const initDB = async () => {
         igst DECIMAL(15,2) DEFAULT 0.00,
         total_tax DECIMAL(15,2) NOT NULL,
         grand_total DECIMAL(15,2) NOT NULL,
-        status ENUM('Paid', 'Pending', 'Overdue', 'Draft') DEFAULT 'Pending',
+        status ENUM('Paid', 'Pending', 'Overdue', 'Draft', 'Cancelled') DEFAULT 'Pending',
+        items LONGTEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -191,6 +192,12 @@ export const initDB = async () => {
 
     try {
       await connection.query(`ALTER TABLE invoices ADD COLUMN document_type VARCHAR(100) DEFAULT 'Sales Invoice';`);
+    } catch (e) {
+      // Column already exists
+    }
+
+    try {
+      await connection.query(`ALTER TABLE invoices ADD COLUMN items LONGTEXT;`);
     } catch (e) {
       // Column already exists
     }

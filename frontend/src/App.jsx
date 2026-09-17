@@ -107,7 +107,21 @@ function AppContent() {
     return savedUser ? [] : initialCustomers;
   });
   const [products, setProducts] = useState(() => savedUser ? [] : initialProductsServices);
-  const [invoices, setInvoices] = useState(() => savedUser ? [] : initialInvoices);
+  const [invoices, setInvoices] = useState(() => {
+    try {
+      const activeId = savedUser?.id;
+      if (activeId) {
+        const cached = localStorage.getItem(`billson_invoices_${activeId}`) ||
+                       localStorage.getItem('billson_invoices_global') ||
+                       localStorage.getItem('billson_invoices');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    } catch (e) {}
+    return savedUser ? [] : initialInvoices;
+  });
   const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
   const [bankAccounts, setBankAccounts] = useState(() => {
     try {
@@ -273,14 +287,22 @@ function AppContent() {
         }
       }
 
-      if (invRes?.success && Array.isArray(invRes.data) && invRes.data.length > 0) {
+      if (invRes?.success && Array.isArray(invRes.data)) {
         const norm = invRes.data.map(normaliseInvoice);
-        setInvoices(norm);
-        try {
-          localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(norm));
-        } catch (e) {}
+        setInvoices((prev) => {
+          const existingIds = new Set(norm.map(i => i.id));
+          const localOnly = prev.filter(i => !existingIds.has(i.id) && (i.userId === activeUserId || !i.userId));
+          const merged = [...norm, ...localOnly];
+          try {
+            localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(merged));
+            localStorage.setItem('billson_invoices_global', JSON.stringify(merged));
+          } catch (e) {}
+          return merged;
+        });
       } else {
-        const cached = localStorage.getItem(`billson_invoices_${activeUserId}`) || localStorage.getItem('billson_invoices');
+        const cached = localStorage.getItem(`billson_invoices_${activeUserId}`) || 
+                       localStorage.getItem('billson_invoices_global') || 
+                       localStorage.getItem('billson_invoices');
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
@@ -380,27 +402,35 @@ function AppContent() {
 
   // Save / Update Quick Invoice handler
   const handleSaveInvoice = async (savedInvoice) => {
+    const activeUserId = userData?.id || 'USR-901';
     const invoiceWithUser = {
       ...savedInvoice,
-      userId: userData?.id || 'USR-901'
+      userId: activeUserId
     };
 
-    const exists = invoices.some(i => i.id === savedInvoice.id);
+    setInvoices((prev) => {
+      const exists = prev.some(i => i.id === savedInvoice.id);
+      const updated = exists
+        ? prev.map(inv => inv.id === savedInvoice.id ? invoiceWithUser : inv)
+        : [invoiceWithUser, ...prev.filter(inv => inv.id !== invoiceWithUser.id)];
+      
+      try {
+        localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(updated));
+        localStorage.setItem('billson_invoices_global', JSON.stringify(updated));
+        localStorage.setItem('billson_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
-    if (exists) {
-      setInvoices(prev => prev.map(inv => inv.id === savedInvoice.id ? invoiceWithUser : inv));
-      try {
+    try {
+      const exists = invoices.some(i => i.id === savedInvoice.id);
+      if (exists) {
         await api.updateInvoice(savedInvoice.id, invoiceWithUser);
-      } catch (err) {
-        console.warn('Could not update invoice on backend:', err);
-      }
-    } else {
-      setInvoices(prev => [invoiceWithUser, ...prev.filter(inv => inv.id !== invoiceWithUser.id)]);
-      try {
+      } else {
         await api.createInvoice(invoiceWithUser);
-      } catch (err) {
-        console.warn('Could not persist invoice to backend:', err);
       }
+    } catch (err) {
+      console.warn('Could not persist invoice to backend:', err);
     }
   };
 
