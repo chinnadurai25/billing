@@ -237,6 +237,9 @@ function AppContent() {
           try {
             localStorage.setItem(`billson_customers_${activeUserId}`, JSON.stringify(merged));
           } catch (e) {}
+          if (localOnly.length > 0) {
+            api.syncAll({ customers: localOnly }).catch(() => {});
+          }
           return merged;
         });
       } else {
@@ -294,7 +297,11 @@ function AppContent() {
           try {
             localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(merged));
             localStorage.setItem('billson_invoices_global', JSON.stringify(merged));
+            localStorage.setItem('billson_invoices', JSON.stringify(merged));
           } catch (e) {}
+          if (localOnly.length > 0) {
+            api.syncAll({ invoices: localOnly }).catch(() => {});
+          }
           return merged;
         });
       } else {

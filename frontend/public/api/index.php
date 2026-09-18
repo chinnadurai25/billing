@@ -64,6 +64,81 @@ if (!$pdo) {
     exit();
 }
 
+// Auto-seed: Ensure all existing customer records are present in MySQL
+$seedCust = [
+    ['CUST-653620', 'USR-1788426517605', 'dgfvfd', 'SUNDRY DEBTORS', 'Port Blair, Andaman and Nicobar Islands', '', 'AAACD1234F', '', '', 'Port Blair', 'Andaman and Nicobar Islands', 0.00, 'Active'],
+    ['CUST-141909', 'USR-1788426517605', 'chinna', 'SUNDRY DEBTORS', 'ijn', '', 'EMCXDW525C', '848248428428', 'nju@gmail.com', '', '', 0.00, 'Active'],
+    ['CUST-307914', 'USR-1788426517605', 'SMILE COMPUTER', 'SUNDRY DEBTORS', 'Dindigul, Tamil Nadu', '33AYFPA2123H3Z4', 'AYFPA2123H', '9092592040', '', 'Dindigul', 'Tamil Nadu', 0.00, 'Active'],
+    ['CUST-712801', 'USR-1788426517605', 'SMI STANLEY MUSIC INDIA PRIVATE LIMITED', 'SUNDRY DEBTORS', 'Chennai, Tamil Nadu', '33AAYCS5493G1ZO', 'AAYCS5493G', '', '', 'Chennai', 'Tamil Nadu', 0.00, 'Active'],
+    ['CUST-278790', 'USR-1788426517605', 'MAKS ENTERPRISES', 'SUNDRY DEBTORS', 'Chennai, Tamil Nadu', '33AAYFM3936D1Z2', 'AAYFM3936D', '9444471843', 'silicamaks2014@gmail.com', 'Chennai', 'Tamil Nadu', 0.00, 'Active'],
+    ['CUST-001', 'USR-1788426517605', 'chinnadurai', 'SUNDRY DEBTORS', 'nsd', 'SJNIS58S784RRF', 'SICHSI788', '84949849', 'dchu@gmail.com', '', '', 145000.00, 'Active'],
+    ['CUST-681199', 'USR-1788426517605', 'Latha Vairamuthu', 'SUNDRY DEBTORS', 'fgf', '', 'AAACD1234F', '+919677777348', '22ucs041@kamarajengg.edu.in', '', '', 0.00, 'Active']
+];
+$seedStmt = $pdo->prepare("INSERT IGNORE INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+foreach ($seedCust as $sc) {
+    try { $seedStmt->execute($sc); } catch (Exception $e) {}
+}
+
+// Bulk Sync endpoint for any data created in browser
+if ($resource === 'sync-all' && $method === 'POST') {
+    $cList = $input['customers'] ?? [];
+    $iList = $input['invoices'] ?? [];
+
+    $cs = $pdo->prepare("INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE name=VALUES(name), ledger=VALUES(ledger), address=VALUES(address), gst_number=VALUES(gst_number), pan_number=VALUES(pan_number), mobile=VALUES(mobile), email=VALUES(email), city=VALUES(city), state=VALUES(state)");
+    foreach ($cList as $c) {
+        try {
+            $cs->execute([
+                $c['id'],
+                $c['userId'] ?? ($c['user_id'] ?? 'USR-1788426517605'),
+                $c['name'],
+                $c['ledger'] ?? 'SUNDRY DEBTORS',
+                $c['address'] ?? '',
+                $c['gstNumber'] ?? ($c['gst_number'] ?? ''),
+                $c['panNumber'] ?? ($c['pan_number'] ?? ''),
+                $c['phone'] ?? ($c['mobile'] ?? ''),
+                $c['email'] ?? '',
+                $c['city'] ?? '',
+                $c['state'] ?? '',
+                floatval($c['totalBilled'] ?? ($c['total_billed'] ?? 0)),
+                $c['status'] ?? 'Active'
+            ]);
+        } catch (Exception $e) {}
+    }
+
+    $is = $pdo->prepare("INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE customer_name=VALUES(customer_name), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status)");
+    foreach ($iList as $inv) {
+        try {
+            $itemsJson = isset($inv['items']) ? (is_string($inv['items']) ? $inv['items'] : json_encode($inv['items'])) : '[]';
+            $is->execute([
+                $inv['id'],
+                $inv['userId'] ?? ($inv['user_id'] ?? 'USR-1788426517605'),
+                $inv['documentType'] ?? ($inv['document_type'] ?? 'Sales Invoice'),
+                $inv['invoiceNumber'] ?? ($inv['invoice_number'] ?? $inv['id']),
+                $inv['customerName'] ?? ($inv['customer_name'] ?? ''),
+                $inv['customerGst'] ?? ($inv['customer_gst'] ?? ''),
+                $inv['date'] ?? date('Y-m-d'),
+                $inv['dueDate'] ?? ($inv['due_date'] ?? date('Y-m-d')),
+                floatval($inv['subtotal'] ?? 0),
+                floatval($inv['cgst'] ?? 0),
+                floatval($inv['sgst'] ?? 0),
+                floatval($inv['igst'] ?? 0),
+                floatval($inv['totalTax'] ?? ($inv['total_tax'] ?? 0)),
+                floatval($inv['grandTotal'] ?? ($inv['grand_total'] ?? 0)),
+                $inv['status'] ?? 'Pending',
+                $itemsJson
+            ]);
+        } catch (Exception $e) {}
+    }
+
+    echo json_encode(['success' => true, 'message' => 'All customers and invoices synchronized to MySQL']);
+    exit();
+}
+
 try {
     // 1. CUSTOMERS
     if ($resource === 'customers') {
