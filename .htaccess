@@ -5,14 +5,15 @@ DirectoryIndex index.html
   RewriteEngine On
   RewriteBase /
 
-  # Skip API routes entirely — let Node.js/proxy handle them
-  RewriteRule ^api/ - [L]
+  # Forward /api requests to native PHP API router
+  RewriteRule ^api/(.*)$ api/index.php [QSA,L]
+  RewriteRule ^api$ api/index.php [QSA,L]
 
   # Serve existing files and directories directly
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # For everything else, serve index.html (React SPA routing)
-  RewriteRule ^ /index.html [L]
+  # Fallback all other routes to React SPA index.html
+  RewriteRule ^ index.html [L]
 </IfModule>

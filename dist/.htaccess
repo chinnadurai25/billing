@@ -1,8 +1,19 @@
+Options -MultiViews
+DirectoryIndex index.html
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+
+  # Forward /api requests to native PHP API router
+  RewriteRule ^api/(.*)$ api/index.php [QSA,L]
+  RewriteRule ^api$ api/index.php [QSA,L]
+
+  # Serve existing files and directories directly
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Fallback all other routes to React SPA index.html
+  RewriteRule ^ index.html [L]
 </IfModule>
