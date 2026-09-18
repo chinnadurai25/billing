@@ -88,7 +88,7 @@ function AppContent() {
     setIsQuickInvoiceOpen(true);
   };
 
-  // App Master Data States - start with cached data to prevent loss on reload
+  // App Master Data States - start with cached data strictly isolated to active user
   const [userData, setUserData] = useState(() => savedUser || initialUserData);
   const [customers, setCustomers] = useState(() => {
     try {
@@ -98,7 +98,7 @@ function AppContent() {
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed)) {
-            return parsed;
+            return parsed.filter(c => (c.userId || c.user_id) === activeId);
           }
         }
         return [];
@@ -106,18 +106,30 @@ function AppContent() {
     } catch (e) {}
     return savedUser ? [] : initialCustomers;
   });
-  const [products, setProducts] = useState(() => savedUser ? [] : initialProductsServices);
+  const [products, setProducts] = useState(() => {
+    try {
+      const activeId = savedUser?.id;
+      if (activeId) {
+        const cached = localStorage.getItem(`billson_products_${activeId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed.filter(p => (p.userId || p.user_id) === activeId);
+        }
+        return [];
+      }
+    } catch (e) {}
+    return savedUser ? [] : initialProductsServices;
+  });
   const [invoices, setInvoices] = useState(() => {
     try {
       const activeId = savedUser?.id;
       if (activeId) {
-        const cached = localStorage.getItem(`billson_invoices_${activeId}`) ||
-                       localStorage.getItem('billson_invoices_global') ||
-                       localStorage.getItem('billson_invoices');
+        const cached = localStorage.getItem(`billson_invoices_${activeId}`);
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter(i => (i.userId || i.user_id) === activeId);
         }
+        return [];
       }
     } catch (e) {}
     return savedUser ? [] : initialInvoices;
@@ -125,15 +137,19 @@ function AppContent() {
   const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
   const [bankAccounts, setBankAccounts] = useState(() => {
     try {
-      const saved = localStorage.getItem('billson_bank_accounts');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const activeId = savedUser?.id;
+      if (activeId) {
+        const saved = localStorage.getItem(`billson_bank_accounts_${activeId}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter(b => (b.userId || b.user_id) === activeId);
+        }
+        return [];
       }
     } catch (e) {
       console.error('Error loading bank accounts from localStorage:', e);
     }
-    return [
+    return savedUser ? [] : [
       { id: 'BANK-001', userId: 'USR-901', bankType: 'Bank Account', accountName: 'Durai Tax Advisory Operating A/C', accountNumber: '50100234901234', bankName: 'HDFC Bank Ltd', ifscCode: 'HDFC0001234', address: 'Anna Salai, Chennai Branch', balance: 450000, status: 'Active' },
       { id: 'BANK-002', userId: 'USR-901', bankType: 'Bank Account', accountName: 'Durai Tax Collection Reserve', accountNumber: '000405012345', bankName: 'ICICI Bank Ltd', ifscCode: 'ICIC0000004', address: 'Nungambakkam, Chennai Branch', balance: 280000, status: 'Active' },
       { id: 'BANK-003', userId: 'USR-901', bankType: 'Cash in Hand', accountName: 'Main Petty Cash Ledger', accountNumber: 'CASH-LEDGER-01', bankName: 'Cash Chest', ifscCode: 'N/A', address: 'Office Safe', balance: 35000, status: 'Active' }
@@ -226,29 +242,18 @@ function AppContent() {
 
       if (custRes?.success && Array.isArray(custRes.data)) {
         const norm = custRes.data.map(normaliseCustomer);
-        const cleanNorm = norm;
-        setCustomers((prev) => {
-          const existingIds = new Set(cleanNorm.map(c => c.id));
-          const localOnly = prev.filter(c => 
-            !existingIds.has(c.id) && 
-            (c.userId === activeUserId)
-          );
-          const merged = [...cleanNorm, ...localOnly];
-          try {
-            localStorage.setItem(`billson_customers_${activeUserId}`, JSON.stringify(merged));
-          } catch (e) {}
-          if (localOnly.length > 0) {
-            api.syncAll({ customers: localOnly }).catch(() => {});
-          }
-          return merged;
-        });
+        const cleanNorm = norm.filter(c => (c.userId || c.user_id) === activeUserId);
+        setCustomers(cleanNorm);
+        try {
+          localStorage.setItem(`billson_customers_${activeUserId}`, JSON.stringify(cleanNorm));
+        } catch (e) {}
       } else {
         const cached = localStorage.getItem(`billson_customers_${activeUserId}`);
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
             if (Array.isArray(parsed)) {
-              setCustomers(parsed);
+              setCustomers(parsed.filter(c => (c.userId || c.user_id) === activeUserId));
             }
           } catch (e) {}
         } else {
@@ -256,72 +261,63 @@ function AppContent() {
         }
       }
 
-      if (bankRes?.success && Array.isArray(bankRes.data) && bankRes.data.length > 0) {
+      if (bankRes?.success && Array.isArray(bankRes.data)) {
         const normalizedBanks = bankRes.data.map(normaliseBank);
-        setBankAccounts(normalizedBanks);
+        const cleanBanks = normalizedBanks.filter(b => (b.userId || b.user_id) === activeUserId);
+        setBankAccounts(cleanBanks);
         try {
-          localStorage.setItem(`billson_bank_accounts_${activeUserId}`, JSON.stringify(normalizedBanks));
+          localStorage.setItem(`billson_bank_accounts_${activeUserId}`, JSON.stringify(cleanBanks));
         } catch (e) {}
       } else {
-        const cached = localStorage.getItem(`billson_bank_accounts_${activeUserId}`) || localStorage.getItem('billson_bank_accounts');
+        const cached = localStorage.getItem(`billson_bank_accounts_${activeUserId}`);
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setBankAccounts(parsed);
+            if (Array.isArray(parsed)) setBankAccounts(parsed.filter(b => (b.userId || b.user_id) === activeUserId));
           } catch (e) {}
         }
       }
 
-      if (prodRes?.success && Array.isArray(prodRes.data) && prodRes.data.length > 0) {
+      if (prodRes?.success && Array.isArray(prodRes.data)) {
         const norm = prodRes.data.map(normaliseProduct);
-        setProducts(norm);
+        const cleanProds = norm.filter(p => (p.userId || p.user_id) === activeUserId);
+        setProducts(cleanProds);
         try {
-          localStorage.setItem(`billson_products_${activeUserId}`, JSON.stringify(norm));
+          localStorage.setItem(`billson_products_${activeUserId}`, JSON.stringify(cleanProds));
         } catch (e) {}
       } else {
-        const cached = localStorage.getItem(`billson_products_${activeUserId}`) || localStorage.getItem('billson_products');
+        const cached = localStorage.getItem(`billson_products_${activeUserId}`);
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setProducts(parsed);
+            if (Array.isArray(parsed)) setProducts(parsed.filter(p => (p.userId || p.user_id) === activeUserId));
           } catch (e) {}
         }
       }
 
       if (invRes?.success && Array.isArray(invRes.data)) {
         const norm = invRes.data.map(normaliseInvoice);
-        setInvoices((prev) => {
-          const existingIds = new Set(norm.map(i => i.id));
-          const localOnly = prev.filter(i => !existingIds.has(i.id) && (i.userId === activeUserId || !i.userId));
-          const merged = [...norm, ...localOnly];
-          try {
-            localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(merged));
-            localStorage.setItem('billson_invoices_global', JSON.stringify(merged));
-            localStorage.setItem('billson_invoices', JSON.stringify(merged));
-          } catch (e) {}
-          if (localOnly.length > 0) {
-            api.syncAll({ invoices: localOnly }).catch(() => {});
-          }
-          return merged;
-        });
+        const cleanInvs = norm.filter(i => (i.userId || i.user_id) === activeUserId);
+        setInvoices(cleanInvs);
+        try {
+          localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(cleanInvs));
+        } catch (e) {}
       } else {
-        const cached = localStorage.getItem(`billson_invoices_${activeUserId}`) || 
-                       localStorage.getItem('billson_invoices_global') || 
-                       localStorage.getItem('billson_invoices');
+        const cached = localStorage.getItem(`billson_invoices_${activeUserId}`);
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) setInvoices(parsed);
+            if (Array.isArray(parsed)) setInvoices(parsed.filter(i => (i.userId || i.user_id) === activeUserId));
           } catch (e) {}
         }
       }
     } catch (err) {
       console.warn('Backend connection note:', err.message);
-      const cachedCust = localStorage.getItem(`billson_customers_${activeUserId}`) || localStorage.getItem('billson_customers_global');
+      const cachedCust = localStorage.getItem(`billson_customers_${activeUserId}`);
       if (cachedCust) {
         try {
           const parsed = JSON.parse(cachedCust);
-          if (Array.isArray(parsed) && parsed.length > 0) setCustomers(parsed);
+          if (Array.isArray(parsed) && parsed.length > 0) setCustomers(parsed.filter(c => (c.userId || c.user_id) === activeUserId));
         } catch (e) {}
       }
     }
@@ -421,8 +417,6 @@ function AppContent() {
       
       try {
         localStorage.setItem(`billson_invoices_${activeUserId}`, JSON.stringify(updated));
-        localStorage.setItem('billson_invoices_global', JSON.stringify(updated));
-        localStorage.setItem('billson_invoices', JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });

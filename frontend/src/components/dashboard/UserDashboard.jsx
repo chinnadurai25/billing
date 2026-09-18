@@ -402,7 +402,9 @@ export const UserDashboard = ({
       setBankAccounts((prev) => {
         const updated = [newBank, ...prev];
         try {
-          localStorage.setItem('billson_bank_accounts', JSON.stringify(updated));
+          if (user?.id) {
+            localStorage.setItem(`billson_bank_accounts_${user.id}`, JSON.stringify(updated));
+          }
         } catch (e) {}
         return updated;
       });

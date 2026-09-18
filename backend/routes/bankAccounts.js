@@ -10,12 +10,19 @@ router.get('/', async (req, res) => {
 
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM bank_accounts ORDER BY created_at DESC');
+      let query = 'SELECT * FROM bank_accounts';
+      const params = [];
+      if (userId) {
+        query += ' WHERE user_id = ?';
+        params.push(userId);
+      }
+      query += ' ORDER BY created_at DESC';
+      const [rows] = await db.query(query, params);
       return res.json({ success: true, data: rows });
     }
 
     if (userId) {
-      const filtered = fallbackStore.bankAccounts.filter(b => b.user_id === userId || !b.user_id);
+      const filtered = fallbackStore.bankAccounts.filter(b => b.user_id === userId);
       return res.json({ success: true, data: filtered });
     }
     res.json({ success: true, data: fallbackStore.bankAccounts });

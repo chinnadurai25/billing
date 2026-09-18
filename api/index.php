@@ -143,7 +143,13 @@ try {
     // 1. CUSTOMERS
     if ($resource === 'customers') {
         if ($method === 'GET') {
-            $stmt = $pdo->query("SELECT * FROM customers ORDER BY created_at DESC");
+            $reqUserId = $_GET['userId'] ?? ($_GET['user_id'] ?? null);
+            if (!empty($reqUserId)) {
+                $stmt = $pdo->prepare("SELECT * FROM customers WHERE user_id = ? ORDER BY created_at DESC");
+                $stmt->execute([$reqUserId]);
+            } else {
+                $stmt = $pdo->query("SELECT * FROM customers ORDER BY created_at DESC");
+            }
             echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
             exit();
         }
@@ -155,7 +161,7 @@ try {
                 exit();
             }
             $id = $input['id'] ?? ('CUST-' . substr(time(), -6));
-            $userId = $input['userId'] ?? 'USR-901';
+            $userId = $input['userId'] ?? ($input['user_id'] ?? 'USR-901');
             $ledger = $input['ledger'] ?? 'SUNDRY DEBTORS';
             $address = $input['address'] ?? '';
             $gst = $input['gstNumber'] ?? ($input['gst_number'] ?? '');
@@ -168,6 +174,7 @@ try {
             $sql = "INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'Active')
                     ON DUPLICATE KEY UPDATE
+                        user_id = VALUES(user_id),
                         name = VALUES(name), ledger = VALUES(ledger), address = VALUES(address),
                         gst_number = VALUES(gst_number), pan_number = VALUES(pan_number),
                         mobile = VALUES(mobile), email = VALUES(email), city = VALUES(city), state = VALUES(state)";
@@ -205,9 +212,9 @@ try {
                 $input['name'] ?? '',
                 $input['ledger'] ?? 'SUNDRY DEBTORS',
                 $input['address'] ?? '',
-                $input['gstNumber'] ?? '',
-                $input['panNumber'] ?? '',
-                $input['mobile'] ?? '',
+                $input['gstNumber'] ?? ($input['gst_number'] ?? ''),
+                $input['panNumber'] ?? ($input['pan_number'] ?? ''),
+                $input['mobile'] ?? ($input['phone'] ?? ''),
                 $input['email'] ?? '',
                 $input['city'] ?? '',
                 $input['state'] ?? '',
@@ -227,7 +234,13 @@ try {
     // 2. INVOICES
     if ($resource === 'invoices') {
         if ($method === 'GET') {
-            $stmt = $pdo->query("SELECT * FROM invoices ORDER BY created_at DESC");
+            $reqUserId = $_GET['userId'] ?? ($_GET['user_id'] ?? null);
+            if (!empty($reqUserId)) {
+                $stmt = $pdo->prepare("SELECT * FROM invoices WHERE user_id = ? ORDER BY created_at DESC");
+                $stmt->execute([$reqUserId]);
+            } else {
+                $stmt = $pdo->query("SELECT * FROM invoices ORDER BY created_at DESC");
+            }
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
                 if (isset($r['items']) && is_string($r['items'])) {
@@ -239,7 +252,7 @@ try {
         }
         if ($method === 'POST') {
             $id = $input['id'] ?? ('INV-' . date('Y') . '-' . substr(time(), -3));
-            $userId = $input['userId'] ?? 'USR-901';
+            $userId = $input['userId'] ?? ($input['user_id'] ?? 'USR-901');
             $docType = $input['documentType'] ?? ($input['document_type'] ?? 'Sales Invoice');
             $invNum = $input['invoiceNumber'] ?? ($input['invoice_number'] ?? $id);
             $custName = $input['customerName'] ?? ($input['customer_name'] ?? '');
@@ -253,11 +266,12 @@ try {
             $totalTax = floatval($input['totalTax'] ?? ($input['total_tax'] ?? 0));
             $grandTotal = floatval($input['grandTotal'] ?? ($input['grand_total'] ?? 0));
             $status = $input['status'] ?? 'Pending';
-            $itemsJson = isset($input['items']) ? json_encode($input['items']) : '[]';
+            $itemsJson = isset($input['items']) ? (is_string($input['items']) ? $input['items'] : json_encode($input['items'])) : '[]';
 
             $sql = "INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
+                        user_id=VALUES(user_id),
                         document_type=VALUES(document_type), invoice_number=VALUES(invoice_number), customer_name=VALUES(customer_name),
                         customer_gst=VALUES(customer_gst), date=VALUES(date), due_date=VALUES(due_date), subtotal=VALUES(subtotal),
                         cgst=VALUES(cgst), sgst=VALUES(sgst), igst=VALUES(igst), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total),
@@ -266,8 +280,32 @@ try {
             $stmt->execute([$id, $userId, $docType, $invNum, $custName, $custGst, $date, $dueDate, $subtotal, $cgst, $sgst, $igst, $totalTax, $grandTotal, $status, $itemsJson]);
 
             $input['id'] = $id;
+            $input['userId'] = $userId;
+            $input['user_id'] = $userId;
             http_response_code(201);
             echo json_encode(['success' => true, 'message' => 'Invoice saved successfully', 'invoice' => $input]);
+            exit();
+        }
+        if ($method === 'PUT' && $resourceId) {
+            $docType = $input['documentType'] ?? ($input['document_type'] ?? 'Sales Invoice');
+            $invNum = $input['invoiceNumber'] ?? ($input['invoice_number'] ?? $resourceId);
+            $custName = $input['customerName'] ?? ($input['customer_name'] ?? '');
+            $custGst = $input['customerGst'] ?? ($input['customer_gst'] ?? '');
+            $date = $input['date'] ?? date('Y-m-d');
+            $dueDate = $input['dueDate'] ?? ($input['due_date'] ?? date('Y-m-d', strtotime('+14 days')));
+            $subtotal = floatval($input['subtotal'] ?? 0);
+            $cgst = floatval($input['cgst'] ?? 0);
+            $sgst = floatval($input['sgst'] ?? 0);
+            $igst = floatval($input['igst'] ?? 0);
+            $totalTax = floatval($input['totalTax'] ?? ($input['total_tax'] ?? 0));
+            $grandTotal = floatval($input['grandTotal'] ?? ($input['grand_total'] ?? 0));
+            $status = $input['status'] ?? 'Pending';
+            $itemsJson = isset($input['items']) ? (is_string($input['items']) ? $input['items'] : json_encode($input['items'])) : '[]';
+
+            $sql = "UPDATE invoices SET document_type = ?, invoice_number = ?, customer_name = ?, customer_gst = ?, date = ?, due_date = ?, subtotal = ?, cgst = ?, sgst = ?, igst = ?, total_tax = ?, grand_total = ?, status = ?, items = ? WHERE id = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$docType, $invNum, $custName, $custGst, $date, $dueDate, $subtotal, $cgst, $sgst, $igst, $totalTax, $grandTotal, $status, $itemsJson, $resourceId]);
+            echo json_encode(['success' => true, 'message' => 'Invoice updated']);
             exit();
         }
         if ($method === 'DELETE' && $resourceId) {
@@ -281,13 +319,19 @@ try {
     // 3. BANK ACCOUNTS
     if ($resource === 'bank-accounts') {
         if ($method === 'GET') {
-            $stmt = $pdo->query("SELECT * FROM bank_accounts ORDER BY created_at DESC");
+            $reqUserId = $_GET['userId'] ?? ($_GET['user_id'] ?? null);
+            if (!empty($reqUserId)) {
+                $stmt = $pdo->prepare("SELECT * FROM bank_accounts WHERE user_id = ? ORDER BY created_at DESC");
+                $stmt->execute([$reqUserId]);
+            } else {
+                $stmt = $pdo->query("SELECT * FROM bank_accounts ORDER BY created_at DESC");
+            }
             echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
             exit();
         }
         if ($method === 'POST') {
             $id = $input['id'] ?? ('BANK-' . substr(time(), -3));
-            $userId = $input['userId'] ?? 'USR-901';
+            $userId = $input['userId'] ?? ($input['user_id'] ?? 'USR-901');
             $bankType = $input['bankType'] ?? ($input['bank_type'] ?? 'Bank Account');
             $accName = $input['accountName'] ?? ($input['account_name'] ?? '');
             $accNum = $input['accountNumber'] ?? ($input['account_number'] ?? '');
@@ -299,7 +343,7 @@ try {
 
             $sql = "INSERT INTO bank_accounts (id, user_id, bank_type, account_name, account_number, bank_name, ifsc_code, address, balance, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE account_name=VALUES(account_name), balance=VALUES(balance), status=VALUES(status)";
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), account_name=VALUES(account_name), balance=VALUES(balance), status=VALUES(status)";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$id, $userId, $bankType, $accName, $accNum, $bankName, $ifsc, $addr, $bal, $status]);
 
@@ -307,18 +351,30 @@ try {
             echo json_encode(['success' => true, 'message' => 'Bank account saved', 'bank' => $input]);
             exit();
         }
+        if ($method === 'DELETE' && $resourceId) {
+            $stmt = $pdo->prepare("DELETE FROM bank_accounts WHERE id = ?");
+            $stmt->execute([$resourceId]);
+            echo json_encode(['success' => true, 'message' => 'Bank account deleted']);
+            exit();
+        }
     }
 
     // 4. PRODUCTS & SERVICES
     if ($resource === 'products') {
         if ($method === 'GET') {
-            $stmt = $pdo->query("SELECT * FROM products_services ORDER BY created_at DESC");
+            $reqUserId = $_GET['userId'] ?? ($_GET['user_id'] ?? null);
+            if (!empty($reqUserId)) {
+                $stmt = $pdo->prepare("SELECT * FROM products_services WHERE user_id = ? ORDER BY created_at DESC");
+                $stmt->execute([$reqUserId]);
+            } else {
+                $stmt = $pdo->query("SELECT * FROM products_services ORDER BY created_at DESC");
+            }
             echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
             exit();
         }
         if ($method === 'POST') {
             $id = $input['id'] ?? ('SRV-' . substr(time(), -3));
-            $userId = $input['userId'] ?? 'USR-901';
+            $userId = $input['userId'] ?? ($input['user_id'] ?? 'USR-901');
             $title = $input['title'] ?? '';
             $unit = $input['unit'] ?? 'Pices';
             $hsn = $input['hsnSac'] ?? ($input['hsn_sac'] ?? '');
@@ -329,7 +385,7 @@ try {
 
             $sql = "INSERT INTO products_services (id, user_id, title, unit, hsn_sac, opening_stock, rate, tax_percent, category)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE title=VALUES(title), rate=VALUES(rate), tax_percent=VALUES(tax_percent)";
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), title=VALUES(title), rate=VALUES(rate), tax_percent=VALUES(tax_percent)";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$id, $userId, $title, $unit, $hsn, $stock, $rate, $tax, $cat]);
 
@@ -337,6 +393,54 @@ try {
             echo json_encode(['success' => true, 'message' => 'Product saved', 'product' => $input]);
             exit();
         }
+        if ($method === 'DELETE' && $resourceId) {
+            $stmt = $pdo->prepare("DELETE FROM products_services WHERE id = ?");
+            $stmt->execute([$resourceId]);
+            echo json_encode(['success' => true, 'message' => 'Product deleted']);
+            exit();
+        }
+    }
+
+    // 5. BULK SYNC
+    if ($resource === 'sync-all' && $method === 'POST') {
+        if (!empty($input['customers']) && is_array($input['customers'])) {
+            $stmt = $pdo->prepare("INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'Active')
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), name=VALUES(name)");
+            foreach ($input['customers'] as $c) {
+                $cId = $c['id'] ?? ('CUST-' . substr(time(), -6));
+                $uId = $c['userId'] ?? ($c['user_id'] ?? 'USR-901');
+                $stmt->execute([
+                    $cId, $uId, $c['name'] ?? '', $c['ledger'] ?? 'SUNDRY DEBTORS',
+                    $c['address'] ?? '', $c['gstNumber'] ?? ($c['gst_number'] ?? ''),
+                    $c['panNumber'] ?? ($c['pan_number'] ?? ''), $c['phone'] ?? ($c['mobile'] ?? ''),
+                    $c['email'] ?? '', $c['city'] ?? '', $c['state'] ?? ''
+                ]);
+            }
+        }
+        if (!empty($input['invoices']) && is_array($input['invoices'])) {
+            $stmt = $pdo->prepare("INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), customer_name=VALUES(customer_name)");
+            foreach ($input['invoices'] as $i) {
+                $iId = $i['id'] ?? ('INV-' . substr(time(), -6));
+                $uId = $i['userId'] ?? ($i['user_id'] ?? 'USR-901');
+                $itemsJson = isset($i['items']) ? (is_string($i['items']) ? $i['items'] : json_encode($i['items'])) : '[]';
+                $stmt->execute([
+                    $iId, $uId, $i['documentType'] ?? ($i['document_type'] ?? 'Sales Invoice'),
+                    $i['invoiceNumber'] ?? ($i['invoice_number'] ?? $iId),
+                    $i['customerName'] ?? ($i['customer_name'] ?? ''),
+                    $i['customerGst'] ?? ($i['customer_gst'] ?? ''),
+                    $i['date'] ?? date('Y-m-d'), $i['dueDate'] ?? ($i['due_date'] ?? date('Y-m-d')),
+                    floatval($i['subtotal'] ?? 0), floatval($i['cgst'] ?? 0), floatval($i['sgst'] ?? 0),
+                    floatval($i['igst'] ?? 0), floatval($i['totalTax'] ?? ($i['total_tax'] ?? 0)),
+                    floatval($i['grandTotal'] ?? ($i['grand_total'] ?? 0)), $i['status'] ?? 'Pending',
+                    $itemsJson
+                ]);
+            }
+        }
+        echo json_encode(['success' => true, 'message' => 'Synced successfully']);
+        exit();
     }
 
     // 5. AUTH (LOGIN, REGISTER, OTP)

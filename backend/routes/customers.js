@@ -10,7 +10,14 @@ router.get('/', async (req, res) => {
 
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM customers ORDER BY created_at DESC');
+      let query = 'SELECT * FROM customers';
+      const params = [];
+      if (userId) {
+        query += ' WHERE user_id = ?';
+        params.push(userId);
+      }
+      query += ' ORDER BY created_at DESC';
+      const [rows] = await db.query(query, params);
       return res.json({ success: true, data: rows });
     }
 

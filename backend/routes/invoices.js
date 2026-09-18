@@ -10,7 +10,14 @@ router.get('/', async (req, res) => {
 
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM invoices ORDER BY created_at DESC');
+      let query = 'SELECT * FROM invoices';
+      const params = [];
+      if (userId) {
+        query += ' WHERE user_id = ?';
+        params.push(userId);
+      }
+      query += ' ORDER BY created_at DESC';
+      const [rows] = await db.query(query, params);
       const formatted = rows.map(r => ({
         ...r,
         items: typeof r.items === 'string' ? (JSON.parse(r.items || '[]')) : (r.items || [])
