@@ -98,7 +98,7 @@ function AppContent() {
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed)) {
-            return activeId === 'USR-901' ? parsed : parsed.filter(c => !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id));
+            return parsed;
           }
         }
         return [];
