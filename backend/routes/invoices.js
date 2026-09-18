@@ -63,6 +63,10 @@ router.post('/', async (req, res) => {
       items: items || []
     };
 
+    if (!isConnected()) {
+      await initDB();
+    }
+
     if (isConnected()) {
       const db = getDB();
       await db.query(
@@ -74,6 +78,8 @@ router.post('/', async (req, res) => {
          cgst=VALUES(cgst), sgst=VALUES(sgst), igst=VALUES(igst), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status), items=VALUES(items)`,
         [invId, effectiveUserId, docType, num, customerName, newInvoice.customer_gst, newInvoice.date, newInvoice.due_date, newInvoice.subtotal, newInvoice.cgst, newInvoice.sgst, newInvoice.igst, newInvoice.total_tax, newInvoice.grand_total, newInvoice.status, itemsJson]
       );
+    } else {
+      console.warn('⚠️ MySQL not connected when saving invoice; saving to memory fallback');
     }
 
     const existingIdx = fallbackStore.invoices.findIndex(i => i.id === invId);
@@ -86,7 +92,8 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Document generated & saved successfully',
-      invoice: newInvoice
+      invoice: newInvoice,
+      mysqlSaved: isConnected()
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

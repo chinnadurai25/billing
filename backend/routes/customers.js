@@ -52,6 +52,10 @@ router.post('/', async (req, res) => {
       status: 'Active'
     };
 
+    if (!isConnected()) {
+      await initDB();
+    }
+
     if (isConnected()) {
       const db = getDB();
       await db.query(
@@ -71,6 +75,8 @@ router.post('/', async (req, res) => {
            status = VALUES(status)`,
         [custId, effectiveUserId, name, newCustomer.ledger, newCustomer.address, newCustomer.gst_number, newCustomer.pan_number, newCustomer.mobile, newCustomer.email, newCustomer.city, newCustomer.state, 0, 'Active']
       );
+    } else {
+      console.warn('⚠️ MySQL not connected when saving customer; saving to memory fallback');
     }
 
     const existingIdx = fallbackStore.customers.findIndex(c => c.id === custId);
@@ -83,9 +89,11 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'REGISTRATION (CUSTOMER) persisted successfully',
-      customer: newCustomer
+      customer: newCustomer,
+      mysqlSaved: isConnected()
     });
   } catch (error) {
+    console.error('Customer registration error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

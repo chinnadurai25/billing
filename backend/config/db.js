@@ -14,6 +14,20 @@ dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
 
 let dbPool = null;
 let isMySqlConnected = false;
+let lastDbError = null;
+let activeDbHost = null;
+
+export const getDbDiagnostics = () => ({
+  connected: isMySqlConnected,
+  activeHost: activeDbHost,
+  lastError: lastDbError,
+  config: {
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'u619689962_taxbilling',
+    database: process.env.DB_NAME || 'u619689962_taxbilling',
+    port: parseInt(process.env.DB_PORT || '3306')
+  }
+});
 
 // Fallback in-memory store if MySQL server is offline during dev
 export const fallbackStore = {
@@ -47,38 +61,41 @@ export const fallbackStore = {
 };
 
 export const initDB = async () => {
-  try {
-    const host = process.env.DB_HOST || '127.0.0.1';
-    const port = parseInt(process.env.DB_PORT || '3306');
-    const user = process.env.DB_USER || 'u619689962_taxbilling';
-    const password = process.env.DB_PASSWORD || 'Taxbilling@123';
-    const database = process.env.DB_NAME || 'u619689962_taxbilling';
+  const port = parseInt(process.env.DB_PORT || '3306');
+  const user = process.env.DB_USER || 'u619689962_taxbilling';
+  const password = process.env.DB_PASSWORD || 'Taxbilling@123';
+  const database = process.env.DB_NAME || 'u619689962_taxbilling';
 
-    // 1. Try optional CREATE DATABASE if running locally as root (silent catch if shared hosting has no permission)
+  // Candidate hosts: try 127.0.0.1 first, then localhost, then environment variable
+  const candidateHosts = [
+    process.env.DB_HOST || '127.0.0.1',
+    'localhost',
+    '127.0.0.1'
+  ];
+  const uniqueHosts = [...new Set(candidateHosts)];
+
+  for (const host of uniqueHosts) {
     try {
-      if (user === 'root') {
-        const rootConnection = await mysql.createConnection({ host, port, user, password });
-        await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\`;`);
-        await rootConnection.end();
-      }
-    } catch (dbCreateErr) {
-      // Ignore: on shared hosting (Hostinger), DB already exists and CREATE is disallowed
-    }
+      console.log(`🔌 Attempting MySQL connection to ${user}@${host}:${port}/${database}...`);
 
-    // 2. Create connection pool directly to the configured database
-    dbPool = mysql.createPool({
-      host,
-      port,
-      user,
-      password,
-      database,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
+      const pool = mysql.createPool({
+        host,
+        port,
+        user,
+        password,
+        database,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        connectTimeout: 7000
+      });
 
-    // 3. Create Tables
-    const connection = await dbPool.getConnection();
+      const connection = await pool.getConnection();
+      dbPool = pool;
+      activeDbHost = host;
+      isMySqlConnected = true;
+      lastDbError = null;
+      console.log(`✅ MySQL successfully connected via ${host}!`);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -287,13 +304,18 @@ export const initDB = async () => {
       console.log('✅ Initial Seed Data successfully populated in MySQL tables!');
     }
 
-    connection.release();
-    isMySqlConnected = true;
-    console.log('✅ MySQL Database Connected & All 7 Relational Tables Ready (taxpulse_db)');
-  } catch (error) {
-    console.log(`⚠️ MySQL Connection Note: ${error.message}. Operating with Memory-Store fallback mode.`);
-    isMySqlConnected = false;
+      connection.release();
+      isMySqlConnected = true;
+      console.log(`✅ MySQL Database Connected & Tables Ready via ${host}`);
+      return; // Successfully initialized!
+    } catch (error) {
+      lastDbError = `${host}: ${error.message}`;
+      console.log(`⚠️ MySQL connection to ${host} failed: ${error.message}`);
+    }
   }
+
+  isMySqlConnected = false;
+  console.error(`❌ ALL MySQL connection attempts failed! Last error: ${lastDbError}. Operating in memory fallback.`);
 };
 
 export const getDB = () => dbPool;

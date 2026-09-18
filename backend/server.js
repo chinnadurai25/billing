@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { initDB, isConnected } from './config/db.js';
+import { initDB, isConnected, getDbDiagnostics } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import customerRoutes from './routes/customers.js';
 import bankRoutes from './routes/bankAccounts.js';
@@ -12,10 +12,12 @@ import productRoutes from './routes/products.js';
 import invoiceRoutes from './routes/invoices.js';
 import adminRoutes from './routes/admin.js';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
 
@@ -53,6 +55,15 @@ app.get('/api/health', (req, res) => {
     status: 'online',
     mysql: isConnected() ? 'connected' : 'memory-fallback-active',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Database Diagnostics Endpoint (visit in browser to inspect MySQL connection state)
+app.get('/api/db-diagnostics', (req, res) => {
+  res.json({
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    ...getDbDiagnostics()
   });
 });
 
