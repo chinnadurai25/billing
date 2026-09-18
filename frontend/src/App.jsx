@@ -226,12 +226,11 @@ function AppContent() {
 
       if (custRes?.success && Array.isArray(custRes.data)) {
         const norm = custRes.data.map(normaliseCustomer);
-        const cleanNorm = norm.filter(c => activeUserId === 'USR-901' || !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id));
+        const cleanNorm = norm;
         setCustomers((prev) => {
           const existingIds = new Set(cleanNorm.map(c => c.id));
           const localOnly = prev.filter(c => 
             !existingIds.has(c.id) && 
-            (activeUserId === 'USR-901' || !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id)) &&
             (c.userId === activeUserId)
           );
           const merged = [...cleanNorm, ...localOnly];
@@ -246,8 +245,7 @@ function AppContent() {
           try {
             const parsed = JSON.parse(cached);
             if (Array.isArray(parsed)) {
-              const cleanCached = parsed.filter(c => activeUserId === 'USR-901' || !['CUST-001', 'CUST-002', 'CUST-003', 'CUST-004', 'CUST-005'].includes(c.id));
-              setCustomers(cleanCached);
+              setCustomers(parsed);
             }
           } catch (e) {}
         } else {

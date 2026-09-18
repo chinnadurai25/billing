@@ -2,7 +2,15 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
 
 let dbPool = null;
 let isMySqlConnected = false;
@@ -40,24 +48,30 @@ export const fallbackStore = {
 
 export const initDB = async () => {
   try {
-    // 1. Initial connection without DB selected to ensure database exists
-    const rootConnection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-    });
+    const host = process.env.DB_HOST || '127.0.0.1';
+    const port = parseInt(process.env.DB_PORT || '3306');
+    const user = process.env.DB_USER || 'u619689962_taxbilling';
+    const password = process.env.DB_PASSWORD || 'Taxbilling@123';
+    const database = process.env.DB_NAME || 'u619689962_taxbilling';
 
-    await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'taxpulse_db'}\`;`);
-    await rootConnection.end();
+    // 1. Try optional CREATE DATABASE if running locally as root (silent catch if shared hosting has no permission)
+    try {
+      if (user === 'root') {
+        const rootConnection = await mysql.createConnection({ host, port, user, password });
+        await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\`;`);
+        await rootConnection.end();
+      }
+    } catch (dbCreateErr) {
+      // Ignore: on shared hosting (Hostinger), DB already exists and CREATE is disallowed
+    }
 
-    // 2. Create connection pool to taxpulse_db
+    // 2. Create connection pool directly to the configured database
     dbPool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'taxpulse_db',
+      host,
+      port,
+      user,
+      password,
+      database,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0

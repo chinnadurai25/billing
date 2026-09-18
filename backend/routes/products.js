@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
       const params = [];
 
       if (userId) {
-        query += ' WHERE user_id = ?';
+        query += ' WHERE (user_id = ? OR user_id = "USR-901" OR user_id IS NULL OR user_id = "")';
         params.push(userId);
       }
       query += ' ORDER BY created_at DESC';
