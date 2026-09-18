@@ -1,18 +1,8 @@
-Options -MultiViews
-DirectoryIndex index.html
-
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-
-  # Skip API routes entirely — let Node.js/proxy handle them
-  RewriteRule ^api/ - [L]
-
-  # Serve existing files and directories directly
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-
-  # For everything else, serve index.html (React SPA routing)
-  RewriteRule ^ /index.html [L]
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
 </IfModule>

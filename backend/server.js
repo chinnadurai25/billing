@@ -57,11 +57,15 @@ app.get('/api/health', (req, res) => {
 });
 
 // Resolve correct static files path:
-// Priority 1: frontend/dist (committed React build at root level)
-// Priority 2: backend/dist (fallback copy)
+// Priority 1: root dist (Vite deployment output synced to root)
+// Priority 2: frontend/dist (committed React build)
+// Priority 3: backend/dist (fallback copy)
+const rootDistPath = path.join(__dirname, '..', 'dist');
 const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
 const backendDistPath = path.join(__dirname, 'dist');
-const staticPath = existsSync(path.join(frontendDistPath, 'index.html'))
+const staticPath = existsSync(path.join(rootDistPath, 'index.html'))
+  ? rootDistPath
+  : existsSync(path.join(frontendDistPath, 'index.html'))
   ? frontendDistPath
   : backendDistPath;
 
