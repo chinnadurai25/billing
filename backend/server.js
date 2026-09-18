@@ -18,7 +18,17 @@ import adminRoutes from './routes/admin.js';
 dotenv.config();
 
 const app = express();
-const INITIAL_PORT = parseInt(process.env.PORT || '5000');
+
+// Hostinger assigns PORT dynamically via process.env.PORT — NEVER hardcode it
+const INITIAL_PORT = parseInt(process.env.PORT || '3000');
+
+// Prevent crashes from unhandled promise rejections (critical for Hostinger Node.js)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception:', err);
+});
 
 // Middlewares with 50MB payload limit for company logos & full CORS support
 app.use(cors({
@@ -46,12 +56,22 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve Frontend Static Files (pointing to the dist folder inside backend)
-app.use(express.static(path.join(__dirname, 'dist')));
+// Serve Frontend Static Files
+// Try frontend/dist (one level up from backend), fall back to backend/dist
+const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+const backendDistPath = path.join(__dirname, 'dist');
+
+import { existsSync } from 'fs';
+const staticPath = existsSync(path.join(frontendDistPath, 'index.html'))
+  ? frontendDistPath
+  : backendDistPath;
+
+console.log(`📁 Serving static files from: ${staticPath}`);
+app.use(express.static(staticPath));
 
 // Catch-all route to serve the React app for any non-API URL
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.sendFile(path.join(staticPath, 'index.html'));
 });
 
 // Port Fallback & Server Startup
