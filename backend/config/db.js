@@ -61,36 +61,33 @@ export const fallbackStore = {
 };
 
 export const initDB = async () => {
-<<<<<<< HEAD
-  try {
-    // 1. Try initial connection to create database (for local dev), or skip if user lacks CREATE DATABASE privilege (Hostinger/cPanel)
-    try {
-      const rootConnection = await mysql.createConnection({
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '3306'),
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-      });
-
-      await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'taxpulse_db'}\`;`);
-      await rootConnection.end();
-    } catch (createDbErr) {
-      console.log(`ℹ️ Hostinger/Cloud DB Notice: Skipping CREATE DATABASE (${createDbErr.message}). Connecting directly to database '${process.env.DB_NAME}'...`);
-    }
-=======
   const port = parseInt(process.env.DB_PORT || '3306');
-  const user = process.env.DB_USER || 'u619689962_taxbilling';
-  const password = process.env.DB_PASSWORD || 'Taxbilling@123';
-  const database = process.env.DB_NAME || 'u619689962_taxbilling';
+  const user = process.env.DB_USER || 'root';
+  const password = process.env.DB_PASSWORD || '';
+  const database = process.env.DB_NAME || 'taxpulse_db';
 
-  // Candidate hosts: try 127.0.0.1 first, then localhost, then environment variable
+  // Try initial connection to create database if permitted (for local dev)
+  try {
+    const rootConnection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      port,
+      user,
+      password,
+    });
+
+    await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\`;`);
+    await rootConnection.end();
+  } catch (createDbErr) {
+    // Skip if user lacks CREATE DATABASE privilege (Hostinger/cPanel)
+  }
+
+  // Candidate hosts: try env DB_HOST first, then localhost, then 127.0.0.1
   const candidateHosts = [
     process.env.DB_HOST || '127.0.0.1',
     'localhost',
     '127.0.0.1'
   ];
   const uniqueHosts = [...new Set(candidateHosts)];
->>>>>>> c264a2696bd6cd9ff9ed9df5203562c818ae40fd
 
   for (const host of uniqueHosts) {
     try {

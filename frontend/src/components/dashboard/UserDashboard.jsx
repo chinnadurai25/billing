@@ -1834,11 +1834,12 @@ export const UserDashboard = ({
 
         const periodLabel = getMonthYearLabel(gstrSelectedMonthYear);
 
-        const { b2bRows, b2cRows, filteredInvoices } = processGSTRData(
+        const { b2bRows, b2cRows, hsnSummaryRows, docIssuedRows, filteredInvoices } = processGSTRData(
           invoices,
           customers,
           user?.state || 'Tamil Nadu',
-          gstrSelectedMonthYear
+          gstrSelectedMonthYear,
+          products
         );
 
         const b2bTotals = b2bRows.reduce((acc, r) => ({
@@ -1855,14 +1856,24 @@ export const UserDashboard = ({
           sgst: acc.sgst + r.sgst
         }), { taxable: 0, igst: 0, cgst: 0, sgst: 0 });
 
+        const hsnTotals = hsnSummaryRows.reduce((acc, r) => ({
+          qty: acc.qty + r.totalQty,
+          taxable: acc.taxable + r.taxableValue,
+          igst: acc.igst + r.igst,
+          cgst: acc.cgst + r.cgst,
+          sgst: acc.sgst + r.sgst
+        }), { qty: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0 });
+
         const handleDownloadExcel = () => {
           downloadGSTRExcelReport({
             companyName,
             monthYearLabel: periodLabel,
             b2bRows,
-            b2cRows
+            b2cRows,
+            hsnSummaryRows,
+            docIssuedRows
           });
-          addToast(`GSTR-1 Excel report (.xlsx) downloaded with 'b2b' and 'b2c' sheets for ${periodLabel}!`, 'success', 'Excel Generated');
+          addToast(`GSTR-1 Excel report (.xlsx) downloaded with 'b2b', 'b2c', 'HSN summary' and 'document issued' sheets for ${periodLabel}!`, 'success', 'Excel Generated');
         };
 
         return (
@@ -1876,7 +1887,7 @@ export const UserDashboard = ({
                     GSTR-1 Tax Return Excel Report Generator
                   </h2>
                   <p className="text-xs text-slate-400 font-mono mt-1">
-                    Select month to view, preview B2B (Sheet 1) & B2C (Sheet 2), and download multi-sheet Excel file (.xlsx).
+                    Select month to view, preview B2B (Sheet 1), B2C (Sheet 2) & HSN Summary (Sheet 3), and download multi-sheet Excel file (.xlsx).
                   </p>
                 </div>
 
@@ -1927,9 +1938,9 @@ export const UserDashboard = ({
                   <p className="text-[10px] text-amber-400/80 mt-1">{b2cRows.length} State/Rate Tax Summaries</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                  <p className="text-xs text-slate-400 font-medium">Total Output Tax (GST)</p>
-                  <h4 className="text-xl font-bold text-purple-300 font-mono mt-1">₹{(b2bTotals.igst + b2bTotals.cgst + b2bTotals.sgst + b2cTotals.igst + b2cTotals.cgst + b2cTotals.sgst).toLocaleString('en-IN')}</h4>
-                  <p className="text-[10px] text-purple-400 mt-1">IGST + CGST + SGST</p>
+                  <p className="text-xs text-slate-400 font-medium">HSN Summary (Sheet 3)</p>
+                  <h4 className="text-xl font-bold text-cyan-300 font-mono mt-1">₹{hsnTotals.taxable.toLocaleString('en-IN')}</h4>
+                  <p className="text-[10px] text-cyan-400 mt-1">{hsnSummaryRows.length} Product & Service Categories</p>
                 </div>
               </div>
             </div>
@@ -1937,10 +1948,10 @@ export const UserDashboard = ({
             {/* Excel Sheet Tabs & Table Preview Container */}
             <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-3">
-                <div className="flex items-center gap-2 bg-dark-900 p-1.5 rounded-2xl border border-slate-800 w-fit">
+                <div className="flex items-center gap-2 bg-dark-900 p-1.5 rounded-2xl border border-slate-800 w-fit flex-wrap">
                   <button
                     onClick={() => setGstrReportSubTab('b2b')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       gstrReportSubTab === 'b2b'
                         ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
                         : 'text-slate-400 hover:text-slate-200'
@@ -1950,13 +1961,33 @@ export const UserDashboard = ({
                   </button>
                   <button
                     onClick={() => setGstrReportSubTab('b2c')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       gstrReportSubTab === 'b2c'
                         ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     Sheet 2: b2c (Without GST Number) ({b2cRows.length})
+                  </button>
+                  <button
+                    onClick={() => setGstrReportSubTab('hsn')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      gstrReportSubTab === 'hsn'
+                        ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Sheet 3: HSN summary ({hsnSummaryRows.length})
+                  </button>
+                  <button
+                    onClick={() => setGstrReportSubTab('doc')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      gstrReportSubTab === 'doc'
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Sheet 4: document issued ({docIssuedRows.length})
                   </button>
                 </div>
 
@@ -2093,6 +2124,113 @@ export const UserDashboard = ({
                         </tfoot>
                       )}
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* SHEET 3: HSN SUMMARY TABLE PREVIEW */}
+              {gstrReportSubTab === 'hsn' && (
+                <div className="space-y-3">
+                  <div className="text-center py-2 bg-dark-950/80 border border-slate-800 rounded-xl text-xs font-bold font-mono tracking-wide text-cyan-300">
+                    {companyName.toUpperCase()} {periodLabel} — PRODUCT & SERVICE HSN SUMMARY
+                  </div>
+
+                  <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-dark-900 text-slate-300 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
+                        <tr>
+                          <th className="py-3 px-3">Service & product name</th>
+                          <th className="py-3 px-3">HSN</th>
+                          <th className="py-3 px-3">Unit of Measurement</th>
+                          <th className="py-3 px-3 text-right">Total Qty</th>
+                          <th className="py-3 px-3 text-center">Tax Rate</th>
+                          <th className="py-3 px-3 text-right">Total Taxable Value</th>
+                          <th className="py-3 px-3 text-right">IGST</th>
+                          <th className="py-3 px-3 text-right">CGST</th>
+                          <th className="py-3 px-3 text-right">SGST</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+                        {hsnSummaryRows.length > 0 ? (
+                          hsnSummaryRows.map((r, i) => (
+                            <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="py-2.5 px-3 font-sans font-medium text-white">{r.productName}</td>
+                              <td className="py-2.5 px-3 font-bold text-cyan-400">{r.hsn}</td>
+                              <td className="py-2.5 px-3 font-sans text-slate-400">{r.uom}</td>
+                              <td className="py-2.5 px-3 text-right text-emerald-300">{r.totalQty}</td>
+                              <td className="py-2.5 px-3 text-center font-bold text-cyan-300">{r.taxRate}</td>
+                              <td className="py-2.5 px-3 text-right font-bold text-white">₹{r.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-purple-300">₹{r.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="9" className="text-center py-8 text-slate-500 font-sans">
+                              No product & service line items found for {periodLabel}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {hsnSummaryRows.length > 0 && (
+                        <tfoot className="bg-dark-900/90 font-mono text-xs font-bold border-t border-slate-700 text-white">
+                          <tr>
+                            <td className="py-3 px-3 text-cyan-400">TOTAL</td>
+                            <td colSpan="2" className="py-3 px-3 text-slate-400 font-sans text-[11px]">( will come total details to validate individual )</td>
+                            <td className="py-3 px-3 text-right text-emerald-300">{Math.round(hsnTotals.qty * 100) / 100}</td>
+                            <td className="py-3 px-3"></td>
+                            <td className="py-3 px-3 text-right text-white">₹{hsnTotals.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-purple-300">₹{hsnTotals.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-indigo-300">₹{hsnTotals.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-3 px-3 text-right text-indigo-300">₹{hsnTotals.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* SHEET 4: DOCUMENT ISSUED TABLE PREVIEW */}
+              {gstrReportSubTab === 'doc' && (
+                <div className="space-y-4">
+                  <div className="text-center py-2 bg-dark-950/80 border border-slate-800 rounded-xl text-xs font-bold font-mono tracking-wide text-purple-300">
+                    {companyName.toUpperCase()} {periodLabel} — DOCUMENTS ISSUED (TABLE 13)
+                  </div>
+
+                  <div className="space-y-4">
+                    {docIssuedRows.map((doc, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="text-xs font-bold text-slate-300 capitalize font-mono px-1">
+                          {doc.docCategory}
+                        </div>
+                        <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-dark-900 text-slate-300 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
+                              <tr>
+                                <th className="py-3 px-3">Nature of Document</th>
+                                <th className="py-3 px-3">sl No From</th>
+                                <th className="py-3 px-3">Sl No To</th>
+                                <th className="py-3 px-3 text-right">Total Count</th>
+                                <th className="py-3 px-3 text-right">Cancelled</th>
+                                <th className="py-3 px-3 text-right">Net issued</th>
+                              </tr>
+                            </thead>
+                            <tbody className="font-mono text-slate-300">
+                              <tr className="hover:bg-slate-800/30 transition-colors">
+                                <td className="py-2.5 px-3 font-sans font-medium text-white">{doc.docName}</td>
+                                <td className="py-2.5 px-3 font-bold text-emerald-400">{doc.slNoFrom}</td>
+                                <td className="py-2.5 px-3 font-bold text-emerald-400">{doc.slNoTo}</td>
+                                <td className="py-2.5 px-3 text-right font-bold text-white">{doc.totalCount}</td>
+                                <td className="py-2.5 px-3 text-right text-rose-400">{doc.cancelled}</td>
+                                <td className="py-2.5 px-3 text-right font-bold text-emerald-300">{doc.netIssued}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
