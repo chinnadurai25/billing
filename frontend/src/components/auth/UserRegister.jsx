@@ -318,6 +318,11 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
       // Store in local registered users database for offline/resilient login
       try {
+        const logo = registeredUser.companyLogo || registeredUser.company_logo || payload.companyLogo;
+        if (logo) {
+          if (registeredUser.id) localStorage.setItem(`billson_user_logo_${registeredUser.id}`, logo);
+          if (payload.email) localStorage.setItem(`billson_user_logo_${payload.email.toLowerCase()}`, logo);
+        }
         const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
         const existingIdx = registered.findIndex(u => u.email && u.email.toLowerCase() === payload.email.toLowerCase());
         if (existingIdx !== -1) {

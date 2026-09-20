@@ -44,7 +44,16 @@ function AppContent() {
   const [savedUser] = useState(() => {
     try {
       const stored = localStorage.getItem('billson_active_user') || localStorage.getItem('taxpulse_active_user');
-      return stored ? JSON.parse(stored) : null;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && !parsed.companyLogo && !parsed.company_logo) {
+          const logo = (parsed.id ? localStorage.getItem(`billson_user_logo_${parsed.id}`) : null) ||
+                       (parsed.email ? localStorage.getItem(`billson_user_logo_${parsed.email.toLowerCase()}`) : null);
+          if (logo) parsed.companyLogo = logo;
+        }
+        return parsed;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -376,6 +385,10 @@ function AppContent() {
       setProducts([]);
       setInvoices([]);
 
+      const userLogo = loggedInUser.companyLogo || loggedInUser.company_logo ||
+                       (loggedInUser.id ? localStorage.getItem(`billson_user_logo_${loggedInUser.id}`) : null) ||
+                       (loggedInUser.email ? localStorage.getItem(`billson_user_logo_${loggedInUser.email.toLowerCase()}`) : null);
+
       const completeUser = {
         id: loggedInUser.id || `USR-${Date.now()}`,
         fullName: loggedInUser.fullName || loggedInUser.full_name || 'Business User',
@@ -387,11 +400,17 @@ function AppContent() {
         companyAddress: loggedInUser.companyAddress || loggedInUser.company_address || '',
         state: loggedInUser.state || 'Tamil Nadu',
         constitution: loggedInUser.constitution || 'Private Limited',
-        companyLogo: loggedInUser.companyLogo || loggedInUser.company_logo || null
+        companyLogo: userLogo || null
       };
 
       try {
         localStorage.setItem('billson_active_user', JSON.stringify(completeUser));
+        if (completeUser.id && completeUser.companyLogo) {
+          localStorage.setItem(`billson_user_logo_${completeUser.id}`, completeUser.companyLogo);
+        }
+        if (completeUser.email && completeUser.companyLogo) {
+          localStorage.setItem(`billson_user_logo_${completeUser.email.toLowerCase()}`, completeUser.companyLogo);
+        }
       } catch (e) {}
 
       setUserData(completeUser);

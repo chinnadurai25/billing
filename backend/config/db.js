@@ -40,16 +40,20 @@ export const fallbackStore = {
 
 export const initDB = async () => {
   try {
-    // 1. Initial connection without DB selected to ensure database exists
-    const rootConnection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-    });
+    // 1. Try initial connection to create database (for local dev), or skip if user lacks CREATE DATABASE privilege (Hostinger/cPanel)
+    try {
+      const rootConnection = await mysql.createConnection({
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+      });
 
-    await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'taxpulse_db'}\`;`);
-    await rootConnection.end();
+      await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'taxpulse_db'}\`;`);
+      await rootConnection.end();
+    } catch (createDbErr) {
+      console.log(`ℹ️ Hostinger/Cloud DB Notice: Skipping CREATE DATABASE (${createDbErr.message}). Connecting directly to database '${process.env.DB_NAME}'...`);
+    }
 
     // 2. Create connection pool to taxpulse_db
     dbPool = mysql.createPool({

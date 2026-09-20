@@ -304,16 +304,44 @@ export const UserSettings = ({
         gstNumber: profileForm.gstNumber,
         registrationType: profileForm.registrationType,
         panNumber: profileForm.panNumber,
-        companyLogo: profileForm.companyLogo
+        companyLogo: profileForm.companyLogo || null
       };
 
-      // Persist to backend
+      // Persist to backend if available
       if (user?.id) {
-        await api.updateUserProfile(user.id, profileForm);
+        try {
+          await api.updateUserProfile(user.id, profileForm);
+        } catch (apiErr) {
+          console.warn('Backend update notice:', apiErr);
+        }
       }
 
-      // Update local storage and app state
-      localStorage.setItem('billson_active_user', JSON.stringify(updatedUser));
+      // Update local storage and app state with persistent logo key & registered users update
+      try {
+        localStorage.setItem('billson_active_user', JSON.stringify(updatedUser));
+        
+        if (profileForm.companyLogo) {
+          if (user?.id) localStorage.setItem(`billson_user_logo_${user.id}`, profileForm.companyLogo);
+          if (profileForm.email) localStorage.setItem(`billson_user_logo_${profileForm.email.toLowerCase()}`, profileForm.companyLogo);
+        } else {
+          if (user?.id) localStorage.removeItem(`billson_user_logo_${user.id}`);
+          if (profileForm.email) localStorage.removeItem(`billson_user_logo_${profileForm.email.toLowerCase()}`);
+        }
+
+        const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+        const userEmail = (profileForm.email || user?.email || '').toLowerCase();
+        const userId = user?.id;
+        const foundIdx = registered.findIndex(u => (userId && u.id === userId) || (userEmail && u.email && u.email.toLowerCase() === userEmail));
+        if (foundIdx !== -1) {
+          registered[foundIdx] = { ...registered[foundIdx], ...updatedUser };
+        } else {
+          registered.push(updatedUser);
+        }
+        localStorage.setItem('billson_registered_users', JSON.stringify(registered));
+      } catch (e) {
+        console.error('LocalStorage update error:', e);
+      }
+
       if (typeof setUserData === 'function') {
         setUserData(updatedUser);
       }

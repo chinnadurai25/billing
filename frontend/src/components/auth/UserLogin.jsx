@@ -32,13 +32,21 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
       const res = await api.loginUser({ username: email.trim(), email: email.trim(), password });
       setLoading(false);
 
+      const getStoredLogo = (uObj) => {
+        if (!uObj) return null;
+        return uObj.companyLogo || uObj.company_logo ||
+          (uObj.id ? localStorage.getItem(`billson_user_logo_${uObj.id}`) : null) ||
+          (uObj.email ? localStorage.getItem(`billson_user_logo_${uObj.email.toLowerCase()}`) : null);
+      };
+
       if (res && res.success) {
         if (res.token) {
           localStorage.setItem('billson_token', res.token);
           localStorage.removeItem('taxpulse_token');
         }
         addToast('Authentication successful. Redirecting to User Dashboard...', 'success', 'Welcome Back');
-        onLoginSuccess(res.user);
+        const userToPass = { ...res.user, companyLogo: getStoredLogo(res.user) || null };
+        onLoginSuccess(userToPass);
       } else if (res && res.fallback) {
         // High-resilience session fallback so user is never blocked on live site without node backend
         let localUser = null;
@@ -55,6 +63,7 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
           gstNumber: '33AAACD1234F1Z5',
           panNumber: 'AAACD1234F'
         };
+        userToLogin.companyLogo = getStoredLogo(userToLogin) || null;
 
         addToast('Authentication successful (Session Active)', 'success', 'Welcome Back');
         onLoginSuccess(userToLogin);
@@ -79,6 +88,11 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
         gstNumber: '33AAACD1234F1Z5',
         panNumber: 'AAACD1234F'
       };
+      
+      const logo = userToLogin.companyLogo || userToLogin.company_logo ||
+        (userToLogin.id ? localStorage.getItem(`billson_user_logo_${userToLogin.id}`) : null) ||
+        (userToLogin.email ? localStorage.getItem(`billson_user_logo_${userToLogin.email.toLowerCase()}`) : null);
+      userToLogin.companyLogo = logo || null;
 
       addToast('Authentication successful (Session Active)', 'success', 'Welcome Back');
       onLoginSuccess(userToLogin);
