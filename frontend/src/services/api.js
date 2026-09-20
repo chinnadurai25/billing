@@ -81,6 +81,9 @@ export const api = {
   updateInvoice: (id, invoiceData) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoiceData) }),
   deleteInvoice: (id) => request(`/invoices/${id}`, { method: 'DELETE' }),
 
+  // Bulk Sync to Database
+  syncAll: (payload) => request('/sync-all', { method: 'POST', body: JSON.stringify(payload) }),
+
   // Admin Registered Users
   getAdminUsers: () => request('/admin/users'),
 };

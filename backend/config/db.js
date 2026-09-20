@@ -2,10 +2,32 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
 
 let dbPool = null;
 let isMySqlConnected = false;
+let lastDbError = null;
+let activeDbHost = null;
+
+export const getDbDiagnostics = () => ({
+  connected: isMySqlConnected,
+  activeHost: activeDbHost,
+  lastError: lastDbError,
+  config: {
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'u619689962_taxbilling',
+    database: process.env.DB_NAME || 'u619689962_taxbilling',
+    port: parseInt(process.env.DB_PORT || '3306')
+  }
+});
 
 // Fallback in-memory store if MySQL server is offline during dev
 export const fallbackStore = {
@@ -39,6 +61,7 @@ export const fallbackStore = {
 };
 
 export const initDB = async () => {
+<<<<<<< HEAD
   try {
     // 1. Try initial connection to create database (for local dev), or skip if user lacks CREATE DATABASE privilege (Hostinger/cPanel)
     try {
@@ -54,21 +77,43 @@ export const initDB = async () => {
     } catch (createDbErr) {
       console.log(`ℹ️ Hostinger/Cloud DB Notice: Skipping CREATE DATABASE (${createDbErr.message}). Connecting directly to database '${process.env.DB_NAME}'...`);
     }
+=======
+  const port = parseInt(process.env.DB_PORT || '3306');
+  const user = process.env.DB_USER || 'u619689962_taxbilling';
+  const password = process.env.DB_PASSWORD || 'Taxbilling@123';
+  const database = process.env.DB_NAME || 'u619689962_taxbilling';
 
-    // 2. Create connection pool to taxpulse_db
-    dbPool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'taxpulse_db',
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
+  // Candidate hosts: try 127.0.0.1 first, then localhost, then environment variable
+  const candidateHosts = [
+    process.env.DB_HOST || '127.0.0.1',
+    'localhost',
+    '127.0.0.1'
+  ];
+  const uniqueHosts = [...new Set(candidateHosts)];
+>>>>>>> c264a2696bd6cd9ff9ed9df5203562c818ae40fd
 
-    // 3. Create Tables
-    const connection = await dbPool.getConnection();
+  for (const host of uniqueHosts) {
+    try {
+      console.log(`🔌 Attempting MySQL connection to ${user}@${host}:${port}/${database}...`);
+
+      const pool = mysql.createPool({
+        host,
+        port,
+        user,
+        password,
+        database,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        connectTimeout: 7000
+      });
+
+      const connection = await pool.getConnection();
+      dbPool = pool;
+      activeDbHost = host;
+      isMySqlConnected = true;
+      lastDbError = null;
+      console.log(`✅ MySQL successfully connected via ${host}!`);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -277,13 +322,18 @@ export const initDB = async () => {
       console.log('✅ Initial Seed Data successfully populated in MySQL tables!');
     }
 
-    connection.release();
-    isMySqlConnected = true;
-    console.log('✅ MySQL Database Connected & All 7 Relational Tables Ready (taxpulse_db)');
-  } catch (error) {
-    console.log(`⚠️ MySQL Connection Note: ${error.message}. Operating with Memory-Store fallback mode.`);
-    isMySqlConnected = false;
+      connection.release();
+      isMySqlConnected = true;
+      console.log(`✅ MySQL Database Connected & Tables Ready via ${host}`);
+      return; // Successfully initialized!
+    } catch (error) {
+      lastDbError = `${host}: ${error.message}`;
+      console.log(`⚠️ MySQL connection to ${host} failed: ${error.message}`);
+    }
   }
+
+  isMySqlConnected = false;
+  console.error(`❌ ALL MySQL connection attempts failed! Last error: ${lastDbError}. Operating in memory fallback.`);
 };
 
 export const getDB = () => dbPool;

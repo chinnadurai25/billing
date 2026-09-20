@@ -12,13 +12,11 @@ router.get('/', async (req, res) => {
       const db = getDB();
       let query = 'SELECT * FROM products_services';
       const params = [];
-
       if (userId) {
         query += ' WHERE user_id = ?';
         params.push(userId);
       }
       query += ' ORDER BY created_at DESC';
-
       const [rows] = await db.query(query, params);
       return res.json({ success: true, data: rows });
     }
