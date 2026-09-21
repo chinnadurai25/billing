@@ -298,9 +298,11 @@ export const UserDashboard = ({
       isOpen: true,
       title: 'Delete Customer Ledger',
       message: `Are you sure you want to delete "${customer.name}" (${customer.id})? All associated records will be removed.`,
-      onConfirm: () => {
+      onConfirm: async () => {
         setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
-        api.deleteCustomer(customer.id);
+        try {
+          await api.deleteCustomer(customer.id);
+        } catch (e) {}
         addToast(`Customer "${customer.name}" deleted successfully.`, 'info', 'Customer Deleted');
       }
     });
@@ -447,9 +449,11 @@ export const UserDashboard = ({
       isOpen: true,
       title: 'Delete Bank / Cash Account',
       message: `Are you sure you want to delete "${bank.accountName}" (${bank.accountNumber})? This ledger will no longer be available for payments.`,
-      onConfirm: () => {
+      onConfirm: async () => {
         setBankAccounts((prev) => prev.filter((b) => b.id !== bank.id));
-        api.deleteBankAccount(bank.id);
+        try {
+          await api.deleteBankAccount(bank.id);
+        } catch (e) {}
         addToast(`Account "${bank.accountName}" deleted successfully.`, 'info', 'Account Deleted');
       }
     });
@@ -578,9 +582,11 @@ export const UserDashboard = ({
       isOpen: true,
       title: 'Delete Item / Service',
       message: `Are you sure you want to delete "${item.title}" (${item.id})? It will be removed from item catalogs.`,
-      onConfirm: () => {
+      onConfirm: async () => {
         setProducts((prev) => prev.filter((p) => p.id !== item.id));
-        api.deleteProduct(item.id);
+        try {
+          await api.deleteProduct(item.id);
+        } catch (e) {}
         addToast(`Item "${item.title}" deleted successfully.`, 'info', 'Item Deleted');
       }
     });
@@ -602,15 +608,18 @@ export const UserDashboard = ({
     setDeleteModal({
       isOpen: true,
       title: 'Delete Tax Invoice',
-      message: `Are you sure you want to delete Tax Invoice "${inv.invoiceNumber}" for ${inv.customerName}?`,
-      onConfirm: () => {
+      message: `Are you sure you want to delete Tax Invoice "${inv.invoiceNumber || inv.invoice_number}" for ${inv.customerName || inv.customer_name}?`,
+      onConfirm: async () => {
+        const targetId = inv.id || inv.invoiceNumber || inv.invoice_number;
         setInvoices((prev) => {
-          const updated = prev.filter((i) => i.id !== inv.id);
+          const updated = prev.filter((i) => i.id !== inv.id && i.invoiceNumber !== inv.invoiceNumber && i.invoice_number !== inv.invoice_number);
           updateLocalInvoices(updated);
           return updated;
         });
-        api.deleteInvoice(inv.id);
-        addToast(`Invoice ${inv.invoiceNumber} deleted successfully.`, 'info', 'Invoice Deleted');
+        try {
+          await api.deleteInvoice(targetId);
+        } catch (e) {}
+        addToast(`Invoice ${inv.invoiceNumber || inv.invoice_number || targetId} deleted successfully.`, 'info', 'Invoice Deleted');
       }
     });
   };

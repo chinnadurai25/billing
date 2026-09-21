@@ -40,10 +40,20 @@ $basePath = preg_replace('/\?.*$/', '', $requestUri);
 $path = preg_replace('#^.*?/api/?#', '', $basePath);
 $pathParts = explode('/', trim($path, '/'));
 $resource = $pathParts[0] ?? '';
-$resourceId = $pathParts[1] ?? null;
-$method = $_SERVER['REQUEST_METHOD'];
 
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
+$resourceId = $pathParts[1] ?? ($_GET['id'] ?? ($input['id'] ?? null));
+
+$method = $_SERVER['REQUEST_METHOD'];
+if ($method === 'POST') {
+    if (!empty($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'])) {
+        $method = strtoupper($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']);
+    } elseif (!empty($_GET['_method'])) {
+        $method = strtoupper($_GET['_method']);
+    } elseif (!empty($input['_method'])) {
+        $method = strtoupper($input['_method']);
+    }
+}
 
 // Health / Diagnostics
 if ($resource === 'health' || $resource === 'db-diagnostics') {
@@ -237,8 +247,8 @@ try {
             exit();
         }
         if ($method === 'DELETE' && $resourceId) {
-            $stmt = $pdo->prepare("DELETE FROM invoices WHERE id = ?");
-            $stmt->execute([$resourceId]);
+            $stmt = $pdo->prepare("DELETE FROM invoices WHERE id = ? OR invoice_number = ?");
+            $stmt->execute([$resourceId, $resourceId]);
             echo json_encode(['success' => true, 'message' => 'Invoice deleted']);
             exit();
         }
@@ -556,11 +566,12 @@ try {
                 exit();
             }
             try {
-                // Cascade delete associated tenant data
-                $pdo->prepare("DELETE FROM invoices WHERE user_id = ?")->execute([$delUserId]);
-                $pdo->prepare("DELETE FROM customers WHERE user_id = ?")->execute([$delUserId]);
-                $pdo->prepare("DELETE FROM products WHERE user_id = ?")->execute([$delUserId]);
-                $pdo->prepare("DELETE FROM bank_accounts WHERE user_id = ?")->execute([$delUserId]);
+                // Cascade delete associated tenant data safely
+                try { $pdo->prepare("DELETE FROM invoices WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
+                try { $pdo->prepare("DELETE FROM customers WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
+                try { $pdo->prepare("DELETE FROM products_services WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
+                try { $pdo->prepare("DELETE FROM products WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
+                try { $pdo->prepare("DELETE FROM bank_accounts WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
                 $delStmt = $pdo->prepare("DELETE FROM users WHERE id = ? OR username = ? OR email = ?");
                 $delStmt->execute([$delUserId, $delUserId, $delUserId]);
                 
