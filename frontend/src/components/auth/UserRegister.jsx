@@ -139,7 +139,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     }
   };
 
-  // Trigger OTP Generation & Send
+  // Trigger OTP Generation & Send to Real Email
   const handleSendOtp = async () => {
     if (!formData.email.trim()) {
       addToast('Please enter your Email ID first', 'error');
@@ -158,40 +158,28 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     if (res && res.success) {
       setOtpSent(true);
       setOtpCountdown(60);
-      if (res.sent) {
-        setIsRealEmailSent(true);
-        addToast(`OTP Sent! Check your email inbox at ${formData.email}`, 'success', 'OTP Sent via Email');
-      } else {
-        setIsRealEmailSent(false);
-        if (res.code) setGeneratedOtp(res.code);
-        addToast(`OTP generated for ${formData.email}! Demo Code: ${res.code || '123456'}`, 'info', 'OTP Generated');
-      }
+      setIsRealEmailSent(true);
+      addToast(`OTP code sent successfully to ${formData.email}! Please check your Inbox.`, 'success', 'OTP Sent via Email');
     } else {
-      // Fallback gracefully so registration is never blocked on network drops
-      const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOtp(fallbackCode);
-      setOtpSent(true);
-      setOtpCountdown(60);
-      setIsRealEmailSent(false);
-      addToast(`OTP generated for ${formData.email}! Demo Code: ${fallbackCode}`, 'info', 'OTP Verification Code');
+      addToast(res?.message || 'Failed to send OTP email. Please check your email address and try again.', 'error', 'Email OTP Error');
     }
   };
 
   // Verify OTP
   const handleVerifyOtp = async () => {
     if (!enteredOtp.trim()) {
-      addToast('Please enter the 6-digit OTP code', 'error');
+      addToast('Please enter the 6-digit OTP code received in your email', 'error');
       return;
     }
 
     const res = await api.verifyOtp({ email: formData.email, otp: enteredOtp.trim() });
-    if ((res && res.success) || enteredOtp.trim() === generatedOtp || enteredOtp.trim() === '984210' || enteredOtp.trim() === '123456') {
+    if (res && res.success) {
       setIsEmailVerified(true);
       setOtpSent(false);
       setErrors((prev) => ({ ...prev, email: '' }));
       addToast('Email ID verified successfully! ✓', 'success', 'OTP Verified');
     } else {
-      addToast(res?.message || 'Incorrect OTP entered. Please try again.', 'error', 'Invalid OTP');
+      addToast(res?.message || 'Incorrect OTP code. Please check your email inbox and try again.', 'error', 'Invalid OTP');
     }
   };
 
@@ -504,14 +492,8 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       <span className="text-xs font-semibold text-indigo-200 flex items-center gap-1.5">
                         <Shield className="w-4 h-4 text-indigo-400" /> Enter 6-Digit OTP Code
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {isRealEmailSent ? (
-                          <span className="text-emerald-400 font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-                            📧 Check your Inbox ({formData.email})
-                          </span>
-                        ) : (
-                          <>Demo OTP: <strong className="text-amber-300 font-mono font-bold">{generatedOtp}</strong></>
-                        )}
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1">
+                        📧 Sent to Email Inbox ({formData.email})
                       </span>
                     </div>
 
@@ -522,16 +504,19 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                         value={enteredOtp}
                         onChange={(e) => setEnteredOtp(e.target.value)}
                         placeholder="Enter 6-digit OTP code"
-                        className="flex-1 px-4 py-2 rounded-xl glass-input text-xs font-mono text-center tracking-widest font-bold"
+                        className="flex-1 px-4 py-2 rounded-xl glass-input text-xs font-mono text-center tracking-widest font-bold text-white placeholder:text-slate-500"
                       />
                       <button
                         type="button"
                         onClick={handleVerifyOtp}
-                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all"
+                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
                       >
                         Verify OTP
                       </button>
                     </div>
+                    <p className="text-[11px] text-slate-400">
+                      * An OTP verification code has been sent to your email address ({formData.email}). Please check your Inbox / Spam folder.
+                    </p>
                   </div>
                 )}
               </div>

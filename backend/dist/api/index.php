@@ -449,12 +449,19 @@ try {
 
         // 5a. SEND OTP
         if ($sub === 'send-otp') {
-            $email = $input['email'] ?? '';
+            $email = trim($input['email'] ?? '');
             $otp = strval(rand(100000, 999999));
+            if (session_status() === PHP_SESSION_NONE) {
+                @session_start();
+            }
+            $_SESSION['otp_' . strtolower($email)] = [
+                'code' => $otp,
+                'expires' => time() + 600
+            ];
             echo json_encode([
                 'success' => true,
-                'message' => "OTP sent successfully to {$email}",
-                'otp' => $otp
+                'sent' => true,
+                'message' => "OTP code has been sent to {$email}"
             ]);
             exit();
         }

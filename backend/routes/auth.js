@@ -29,18 +29,10 @@ router.post('/send-otp', async (req, res) => {
         message: `Verification OTP has been sent to ${email}`,
         sent: true
       });
-    } else if (result.simulated) {
-      res.json({
-        success: true,
-        message: `OTP code generated for ${email}. Demo Code: ${otpCode}`,
-        code: otpCode,
-        simulated: true,
-        notice: 'Add your Gmail address & App Password to backend/.env to send real emails'
-      });
     } else {
       res.status(500).json({
         success: false,
-        message: result.error || 'Failed to send OTP email. Please check SMTP settings in backend/.env'
+        message: result.error || 'Failed to send OTP email. Please verify SMTP settings in backend/.env'
       });
     }
   } catch (error) {
