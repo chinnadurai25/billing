@@ -49,20 +49,23 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
         onLoginSuccess(userToPass);
       } else if (res && res.fallback) {
         // High-resilience session fallback so user is never blocked on live site without node backend
+        const cleanEmail = email.trim().toLowerCase();
         let localUser = null;
         try {
           const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
-          localUser = registered.find(u => u.email && u.email.toLowerCase() === email.trim().toLowerCase());
+          localUser = registered.find(u => u.email && u.email.toLowerCase() === cleanEmail);
         } catch (e) {}
 
+        const stableId = localUser?.id || `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}`;
         const userToLogin = localUser || {
-          id: `USR-${Date.now()}`,
+          id: stableId,
           fullName: email.split('@')[0] || 'Authenticated User',
           email: email.trim(),
           companyName: 'BillSon Enterprise Solutions',
           gstNumber: '33AAACD1234F1Z5',
           panNumber: 'AAACD1234F'
         };
+        if (!userToLogin.id) userToLogin.id = stableId;
         userToLogin.companyLogo = getStoredLogo(userToLogin) || null;
 
         addToast('Authentication successful (Session Active)', 'success', 'Welcome Back');
@@ -74,20 +77,23 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
       }
     } catch (err) {
       setLoading(false);
+      const cleanEmail = email.trim().toLowerCase();
       let localUser = null;
       try {
         const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
-        localUser = registered.find(u => u.email && u.email.toLowerCase() === email.trim().toLowerCase());
+        localUser = registered.find(u => u.email && u.email.toLowerCase() === cleanEmail);
       } catch (e) {}
 
+      const stableId = localUser?.id || `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}`;
       const userToLogin = localUser || {
-        id: `USR-${Date.now()}`,
+        id: stableId,
         fullName: email.split('@')[0] || 'Authenticated User',
         email: email.trim(),
         companyName: 'BillSon Enterprise Solutions',
         gstNumber: '33AAACD1234F1Z5',
         panNumber: 'AAACD1234F'
       };
+      if (!userToLogin.id) userToLogin.id = stableId;
       
       const logo = userToLogin.companyLogo || userToLogin.company_logo ||
         (userToLogin.id ? localStorage.getItem(`billson_user_logo_${userToLogin.id}`) : null) ||

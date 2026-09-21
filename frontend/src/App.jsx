@@ -77,12 +77,13 @@ const loadCachedItems = (entityKey, activeUserId, defaultFallback = []) => {
 
 const saveCachedItems = (entityKey, activeUserId, items) => {
   try {
+    if (!activeUserId) return;
     const list = Array.isArray(items) ? items : [];
-    if (activeUserId) {
-      localStorage.setItem(`billson_${entityKey}_${activeUserId}`, JSON.stringify(list));
+    localStorage.setItem(`billson_${entityKey}_${activeUserId}`, JSON.stringify(list));
+    if (list.length > 0) {
+      localStorage.setItem(`billson_${entityKey}_global`, JSON.stringify(list));
+      localStorage.setItem(`billson_${entityKey}`, JSON.stringify(list));
     }
-    localStorage.setItem(`billson_${entityKey}_global`, JSON.stringify(list));
-    localStorage.setItem(`billson_${entityKey}`, JSON.stringify(list));
   } catch (e) {
     console.warn(`Error saving cached ${entityKey}:`, e);
   }
@@ -427,18 +428,16 @@ function AppContent() {
   // Auth success handlers (Login / Registration)
   const handleAuthSuccess = (loggedInUser) => {
     if (loggedInUser) {
-      // Clear any prior session data immediately
-      setCustomers([]);
-      setBankAccounts([]);
-      setProducts([]);
-      setInvoices([]);
+      const cleanEmail = (loggedInUser.email || '').trim().toLowerCase();
+      const stableFallbackId = cleanEmail ? `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}` : `USR-901`;
+      const targetUserId = loggedInUser.id || stableFallbackId;
 
       const userLogo = loggedInUser.companyLogo || loggedInUser.company_logo ||
-                       (loggedInUser.id ? localStorage.getItem(`billson_user_logo_${loggedInUser.id}`) : null) ||
-                       (loggedInUser.email ? localStorage.getItem(`billson_user_logo_${loggedInUser.email.toLowerCase()}`) : null);
+                       (targetUserId ? localStorage.getItem(`billson_user_logo_${targetUserId}`) : null) ||
+                       (cleanEmail ? localStorage.getItem(`billson_user_logo_${cleanEmail}`) : null);
 
       const completeUser = {
-        id: loggedInUser.id || `USR-${Date.now()}`,
+        id: targetUserId,
         fullName: loggedInUser.fullName || loggedInUser.full_name || 'Business User',
         companyName: loggedInUser.companyName || loggedInUser.company_name || 'My Enterprise',
         gstNumber: loggedInUser.gstNumber || loggedInUser.gst_number || '',
@@ -456,10 +455,21 @@ function AppContent() {
         if (completeUser.id && completeUser.companyLogo) {
           localStorage.setItem(`billson_user_logo_${completeUser.id}`, completeUser.companyLogo);
         }
-        if (completeUser.email && completeUser.companyLogo) {
-          localStorage.setItem(`billson_user_logo_${completeUser.email.toLowerCase()}`, completeUser.companyLogo);
+        if (cleanEmail && completeUser.companyLogo) {
+          localStorage.setItem(`billson_user_logo_${cleanEmail}`, completeUser.companyLogo);
         }
       } catch (e) {}
+
+      // Immediately restore this user's cached items into state without triggering saveCachedItems([])
+      const cachedCust = loadCachedItems('customers', completeUser.id);
+      const cachedBanks = loadCachedItems('bank_accounts', completeUser.id);
+      const cachedProds = loadCachedItems('products', completeUser.id);
+      const cachedInvs = loadCachedItems('invoices', completeUser.id);
+
+      setCustomersState(cachedCust);
+      setBankAccountsState(cachedBanks);
+      setProductsState(cachedProds);
+      setInvoicesState(cachedInvs);
 
       setUserData(completeUser);
       fetchUserData(completeUser.id);
@@ -507,10 +517,11 @@ function AppContent() {
       localStorage.removeItem('taxpulse_token');
     } catch (e) {}
     setUserData(null);
-    setCustomers([]);
-    setBankAccounts([]);
-    setProducts([]);
-    setInvoices([]);
+    // Reset React in-memory states without overwriting persistent localStorage
+    setCustomersState([]);
+    setBankAccountsState([]);
+    setProductsState([]);
+    setInvoicesState([]);
     setCurrentView('landing');
   };
 

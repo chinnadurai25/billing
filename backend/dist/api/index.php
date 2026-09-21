@@ -9,96 +9,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-/**
- * Send OTP Email via Gmail SMTP directly from PHP API
- */
-function sendGmailSMTPOtp($toEmail, $otpCode) {
-    if (empty($toEmail)) return false;
-    $smtpHost = 'ssl://smtp.gmail.com';
-    $smtpPort = 465;
-    $smtpUser = 'easyeetax@gmail.com';
-    $smtpPass = 'sxiurqlkognijuwn';
-
-    $socket = @fsockopen($smtpHost, $smtpPort, $errno, $errstr, 15);
-    if (!$socket) {
-        $headers = "From: BillSon Compliance <{$smtpUser}>\r\n" .
-                   "Reply-To: {$smtpUser}\r\n" .
-                   "Content-Type: text/html; charset=UTF-8\r\n";
-        $subject = "🔒 BillSon Account Registration OTP: {$otpCode}";
-        $body = "<h2>BillSon Registration OTP</h2><p>Your 6-digit OTP code is: <b>{$otpCode}</b></p>";
-        return @mail($toEmail, $subject, $body, $headers);
-    }
-
-    $readSmtp = function($sock) {
-        $resp = '';
-        while ($str = fgets($sock, 512)) {
-            $resp .= $str;
-            if (substr($str, 3, 1) == ' ') break;
-        }
-        return $resp;
-    };
-
-    $readSmtp($socket);
-    fputs($socket, "EHLO live-server\r\n");
-    $readSmtp($socket);
-
-    fputs($socket, "AUTH LOGIN\r\n");
-    $readSmtp($socket);
-
-    fputs($socket, base64_encode($smtpUser) . "\r\n");
-    $readSmtp($socket);
-
-    fputs($socket, base64_encode($smtpPass) . "\r\n");
-    $authRes = $readSmtp($socket);
-
-    if (strpos($authRes, '235') === false) {
-        fclose($socket);
-        return false;
-    }
-
-    fputs($socket, "MAIL FROM: <{$smtpUser}>\r\n");
-    $readSmtp($socket);
-
-    fputs($socket, "RCPT TO: <{$toEmail}>\r\n");
-    $readSmtp($socket);
-
-    fputs($socket, "DATA\r\n");
-    $readSmtp($socket);
-
-    $subject = "🔒 BillSon Account Registration OTP: {$otpCode}";
-    $headers = "From: \"BillSon Compliance Portal\" <{$smtpUser}>\r\n" .
-               "To: {$toEmail}\r\n" .
-               "Subject: {$subject}\r\n" .
-               "MIME-Version: 1.0\r\n" .
-               "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-
-    $htmlBody = '
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8"></head>
-      <body style="font-family: Arial, sans-serif; background-color: #0b0f19; color: #ffffff; padding: 20px;">
-        <div style="max-width: 500px; margin: 0 auto; background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 30px;">
-          <h2 style="color: #818cf8; text-align: center;">⚡ BillSon Compliance Portal</h2>
-          <p>Hello,</p>
-          <p>Thank you for registering on BillSon SaaS Portal. Please use the following 6-digit One-Time Password (OTP) to complete your email verification:</p>
-          <div style="text-align: center; margin: 25px 0; background: #1e1b4b; border: 1px solid #4f46e5; border-radius: 12px; padding: 15px;">
-            <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #38bdf8;">' . $otpCode . '</span>
-          </div>
-          <p style="font-size: 12px; color: #94a3b8;">Valid for 10 minutes • Do not share this code with anyone.</p>
-        </div>
-      </body>
-      </html>
-    ';
-
-    fputs($socket, $headers . $htmlBody . "\r\n.\r\n");
-    $readSmtp($socket);
-
-    fputs($socket, "QUIT\r\n");
-    fclose($socket);
-
-    return true;
-}
-
 // Database Configuration
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbPort = getenv('DB_PORT') ?: '3306';
@@ -170,64 +80,7 @@ foreach ($seedCust as $sc) {
     try { $seedStmt->execute($sc); } catch (Exception $e) {}
 }
 
-// Bulk Sync endpoint for any data created in browser
-if ($resource === 'sync-all' && $method === 'POST') {
-    $cList = $input['customers'] ?? [];
-    $iList = $input['invoices'] ?? [];
 
-    $cs = $pdo->prepare("INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE name=VALUES(name), ledger=VALUES(ledger), address=VALUES(address), gst_number=VALUES(gst_number), pan_number=VALUES(pan_number), mobile=VALUES(mobile), email=VALUES(email), city=VALUES(city), state=VALUES(state)");
-    foreach ($cList as $c) {
-        try {
-            $cs->execute([
-                $c['id'],
-                $c['userId'] ?? ($c['user_id'] ?? 'USR-1788426517605'),
-                $c['name'],
-                $c['ledger'] ?? 'SUNDRY DEBTORS',
-                $c['address'] ?? '',
-                $c['gstNumber'] ?? ($c['gst_number'] ?? ''),
-                $c['panNumber'] ?? ($c['pan_number'] ?? ''),
-                $c['phone'] ?? ($c['mobile'] ?? ''),
-                $c['email'] ?? '',
-                $c['city'] ?? '',
-                $c['state'] ?? '',
-                floatval($c['totalBilled'] ?? ($c['total_billed'] ?? 0)),
-                $c['status'] ?? 'Active'
-            ]);
-        } catch (Exception $e) {}
-    }
-
-    $is = $pdo->prepare("INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE customer_name=VALUES(customer_name), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status)");
-    foreach ($iList as $inv) {
-        try {
-            $itemsJson = isset($inv['items']) ? (is_string($inv['items']) ? $inv['items'] : json_encode($inv['items'])) : '[]';
-            $is->execute([
-                $inv['id'],
-                $inv['userId'] ?? ($inv['user_id'] ?? 'USR-1788426517605'),
-                $inv['documentType'] ?? ($inv['document_type'] ?? 'Sales Invoice'),
-                $inv['invoiceNumber'] ?? ($inv['invoice_number'] ?? $inv['id']),
-                $inv['customerName'] ?? ($inv['customer_name'] ?? ''),
-                $inv['customerGst'] ?? ($inv['customer_gst'] ?? ''),
-                $inv['date'] ?? date('Y-m-d'),
-                $inv['dueDate'] ?? ($inv['due_date'] ?? date('Y-m-d')),
-                floatval($inv['subtotal'] ?? 0),
-                floatval($inv['cgst'] ?? 0),
-                floatval($inv['sgst'] ?? 0),
-                floatval($inv['igst'] ?? 0),
-                floatval($inv['totalTax'] ?? ($inv['total_tax'] ?? 0)),
-                floatval($inv['grandTotal'] ?? ($inv['grand_total'] ?? 0)),
-                $inv['status'] ?? 'Pending',
-                $itemsJson
-            ]);
-        } catch (Exception $e) {}
-    }
-
-    echo json_encode(['success' => true, 'message' => 'All customers and invoices synchronized to MySQL']);
-    exit();
-}
 
 try {
     // 1. CUSTOMERS
@@ -493,13 +346,15 @@ try {
 
     // 5. BULK SYNC
     if ($resource === 'sync-all' && $method === 'POST') {
+        $syncUserId = $input['userId'] ?? ($input['user_id'] ?? null);
         if (!empty($input['customers']) && is_array($input['customers'])) {
             $stmt = $pdo->prepare("INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'Active')
-                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), name=VALUES(name)");
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), name=VALUES(name), ledger=VALUES(ledger), address=VALUES(address), gst_number=VALUES(gst_number), pan_number=VALUES(pan_number), mobile=VALUES(mobile), email=VALUES(email), city=VALUES(city), state=VALUES(state)");
             foreach ($input['customers'] as $c) {
                 $cId = $c['id'] ?? ('CUST-' . substr(time(), -6));
-                $uId = $c['userId'] ?? ($c['user_id'] ?? 'USR-901');
+                $uId = $c['userId'] ?? ($c['user_id'] ?? $syncUserId);
+                if (!$uId) continue;
                 $stmt->execute([
                     $cId, $uId, $c['name'] ?? '', $c['ledger'] ?? 'SUNDRY DEBTORS',
                     $c['address'] ?? '', $c['gstNumber'] ?? ($c['gst_number'] ?? ''),
@@ -511,10 +366,11 @@ try {
         if (!empty($input['invoices']) && is_array($input['invoices'])) {
             $stmt = $pdo->prepare("INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), customer_name=VALUES(customer_name)");
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), document_type=VALUES(document_type), invoice_number=VALUES(invoice_number), customer_name=VALUES(customer_name), customer_gst=VALUES(customer_gst), date=VALUES(date), due_date=VALUES(due_date), subtotal=VALUES(subtotal), cgst=VALUES(cgst), sgst=VALUES(sgst), igst=VALUES(igst), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status), items=VALUES(items)");
             foreach ($input['invoices'] as $i) {
                 $iId = $i['id'] ?? ('INV-' . substr(time(), -6));
-                $uId = $i['userId'] ?? ($i['user_id'] ?? 'USR-901');
+                $uId = $i['userId'] ?? ($i['user_id'] ?? $syncUserId);
+                if (!$uId) continue;
                 $itemsJson = isset($i['items']) ? (is_string($i['items']) ? $i['items'] : json_encode($i['items'])) : '[]';
                 $stmt->execute([
                     $iId, $uId, $i['documentType'] ?? ($i['document_type'] ?? 'Sales Invoice'),
@@ -588,7 +444,9 @@ try {
             $username = $input['username'] ?? ($email ? explode('@', $email)[0] : '');
             $password = $input['password'] ?? 'Taxbilling@123';
             $companyLogo = $input['companyLogo'] ?? null;
-            $id = $input['id'] ?? ('USR-' . round(microtime(true) * 1000));
+            $cleanEmail = strtolower(trim($email));
+            $stableFallbackId = !empty($cleanEmail) ? ('USR-' . substr(preg_replace('/[^a-zA-Z0-9]/', '', base64_encode($cleanEmail)), 0, 15)) : ('USR-' . round(microtime(true) * 1000));
+            $id = $input['id'] ?? $stableFallbackId;
 
             $hash = password_hash($password, PASSWORD_BCRYPT);
 

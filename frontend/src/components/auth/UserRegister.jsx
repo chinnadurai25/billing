@@ -318,17 +318,21 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
     setIsSubmitting(true);
     try {
+      const cleanEmail = formData.email.trim().toLowerCase();
+      const stableId = `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}`;
       const payload = {
         ...formData,
+        id: stableId,
         username: formData.email
       };
       const res = await api.registerUser(payload);
       setIsSubmitting(false);
 
       const registeredUser = res?.user || {
-        id: `USR-${Date.now()}`,
+        id: stableId,
         ...payload
       };
+      if (!registeredUser.id) registeredUser.id = stableId;
 
       // Store in local registered users database for offline/resilient login
       try {

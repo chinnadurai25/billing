@@ -80,64 +80,7 @@ foreach ($seedCust as $sc) {
     try { $seedStmt->execute($sc); } catch (Exception $e) {}
 }
 
-// Bulk Sync endpoint for any data created in browser
-if ($resource === 'sync-all' && $method === 'POST') {
-    $cList = $input['customers'] ?? [];
-    $iList = $input['invoices'] ?? [];
 
-    $cs = $pdo->prepare("INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE name=VALUES(name), ledger=VALUES(ledger), address=VALUES(address), gst_number=VALUES(gst_number), pan_number=VALUES(pan_number), mobile=VALUES(mobile), email=VALUES(email), city=VALUES(city), state=VALUES(state)");
-    foreach ($cList as $c) {
-        try {
-            $cs->execute([
-                $c['id'],
-                $c['userId'] ?? ($c['user_id'] ?? 'USR-1788426517605'),
-                $c['name'],
-                $c['ledger'] ?? 'SUNDRY DEBTORS',
-                $c['address'] ?? '',
-                $c['gstNumber'] ?? ($c['gst_number'] ?? ''),
-                $c['panNumber'] ?? ($c['pan_number'] ?? ''),
-                $c['phone'] ?? ($c['mobile'] ?? ''),
-                $c['email'] ?? '',
-                $c['city'] ?? '',
-                $c['state'] ?? '',
-                floatval($c['totalBilled'] ?? ($c['total_billed'] ?? 0)),
-                $c['status'] ?? 'Active'
-            ]);
-        } catch (Exception $e) {}
-    }
-
-    $is = $pdo->prepare("INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE customer_name=VALUES(customer_name), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status)");
-    foreach ($iList as $inv) {
-        try {
-            $itemsJson = isset($inv['items']) ? (is_string($inv['items']) ? $inv['items'] : json_encode($inv['items'])) : '[]';
-            $is->execute([
-                $inv['id'],
-                $inv['userId'] ?? ($inv['user_id'] ?? 'USR-1788426517605'),
-                $inv['documentType'] ?? ($inv['document_type'] ?? 'Sales Invoice'),
-                $inv['invoiceNumber'] ?? ($inv['invoice_number'] ?? $inv['id']),
-                $inv['customerName'] ?? ($inv['customer_name'] ?? ''),
-                $inv['customerGst'] ?? ($inv['customer_gst'] ?? ''),
-                $inv['date'] ?? date('Y-m-d'),
-                $inv['dueDate'] ?? ($inv['due_date'] ?? date('Y-m-d')),
-                floatval($inv['subtotal'] ?? 0),
-                floatval($inv['cgst'] ?? 0),
-                floatval($inv['sgst'] ?? 0),
-                floatval($inv['igst'] ?? 0),
-                floatval($inv['totalTax'] ?? ($inv['total_tax'] ?? 0)),
-                floatval($inv['grandTotal'] ?? ($inv['grand_total'] ?? 0)),
-                $inv['status'] ?? 'Pending',
-                $itemsJson
-            ]);
-        } catch (Exception $e) {}
-    }
-
-    echo json_encode(['success' => true, 'message' => 'All customers and invoices synchronized to MySQL']);
-    exit();
-}
 
 try {
     // 1. CUSTOMERS
@@ -403,13 +346,15 @@ try {
 
     // 5. BULK SYNC
     if ($resource === 'sync-all' && $method === 'POST') {
+        $syncUserId = $input['userId'] ?? ($input['user_id'] ?? null);
         if (!empty($input['customers']) && is_array($input['customers'])) {
             $stmt = $pdo->prepare("INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 'Active')
-                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), name=VALUES(name)");
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), name=VALUES(name), ledger=VALUES(ledger), address=VALUES(address), gst_number=VALUES(gst_number), pan_number=VALUES(pan_number), mobile=VALUES(mobile), email=VALUES(email), city=VALUES(city), state=VALUES(state)");
             foreach ($input['customers'] as $c) {
                 $cId = $c['id'] ?? ('CUST-' . substr(time(), -6));
-                $uId = $c['userId'] ?? ($c['user_id'] ?? 'USR-901');
+                $uId = $c['userId'] ?? ($c['user_id'] ?? $syncUserId);
+                if (!$uId) continue;
                 $stmt->execute([
                     $cId, $uId, $c['name'] ?? '', $c['ledger'] ?? 'SUNDRY DEBTORS',
                     $c['address'] ?? '', $c['gstNumber'] ?? ($c['gst_number'] ?? ''),
@@ -421,10 +366,11 @@ try {
         if (!empty($input['invoices']) && is_array($input['invoices'])) {
             $stmt = $pdo->prepare("INSERT INTO invoices (id, user_id, document_type, invoice_number, customer_name, customer_gst, date, due_date, subtotal, cgst, sgst, igst, total_tax, grand_total, status, items)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), customer_name=VALUES(customer_name)");
+                    ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), document_type=VALUES(document_type), invoice_number=VALUES(invoice_number), customer_name=VALUES(customer_name), customer_gst=VALUES(customer_gst), date=VALUES(date), due_date=VALUES(due_date), subtotal=VALUES(subtotal), cgst=VALUES(cgst), sgst=VALUES(sgst), igst=VALUES(igst), total_tax=VALUES(total_tax), grand_total=VALUES(grand_total), status=VALUES(status), items=VALUES(items)");
             foreach ($input['invoices'] as $i) {
                 $iId = $i['id'] ?? ('INV-' . substr(time(), -6));
-                $uId = $i['userId'] ?? ($i['user_id'] ?? 'USR-901');
+                $uId = $i['userId'] ?? ($i['user_id'] ?? $syncUserId);
+                if (!$uId) continue;
                 $itemsJson = isset($i['items']) ? (is_string($i['items']) ? $i['items'] : json_encode($i['items'])) : '[]';
                 $stmt->execute([
                     $iId, $uId, $i['documentType'] ?? ($i['document_type'] ?? 'Sales Invoice'),
@@ -449,12 +395,24 @@ try {
 
         // 5a. SEND OTP
         if ($sub === 'send-otp') {
-            $email = $input['email'] ?? '';
-            $otp = strval(rand(100000, 999999));
+            $email = trim($input['email'] ?? '');
+            $providedOtp = trim($input['otp'] ?? '');
+            $otp = !empty($providedOtp) ? $providedOtp : strval(rand(100000, 999999));
+            if (session_status() === PHP_SESSION_NONE) {
+                @session_start();
+            }
+            $_SESSION['otp_' . strtolower($email)] = [
+                'code' => $otp,
+                'expires' => time() + 600
+            ];
+
+            // Send real email via Gmail SMTP (easyeetax@gmail.com)
+            sendGmailSMTPOtp($email, $otp);
+
             echo json_encode([
                 'success' => true,
-                'message' => "OTP sent successfully to {$email}",
-                'otp' => $otp
+                'sent' => true,
+                'message' => "OTP code has been sent to {$email}"
             ]);
             exit();
         }
@@ -486,7 +444,9 @@ try {
             $username = $input['username'] ?? ($email ? explode('@', $email)[0] : '');
             $password = $input['password'] ?? 'Taxbilling@123';
             $companyLogo = $input['companyLogo'] ?? null;
-            $id = $input['id'] ?? ('USR-' . round(microtime(true) * 1000));
+            $cleanEmail = strtolower(trim($email));
+            $stableFallbackId = !empty($cleanEmail) ? ('USR-' . substr(preg_replace('/[^a-zA-Z0-9]/', '', base64_encode($cleanEmail)), 0, 15)) : ('USR-' . round(microtime(true) * 1000));
+            $id = $input['id'] ?? $stableFallbackId;
 
             $hash = password_hash($password, PASSWORD_BCRYPT);
 
