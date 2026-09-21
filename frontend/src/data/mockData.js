@@ -35,6 +35,28 @@ export const initialProductsServices = [
 
 export const initialInvoices = [
   {
+    id: "INV-2026-001",
+    documentType: "Sales Invoice",
+    invoiceNumber: "INV-2026-001",
+    customerName: "chinna",
+    customerGst: "DK519VD1DV498",
+    date: "2026-09-21",
+    dueDate: "2026-10-05",
+    subtotal: 20000,
+    cgst: 1475,
+    sgst: 1475,
+    igst: 0,
+    totalTax: 2950,
+    grandTotal: 22950,
+    status: "Paid",
+    items: [
+      { description: "5% Goods Pack A (Lot 1)", hsnSac: "847130", quantity: 3, unitPrice: 1000, taxPercent: 5, amount: 3000 },
+      { description: "5% Goods Pack A (Lot 2)", hsnSac: "847130", quantity: 2, unitPrice: 1000, taxPercent: 5, amount: 2000 },
+      { description: "18% Advisory Service", hsnSac: "998222", quantity: 1, unitPrice: 5000, taxPercent: 18, amount: 5000 },
+      { description: "18% Enterprise Software", hsnSac: "998313", quantity: 1, unitPrice: 10000, taxPercent: 18, amount: 10000 },
+    ]
+  },
+  {
     id: "INV-2026-089",
     documentType: "Sales Invoice",
     invoiceNumber: "INV-2026-089",

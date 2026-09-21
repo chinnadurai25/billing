@@ -117,69 +117,16 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
     const stateOfSupply = getStateFromGstOrAddress(rawGst, inv.state || matchedCust?.state || userState);
 
     const isB2B = Boolean(rawGst && rawGst.length >= 10 && rawGst !== 'N/A' && rawGst !== 'NONE' && rawGst !== 'NULL');
-    const taxableValue = parseFloat(inv.subtotal ?? (inv.grandTotal - (inv.totalTax || 0))) || 0;
-    
-    // Compute CGST, SGST, IGST
-    let igst = parseFloat(inv.igst || 0);
-    let cgst = parseFloat(inv.cgst || 0);
-    let sgst = parseFloat(inv.sgst || 0);
-
-    const userStateNorm = (userState || 'Tamil Nadu').toLowerCase().trim();
-    const supplyStateNorm = (stateOfSupply || 'Tamil Nadu').toLowerCase().trim();
-    const isInterstate = supplyStateNorm !== userStateNorm;
-
-    if (igst === 0 && cgst === 0 && sgst === 0) {
-      const totalTax = parseFloat(inv.totalTax ?? (inv.grandTotal - taxableValue)) || 0;
-      if (isInterstate) {
-        igst = totalTax;
-      } else {
-        cgst = totalTax / 2;
-        sgst = totalTax / 2;
-      }
-    }
-
-    // Tax rate calculation
-    let taxRateStr = '18%';
-    if (taxableValue > 0 && (igst + cgst + sgst) > 0) {
-      const totalT = igst + cgst + sgst;
-      const calcPct = Math.round((totalT / taxableValue) * 100);
-      taxRateStr = `${calcPct}%`;
-    }
 
     const invNo = inv.invoiceNumber || inv.invoice_number || inv.id;
     const custName = inv.customerName || inv.customer_name || matchedCust?.name || (isB2B ? 'B2B Corporate Client' : 'Retail Customer');
     const invDate = inv.date || inv.created_at || '';
 
-    if (isB2B) {
-      b2bRows.push({
-        slNo: b2bRows.length + 1,
-        invoiceNo: invNo,
-        customerName: custName,
-        gstNumber: rawGst,
-        invoiceDate: invDate,
-        taxRate: taxRateStr,
-        taxableValue: Math.round(taxableValue * 100) / 100,
-        igst: Math.round(igst * 100) / 100,
-        cgst: Math.round(cgst * 100) / 100,
-        sgst: Math.round(sgst * 100) / 100,
-        stateOfSupply: stateOfSupply
-      });
-    } else {
-      b2cRows.push({
-        slNo: b2cRows.length + 1,
-        invoiceNo: invNo,
-        customerName: custName,
-        invoiceDate: invDate,
-        taxRate: taxRateStr,
-        taxableValue: Math.round(taxableValue * 100) / 100,
-        igst: Math.round(igst * 100) / 100,
-        cgst: Math.round(cgst * 100) / 100,
-        sgst: Math.round(sgst * 100) / 100,
-        stateOfSupply: stateOfSupply
-      });
-    }
+    const userStateNorm = (userState || 'Tamil Nadu').toLowerCase().trim();
+    const supplyStateNorm = (stateOfSupply || 'Tamil Nadu').toLowerCase().trim();
+    const isInterstate = supplyStateNorm !== userStateNorm;
 
-    // Process line items for Product & Service HSN Summary
+    // Process line items
     let rawItems = inv.items;
     if (typeof rawItems === 'string') {
       try {
@@ -189,22 +136,32 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
       }
     }
     let items = Array.isArray(rawItems) ? rawItems : [];
-    if (items.length === 0 && (inv.productName || inv.serviceName || inv.description || inv.item_name)) {
-      const desc = inv.productName || inv.serviceName || inv.description || inv.item_name;
+    if (items.length === 0) {
+      const taxableValue = parseFloat(inv.subtotal ?? (inv.grandTotal - (inv.totalTax || 0))) || 0;
+      let defaultTaxRate = 18;
+      let igst = parseFloat(inv.igst || 0);
+      let cgst = parseFloat(inv.cgst || 0);
+      let sgst = parseFloat(inv.sgst || 0);
+      const totalT = igst + cgst + sgst || parseFloat(inv.totalTax ?? (inv.grandTotal - taxableValue)) || 0;
+      if (taxableValue > 0 && totalT > 0) {
+        defaultTaxRate = Math.round((totalT / taxableValue) * 100);
+      } else if (inv.taxPercent || inv.tax_percent) {
+        defaultTaxRate = parseFloat(inv.taxPercent || inv.tax_percent) || 18;
+      }
       items = [{
-        description: desc,
-        hsnSac: inv.hsnSac || inv.hsn_sac || inv.hsnCode || '',
+        description: inv.productName || inv.serviceName || inv.description || inv.item_name || 'Invoice Items',
         quantity: parseFloat(inv.quantity || 1) || 1,
-        unit: inv.unit || inv.uom || 'NOS',
         unitPrice: taxableValue,
-        taxPercent: parseFloat(inv.taxPercent || inv.tax_percent || 18) || 18,
+        taxPercent: defaultTaxRate,
         amount: taxableValue
       }];
     }
 
+    // Map to group items in THIS invoice by tax rate
+    const taxGroupMap = new Map(); // rateKey (number) -> accumulated taxableValue
+
     items.forEach((item) => {
       const itemRawName = (item.description || item.title || item.name || item.itemName || '').trim();
-      if (!itemRawName) return;
       const itemRawHsn = (item.hsnSac || item.hsn_sac || item.hsnCode || item.hsn || '').toString().trim();
 
       // Match against registered Products & Services catalog
@@ -212,47 +169,125 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
                              registeredProductMap.get(itemRawHsn.toLowerCase()) ||
                              (products || []).find(p => p.title && itemRawName.toLowerCase().includes(p.title.toLowerCase().trim()));
 
-      const name = matchedProduct ? (matchedProduct.title || matchedProduct.name) : itemRawName;
-      const hsn = matchedProduct 
-        ? (matchedProduct.hsnSac || matchedProduct.hsn_sac || '998222') 
-        : (itemRawHsn || (name.toLowerCase().includes('service') ? '998222' : '847130'));
-      const uom = (item.unit || item.uom || item.unitOfMeasurement || matchedProduct?.unit || (String(hsn).startsWith('99') ? 'OTH-OTHERS' : 'NOS-NUMBERS')).toString().trim().toUpperCase();
+      let itemTaxRate = 18;
+      if (item.taxPercent !== undefined && item.taxPercent !== null && item.taxPercent !== '') {
+        itemTaxRate = parseFloat(item.taxPercent);
+      } else if (item.tax_percent !== undefined && item.tax_percent !== null && item.tax_percent !== '') {
+        itemTaxRate = parseFloat(item.tax_percent);
+      } else if (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '') {
+        itemTaxRate = parseFloat(item.taxRate);
+      } else if (item.gstRate !== undefined && item.gstRate !== null && item.gstRate !== '') {
+        itemTaxRate = parseFloat(item.gstRate);
+      } else if (matchedProduct?.taxPercent !== undefined) {
+        itemTaxRate = parseFloat(matchedProduct.taxPercent);
+      } else if (inv.taxPercent || inv.tax_percent) {
+        itemTaxRate = parseFloat(inv.taxPercent || inv.tax_percent);
+      }
+      if (isNaN(itemTaxRate)) itemTaxRate = 18;
+
+      const rateKey = Math.round(itemTaxRate * 100) / 100;
       const qty = parseFloat(item.quantity ?? item.qty ?? 1) || 1;
-      const itemTaxRate = parseFloat(item.taxPercent ?? item.tax_percent ?? item.taxRate ?? matchedProduct?.taxPercent ?? 18) || 18;
-      const itemTaxRateStr = `${Math.round(itemTaxRate)}%`;
-      const itemTaxableVal = parseFloat(item.amount ?? item.taxableValue ?? (qty * (item.unitPrice || item.rate || 0))) || 0;
-
-      const totalTaxForItem = (itemTaxableVal * itemTaxRate) / 100;
-      let itemIgst = 0;
-      let itemCgst = 0;
-      let itemSgst = 0;
-
-      if (isInterstate) {
-        itemIgst = totalTaxForItem;
+      const unitPrice = parseFloat(item.unitPrice ?? item.rate ?? item.price ?? 0) || 0;
+      let itemTaxableVal = 0;
+      if (item.amount !== undefined && item.amount !== null && !isNaN(parseFloat(item.amount))) {
+        itemTaxableVal = parseFloat(item.amount);
+      } else if (item.taxableValue !== undefined && item.taxableValue !== null && !isNaN(parseFloat(item.taxableValue))) {
+        itemTaxableVal = parseFloat(item.taxableValue);
       } else {
-        itemCgst = totalTaxForItem / 2;
-        itemSgst = totalTaxForItem / 2;
+        itemTaxableVal = qty * unitPrice;
       }
 
-      const mapKey = `${name}___${hsn}___${uom}___${itemTaxRateStr}`;
-      if (hsnMap.has(mapKey)) {
-        const existing = hsnMap.get(mapKey);
-        existing.totalQty += qty;
-        existing.taxableValue += itemTaxableVal;
-        existing.igst += itemIgst;
-        existing.cgst += itemCgst;
-        existing.sgst += itemSgst;
+      if (taxGroupMap.has(rateKey)) {
+        taxGroupMap.set(rateKey, taxGroupMap.get(rateKey) + itemTaxableVal);
       } else {
-        hsnMap.set(mapKey, {
-          productName: name,
-          hsn: hsn,
-          uom: uom,
-          totalQty: qty,
-          taxRate: itemTaxRateStr,
-          taxableValue: itemTaxableVal,
-          igst: itemIgst,
-          cgst: itemCgst,
-          sgst: itemSgst
+        taxGroupMap.set(rateKey, itemTaxableVal);
+      }
+
+      // HSN summary grouping
+      if (itemRawName) {
+        const name = matchedProduct ? (matchedProduct.title || matchedProduct.name) : itemRawName;
+        const hsn = matchedProduct 
+          ? (matchedProduct.hsnSac || matchedProduct.hsn_sac || '998222') 
+          : (itemRawHsn || (name.toLowerCase().includes('service') ? '998222' : '847130'));
+        const uom = (item.unit || item.uom || item.unitOfMeasurement || matchedProduct?.unit || (String(hsn).startsWith('99') ? 'OTH-OTHERS' : 'NOS-NUMBERS')).toString().trim().toUpperCase();
+        const itemTaxRateStr = `${rateKey}%`;
+
+        const totalTaxForItem = (itemTaxableVal * rateKey) / 100;
+        let itemIgst = 0;
+        let itemCgst = 0;
+        let itemSgst = 0;
+
+        if (isInterstate) {
+          itemIgst = totalTaxForItem;
+        } else {
+          itemCgst = totalTaxForItem / 2;
+          itemSgst = totalTaxForItem / 2;
+        }
+
+        const mapKey = `${name}___${hsn}___${uom}___${itemTaxRateStr}`;
+        if (hsnMap.has(mapKey)) {
+          const existing = hsnMap.get(mapKey);
+          existing.totalQty += qty;
+          existing.taxableValue += itemTaxableVal;
+          existing.igst += itemIgst;
+          existing.cgst += itemCgst;
+          existing.sgst += itemSgst;
+        } else {
+          hsnMap.set(mapKey, {
+            productName: name,
+            hsn: hsn,
+            uom: uom,
+            totalQty: qty,
+            taxRate: itemTaxRateStr,
+            taxableValue: itemTaxableVal,
+            igst: itemIgst,
+            cgst: itemCgst,
+            sgst: itemSgst
+          });
+        }
+      }
+    });
+
+    // Output grouped tax rows for B2B / B2C
+    const sortedRates = Array.from(taxGroupMap.keys()).sort((a, b) => a - b);
+    sortedRates.forEach((rateNum) => {
+      const groupTaxableVal = taxGroupMap.get(rateNum);
+      const groupTaxRateStr = `${rateNum}%`;
+      const groupTotalTax = (groupTaxableVal * rateNum) / 100;
+
+      let groupIgst = 0;
+      let groupCgst = 0;
+      let groupSgst = 0;
+
+      if (isInterstate) {
+        groupIgst = groupTotalTax;
+      } else {
+        groupCgst = groupTotalTax / 2;
+        groupSgst = groupTotalTax / 2;
+      }
+
+      const rowData = {
+        invoiceNo: invNo,
+        customerName: custName,
+        invoiceDate: invDate,
+        taxRate: groupTaxRateStr,
+        taxableValue: Math.round(groupTaxableVal * 100) / 100,
+        igst: Math.round(groupIgst * 100) / 100,
+        cgst: Math.round(groupCgst * 100) / 100,
+        sgst: Math.round(groupSgst * 100) / 100,
+        stateOfSupply: stateOfSupply
+      };
+
+      if (isB2B) {
+        b2bRows.push({
+          slNo: b2bRows.length + 1,
+          ...rowData,
+          gstNumber: rawGst
+        });
+      } else {
+        b2cRows.push({
+          slNo: b2cRows.length + 1,
+          ...rowData
         });
       }
     });
