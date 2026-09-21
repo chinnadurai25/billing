@@ -64,21 +64,6 @@ if (!$pdo) {
     exit();
 }
 
-// Auto-seed: Ensure all existing customer records are present in MySQL
-$seedCust = [
-    ['CUST-653620', 'USR-1788426517605', 'dgfvfd', 'SUNDRY DEBTORS', 'Port Blair, Andaman and Nicobar Islands', '', 'AAACD1234F', '', '', 'Port Blair', 'Andaman and Nicobar Islands', 0.00, 'Active'],
-    ['CUST-141909', 'USR-1788426517605', 'chinna', 'SUNDRY DEBTORS', 'ijn', '', 'EMCXDW525C', '848248428428', 'nju@gmail.com', '', '', 0.00, 'Active'],
-    ['CUST-307914', 'USR-1788426517605', 'SMILE COMPUTER', 'SUNDRY DEBTORS', 'Dindigul, Tamil Nadu', '33AYFPA2123H3Z4', 'AYFPA2123H', '9092592040', '', 'Dindigul', 'Tamil Nadu', 0.00, 'Active'],
-    ['CUST-712801', 'USR-1788426517605', 'SMI STANLEY MUSIC INDIA PRIVATE LIMITED', 'SUNDRY DEBTORS', 'Chennai, Tamil Nadu', '33AAYCS5493G1ZO', 'AAYCS5493G', '', '', 'Chennai', 'Tamil Nadu', 0.00, 'Active'],
-    ['CUST-278790', 'USR-1788426517605', 'MAKS ENTERPRISES', 'SUNDRY DEBTORS', 'Chennai, Tamil Nadu', '33AAYFM3936D1Z2', 'AAYFM3936D', '9444471843', 'silicamaks2014@gmail.com', 'Chennai', 'Tamil Nadu', 0.00, 'Active'],
-    ['CUST-001', 'USR-1788426517605', 'chinnadurai', 'SUNDRY DEBTORS', 'nsd', 'SJNIS58S784RRF', 'SICHSI788', '84949849', 'dchu@gmail.com', '', '', 145000.00, 'Active'],
-    ['CUST-681199', 'USR-1788426517605', 'Latha Vairamuthu', 'SUNDRY DEBTORS', 'fgf', '', 'AAACD1234F', '+919677777348', '22ucs041@kamarajengg.edu.in', '', '', 0.00, 'Active']
-];
-$seedStmt = $pdo->prepare("INSERT IGNORE INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-foreach ($seedCust as $sc) {
-    try { $seedStmt->execute($sc); } catch (Exception $e) {}
-}
 
 
 

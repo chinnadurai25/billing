@@ -42,8 +42,11 @@ export const AdminDashboard = ({
   useEffect(() => {
     const fetchRegisteredUsers = async () => {
       const res = await api.getAdminUsers();
-      if (res && res.success && res.data && res.data.length > 0) {
+      if (res && res.success && Array.isArray(res.data)) {
         setAdminUsers(res.data);
+        try {
+          localStorage.setItem('billson_admin_users', JSON.stringify(res.data));
+        } catch (e) {}
       }
     };
     fetchRegisteredUsers();
@@ -91,8 +94,14 @@ export const AdminDashboard = ({
       // 1. Call backend API
       const res = await api.deleteAdminUser(targetId);
 
-      // 2. Remove from Admin users list
-      setAdminUsers((prev) => prev.filter((u) => u.id !== targetId));
+      // 2. Remove from Admin users list and persist
+      setAdminUsers((prev) => {
+        const updated = prev.filter((u) => u.id !== targetId);
+        try {
+          localStorage.setItem('billson_admin_users', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
 
       // 3. Purge tenant scoped data in localStorage
       try {
@@ -124,7 +133,13 @@ export const AdminDashboard = ({
         setSelectedUserModal(null);
       }
     } catch (err) {
-      setAdminUsers((prev) => prev.filter((u) => u.id !== targetId));
+      setAdminUsers((prev) => {
+        const updated = prev.filter((u) => u.id !== targetId);
+        try {
+          localStorage.setItem('billson_admin_users', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
       addToast(`Tenant "${targetName}" removed from portal view`, 'info');
       setUserToDelete(null);
     } finally {

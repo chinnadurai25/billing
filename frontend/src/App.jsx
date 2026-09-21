@@ -42,37 +42,28 @@ const getViewPath = (view) => {
 // Global helper functions to safely read and persist entity data across browser reloads
 const loadCachedItems = (entityKey, activeUserId, defaultFallback = []) => {
   try {
-    const keysToTry = [];
     if (activeUserId) {
-      keysToTry.push(`billson_${entityKey}_${activeUserId}`);
-      keysToTry.push(`taxpulse_${entityKey}_${activeUserId}`);
-    }
-    keysToTry.push(`billson_${entityKey}_global`);
-    keysToTry.push(`billson_${entityKey}`);
-    keysToTry.push(`taxpulse_${entityKey}_global`);
-    keysToTry.push(`taxpulse_${entityKey}`);
-
-    for (const key of keysToTry) {
-      const stored = localStorage.getItem(key);
-      if (stored) {
+      const userKey = `billson_${entityKey}_${activeUserId}`;
+      const stored = localStorage.getItem(userKey);
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          if (activeUserId) {
-            const userFiltered = parsed.filter(item => {
-              const uId = item.userId || item.user_id;
-              return !uId || uId === activeUserId;
-            });
-            if (userFiltered.length > 0) return userFiltered;
-          } else {
-            return parsed;
-          }
+        if (Array.isArray(parsed)) {
+          return parsed; // Exactly what the active user saved, even if [] (all deleted)
         }
       }
+      return []; // Real active user without cached data starts with empty array, NOT mock data
+    }
+
+    // No active user: check global keys for landing view
+    const globalStored = localStorage.getItem(`billson_${entityKey}_global`) || localStorage.getItem(`billson_${entityKey}`);
+    if (globalStored) {
+      const parsed = JSON.parse(globalStored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {
     console.warn(`Error loading cached ${entityKey}:`, e);
   }
-  return activeUserId ? [] : defaultFallback;
+  return defaultFallback;
 };
 
 const saveCachedItems = (entityKey, activeUserId, items) => {
@@ -80,10 +71,9 @@ const saveCachedItems = (entityKey, activeUserId, items) => {
     if (!activeUserId) return;
     const list = Array.isArray(items) ? items : [];
     localStorage.setItem(`billson_${entityKey}_${activeUserId}`, JSON.stringify(list));
-    if (list.length > 0) {
-      localStorage.setItem(`billson_${entityKey}_global`, JSON.stringify(list));
-      localStorage.setItem(`billson_${entityKey}`, JSON.stringify(list));
-    }
+    // Always sync global keys so they never contain deleted zombie items
+    localStorage.setItem(`billson_${entityKey}_global`, JSON.stringify(list));
+    localStorage.setItem(`billson_${entityKey}`, JSON.stringify(list));
   } catch (e) {
     console.warn(`Error saving cached ${entityKey}:`, e);
   }
@@ -149,15 +139,20 @@ function AppContent() {
 
   // App Master Data States - start with cached data strictly isolated to active user
   const [userData, setUserData] = useState(() => savedUser || initialUserData);
-  const [customers, setCustomersState] = useState(() => loadCachedItems('customers', savedUser?.id, initialCustomers));
-  const [products, setProductsState] = useState(() => loadCachedItems('products', savedUser?.id, initialProductsServices));
-  const [invoices, setInvoicesState] = useState(() => loadCachedItems('invoices', savedUser?.id, initialInvoices));
-  const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
-  const [bankAccounts, setBankAccountsState] = useState(() => loadCachedItems('bank_accounts', savedUser?.id, [
-    { id: 'BANK-001', userId: 'USR-901', bankType: 'Bank Account', accountName: 'Durai Tax Advisory Operating A/C', accountNumber: '50100234901234', bankName: 'HDFC Bank Ltd', ifscCode: 'HDFC0001234', address: 'Anna Salai, Chennai Branch', balance: 450000, status: 'Active' },
-    { id: 'BANK-002', userId: 'USR-901', bankType: 'Bank Account', accountName: 'Durai Tax Collection Reserve', accountNumber: '000405012345', bankName: 'ICICI Bank Ltd', ifscCode: 'ICIC0000004', address: 'Nungambakkam, Chennai Branch', balance: 280000, status: 'Active' },
-    { id: 'BANK-003', userId: 'USR-901', bankType: 'Cash in Hand', accountName: 'Main Petty Cash Ledger', accountNumber: 'CASH-LEDGER-01', bankName: 'Cash Chest', ifscCode: 'N/A', address: 'Office Safe', balance: 35000, status: 'Active' }
-  ]));
+  const [customers, setCustomersState] = useState(() => loadCachedItems('customers', savedUser?.id, []));
+  const [products, setProductsState] = useState(() => loadCachedItems('products', savedUser?.id, []));
+  const [invoices, setInvoicesState] = useState(() => loadCachedItems('invoices', savedUser?.id, []));
+  const [adminUsers, setAdminUsers] = useState(() => {
+    try {
+      const stored = localStorage.getItem('billson_admin_users');
+      if (stored !== null) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return initialAdminUsers;
+  });
+  const [bankAccounts, setBankAccountsState] = useState(() => loadCachedItems('bank_accounts', savedUser?.id, []));
 
   // Auto-persisting state setters
   const setCustomers = useCallback((valOrFn) => {
@@ -277,106 +272,59 @@ function AppContent() {
       ]);
 
       // 1. CUSTOMERS
-      const cachedCust = loadCachedItems('customers', activeUserId, initialCustomers);
-      if (custRes?.success && Array.isArray(custRes.data) && custRes.data.length > 0) {
+      if (custRes?.success && Array.isArray(custRes.data)) {
         const norm = custRes.data.map(normaliseCustomer);
         const cleanNorm = norm.filter(c => !c.userId || c.userId === activeUserId);
-        const mergedMap = new Map();
-        cleanNorm.forEach(c => mergedMap.set(c.id, c));
-        cachedCust.forEach(c => {
-          if (!mergedMap.has(c.id)) mergedMap.set(c.id, c);
-        });
-        const finalCust = Array.from(mergedMap.values());
-        setCustomersState(finalCust);
-        saveCachedItems('customers', activeUserId, finalCust);
+        setCustomersState(cleanNorm);
+        saveCachedItems('customers', activeUserId, cleanNorm);
       } else {
-        if (cachedCust.length > 0) {
-          setCustomersState(cachedCust);
-          saveCachedItems('customers', activeUserId, cachedCust);
-        }
+        const cachedCust = loadCachedItems('customers', activeUserId, []);
+        setCustomersState(cachedCust);
       }
 
       // 2. BANK ACCOUNTS
-      const cachedBanks = loadCachedItems('bank_accounts', activeUserId, []);
-      if (bankRes?.success && Array.isArray(bankRes.data) && bankRes.data.length > 0) {
+      if (bankRes?.success && Array.isArray(bankRes.data)) {
         const norm = bankRes.data.map(normaliseBank);
         const cleanBanks = norm.filter(b => !b.userId || b.userId === activeUserId);
-        const mergedMap = new Map();
-        cleanBanks.forEach(b => mergedMap.set(b.id, b));
-        cachedBanks.forEach(b => {
-          if (!mergedMap.has(b.id)) mergedMap.set(b.id, b);
-        });
-        const finalBanks = Array.from(mergedMap.values());
-        setBankAccountsState(finalBanks);
-        saveCachedItems('bank_accounts', activeUserId, finalBanks);
+        setBankAccountsState(cleanBanks);
+        saveCachedItems('bank_accounts', activeUserId, cleanBanks);
       } else {
-        if (cachedBanks.length > 0) {
-          setBankAccountsState(cachedBanks);
-          saveCachedItems('bank_accounts', activeUserId, cachedBanks);
-        }
+        const cachedBanks = loadCachedItems('bank_accounts', activeUserId, []);
+        setBankAccountsState(cachedBanks);
       }
 
       // 3. PRODUCTS
-      const cachedProds = loadCachedItems('products', activeUserId, initialProductsServices);
-      if (prodRes?.success && Array.isArray(prodRes.data) && prodRes.data.length > 0) {
+      if (prodRes?.success && Array.isArray(prodRes.data)) {
         const norm = prodRes.data.map(normaliseProduct);
         const cleanProds = norm.filter(p => !p.userId || p.userId === activeUserId);
-        const mergedMap = new Map();
-        cleanProds.forEach(p => mergedMap.set(p.id, p));
-        cachedProds.forEach(p => {
-          if (!mergedMap.has(p.id)) mergedMap.set(p.id, p);
-        });
-        const finalProds = Array.from(mergedMap.values());
-        setProductsState(finalProds);
-        saveCachedItems('products', activeUserId, finalProds);
+        setProductsState(cleanProds);
+        saveCachedItems('products', activeUserId, cleanProds);
       } else {
-        if (cachedProds.length > 0) {
-          setProductsState(cachedProds);
-          saveCachedItems('products', activeUserId, cachedProds);
-        }
+        const cachedProds = loadCachedItems('products', activeUserId, []);
+        setProductsState(cachedProds);
       }
 
       // 4. INVOICES / PAYMENTS / ESTIMATES / DELIVERY CHALLANS
-      const cachedInvs = loadCachedItems('invoices', activeUserId, initialInvoices);
-      if (invRes?.success && Array.isArray(invRes.data) && invRes.data.length > 0) {
+      if (invRes?.success && Array.isArray(invRes.data)) {
         const norm = invRes.data.map(normaliseInvoice);
         const cleanInvs = norm.filter(i => !i.userId || i.userId === activeUserId);
-        const mergedMap = new Map();
-        cleanInvs.forEach(i => mergedMap.set(i.id, i));
-        cachedInvs.forEach(i => {
-          if (!mergedMap.has(i.id)) mergedMap.set(i.id, i);
-        });
-        const finalInvs = Array.from(mergedMap.values());
-        setInvoicesState(finalInvs);
-        saveCachedItems('invoices', activeUserId, finalInvs);
+        setInvoicesState(cleanInvs);
+        saveCachedItems('invoices', activeUserId, cleanInvs);
       } else {
-        if (cachedInvs.length > 0) {
-          setInvoicesState(cachedInvs);
-          saveCachedItems('invoices', activeUserId, cachedInvs);
-        }
-      }
-
-      // Background sync: send local cached records to MySQL server if needed
-      const syncCust = loadCachedItems('customers', activeUserId);
-      const syncInvs = loadCachedItems('invoices', activeUserId);
-      if (syncCust.length > 0 || syncInvs.length > 0) {
-        api.syncAll({
-          userId: activeUserId,
-          customers: syncCust,
-          invoices: syncInvs
-        }).catch(() => {});
+        const cachedInvs = loadCachedItems('invoices', activeUserId, []);
+        setInvoicesState(cachedInvs);
       }
 
     } catch (err) {
       console.warn('Backend connection note:', err.message);
-      const cCust = loadCachedItems('customers', activeUserId);
-      if (cCust.length > 0) setCustomersState(cCust);
-      const cBanks = loadCachedItems('bank_accounts', activeUserId);
-      if (cBanks.length > 0) setBankAccountsState(cBanks);
-      const cProds = loadCachedItems('products', activeUserId);
-      if (cProds.length > 0) setProductsState(cProds);
-      const cInvs = loadCachedItems('invoices', activeUserId);
-      if (cInvs.length > 0) setInvoicesState(cInvs);
+      const cCust = loadCachedItems('customers', activeUserId, []);
+      setCustomersState(cCust);
+      const cBanks = loadCachedItems('bank_accounts', activeUserId, []);
+      setBankAccountsState(cBanks);
+      const cProds = loadCachedItems('products', activeUserId, []);
+      setProductsState(cProds);
+      const cInvs = loadCachedItems('invoices', activeUserId, []);
+      setInvoicesState(cInvs);
     }
   }, []);
 
@@ -385,10 +333,10 @@ function AppContent() {
     if (userData?.id) {
       fetchUserData(userData.id);
     } else {
-      setCustomers([]);
-      setBankAccounts([]);
-      setProducts([]);
-      setInvoices([]);
+      setCustomersState([]);
+      setBankAccountsState([]);
+      setProductsState([]);
+      setInvoicesState([]);
     }
   }, [userData?.id, fetchUserData]);
 
