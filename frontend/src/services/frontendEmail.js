@@ -62,14 +62,17 @@ export const sendOtpEmailDirect = async (toEmail, otpCode) => {
     console.warn('[Frontend Email Notice] EmailJS REST API attempt:', restErr?.message || restErr);
   }
 
-  // 3. Fallback to Node.js backend /auth/send-otp if available
+  // 3. Fallback to API backend /auth/send-otp
   try {
-    const backendUrl = localStorage.getItem('billson_api_url') || 'http://localhost:5000/api';
+    const defaultApiUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+      ? `${window.location.origin}/api`
+      : 'http://localhost:5000/api';
+    const backendUrl = localStorage.getItem('billson_api_url') || defaultApiUrl;
     const cleanBackendUrl = backendUrl.endsWith('/api') ? backendUrl : `${backendUrl.replace(/\/$/, '')}/api`;
     const nodeRes = await fetch(`${cleanBackendUrl}/auth/send-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail })
+      body: JSON.stringify({ email: cleanEmail, otp: otpCode })
     });
 
     if (nodeRes.ok) {
