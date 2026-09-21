@@ -9,6 +9,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+/**
+ * Send OTP Email via Gmail SMTP directly from PHP API
+ */
+function sendGmailSMTPOtp($toEmail, $otpCode) {
+    if (empty($toEmail)) return false;
+    $smtpHost = 'ssl://smtp.gmail.com';
+    $smtpPort = 465;
+    $smtpUser = 'easyeetax@gmail.com';
+    $smtpPass = 'sxiurqlkognijuwn';
+
+    $socket = @fsockopen($smtpHost, $smtpPort, $errno, $errstr, 15);
+    if (!$socket) {
+        $headers = "From: BillSon Compliance <{$smtpUser}>\r\n" .
+                   "Reply-To: {$smtpUser}\r\n" .
+                   "Content-Type: text/html; charset=UTF-8\r\n";
+        $subject = "🔒 BillSon Account Registration OTP: {$otpCode}";
+        $body = "<h2>BillSon Registration OTP</h2><p>Your 6-digit OTP code is: <b>{$otpCode}</b></p>";
+        return @mail($toEmail, $subject, $body, $headers);
+    }
+
+    $readSmtp = function($sock) {
+        $resp = '';
+        while ($str = fgets($sock, 512)) {
+            $resp .= $str;
+            if (substr($str, 3, 1) == ' ') break;
+        }
+        return $resp;
+    };
+
+    $readSmtp($socket);
+    fputs($socket, "EHLO live-server\r\n");
+    $readSmtp($socket);
+
+    fputs($socket, "AUTH LOGIN\r\n");
+    $readSmtp($socket);
+
+    fputs($socket, base64_encode($smtpUser) . "\r\n");
+    $readSmtp($socket);
+
+    fputs($socket, base64_encode($smtpPass) . "\r\n");
+    $authRes = $readSmtp($socket);
+
+    if (strpos($authRes, '235') === false) {
+        fclose($socket);
+        return false;
+    }
+
+    fputs($socket, "MAIL FROM: <{$smtpUser}>\r\n");
+    $readSmtp($socket);
+
+    fputs($socket, "RCPT TO: <{$toEmail}>\r\n");
+    $readSmtp($socket);
+
+    fputs($socket, "DATA\r\n");
+    $readSmtp($socket);
+
+    $subject = "🔒 BillSon Account Registration OTP: {$otpCode}";
+    $headers = "From: \"BillSon Compliance Portal\" <{$smtpUser}>\r\n" .
+               "To: {$toEmail}\r\n" .
+               "Subject: {$subject}\r\n" .
+               "MIME-Version: 1.0\r\n" .
+               "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+
+    $htmlBody = '
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="font-family: Arial, sans-serif; background-color: #0b0f19; color: #ffffff; padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 30px;">
+          <h2 style="color: #818cf8; text-align: center;">⚡ BillSon Compliance Portal</h2>
+          <p>Hello,</p>
+          <p>Thank you for registering on BillSon SaaS Portal. Please use the following 6-digit One-Time Password (OTP) to complete your email verification:</p>
+          <div style="text-align: center; margin: 25px 0; background: #1e1b4b; border: 1px solid #4f46e5; border-radius: 12px; padding: 15px;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #38bdf8;">' . $otpCode . '</span>
+          </div>
+          <p style="font-size: 12px; color: #94a3b8;">Valid for 10 minutes • Do not share this code with anyone.</p>
+        </div>
+      </body>
+      </html>
+    ';
+
+    fputs($socket, $headers . $htmlBody . "\r\n.\r\n");
+    $readSmtp($socket);
+
+    fputs($socket, "QUIT\r\n");
+    fclose($socket);
+
+    return true;
+}
+
 // Database Configuration
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbPort = getenv('DB_PORT') ?: '3306';
@@ -450,7 +540,8 @@ try {
         // 5a. SEND OTP
         if ($sub === 'send-otp') {
             $email = trim($input['email'] ?? '');
-            $otp = strval(rand(100000, 999999));
+            $providedOtp = trim($input['otp'] ?? '');
+            $otp = !empty($providedOtp) ? $providedOtp : strval(rand(100000, 999999));
             if (session_status() === PHP_SESSION_NONE) {
                 @session_start();
             }
@@ -458,6 +549,10 @@ try {
                 'code' => $otp,
                 'expires' => time() + 600
             ];
+
+            // Send real email via Gmail SMTP (easyeetax@gmail.com)
+            sendGmailSMTPOtp($email, $otp);
+
             echo json_encode([
                 'success' => true,
                 'sent' => true,
