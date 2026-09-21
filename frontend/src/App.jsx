@@ -593,6 +593,10 @@ function AppContent() {
                 activityLogs={adminActivityLogs}
                 monthlyRevenueData={monthlyRevenueData}
                 user={userData}
+                invoices={invoices}
+                setInvoices={setInvoices}
+                customers={customers}
+                setCustomers={setCustomers}
               />
             </main>
           </>

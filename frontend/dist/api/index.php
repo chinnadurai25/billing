@@ -563,6 +563,30 @@ try {
 
     // 6. ADMIN USERS
     if ($resource === 'admin' && ($pathParts[1] ?? '') === 'users') {
+        if ($method === 'DELETE') {
+            $delUserId = $pathParts[2] ?? ($_GET['id'] ?? ($input['id'] ?? null));
+            if (!$delUserId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'User ID is required for deletion']);
+                exit();
+            }
+            try {
+                // Cascade delete associated tenant data
+                $pdo->prepare("DELETE FROM invoices WHERE user_id = ?")->execute([$delUserId]);
+                $pdo->prepare("DELETE FROM customers WHERE user_id = ?")->execute([$delUserId]);
+                $pdo->prepare("DELETE FROM products WHERE user_id = ?")->execute([$delUserId]);
+                $pdo->prepare("DELETE FROM bank_accounts WHERE user_id = ?")->execute([$delUserId]);
+                $delStmt = $pdo->prepare("DELETE FROM users WHERE id = ? OR username = ? OR email = ?");
+                $delStmt->execute([$delUserId, $delUserId, $delUserId]);
+                
+                echo json_encode(['success' => true, 'message' => "User {$delUserId} and associated tenant data permanently deleted"]);
+                exit();
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to delete user: ' . $e->getMessage()]);
+                exit();
+            }
+        }
         $stmt = $pdo->query("SELECT id, full_name as name, email, contact_number as phone, company_name as company, constitution, company_address as address, state, gst_number as gst, pan_number as pan, username, 'Enterprise Pro' as plan, 'Active' as status, DATE(created_at) as date FROM users ORDER BY created_at DESC");
         echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
         exit();

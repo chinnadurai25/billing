@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, Users, Building2, FileText, DollarSign, 
   PieChart, Activity, Settings, Search, Filter, Lock, 
-  CheckCircle2, XCircle, AlertTriangle, RefreshCw, Eye, UserPlus, Sparkles, X, Building, Download, ArrowRight
+  CheckCircle2, XCircle, AlertTriangle, RefreshCw, Eye, UserPlus, Sparkles, X, Building, Download, ArrowRight, Trash2, AlertCircle
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
@@ -19,12 +19,19 @@ export const AdminDashboard = ({
   activityLogs, 
   monthlyRevenueData,
   user,
-  invoices = []
+  invoices = [],
+  setInvoices,
+  customers = [],
+  setCustomers
 }) => {
   const { addToast } = useToast();
   const [userSearch, setUserSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedUserModal, setSelectedUserModal] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   
   // Admin Invoices Modal & PDF state
   const [showAdminInvoicesModal, setShowAdminInvoicesModal] = useState(false);
@@ -66,11 +73,84 @@ export const AdminDashboard = ({
     setAdminUsers((prev) => prev.map((u) => {
       if (u.id === userId) {
         const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
-        addToast(`User ${u.name} status updated to ${nextStatus}`, nextStatus === 'Active' ? 'success' : 'warning');
+        addToast(`User ${u.name || u.company} status updated to ${nextStatus}`, nextStatus === 'Active' ? 'success' : 'warning');
         return { ...u, status: nextStatus };
       }
       return u;
     }));
+  };
+
+  // Permanently delete user/tenant and cascade delete their data
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeletingUser(true);
+    const targetId = userToDelete.id;
+    const targetName = userToDelete.name || userToDelete.company || targetId;
+
+    try {
+      // 1. Call backend API
+      const res = await api.deleteAdminUser(targetId);
+
+      // 2. Remove from Admin users list
+      setAdminUsers((prev) => prev.filter((u) => u.id !== targetId));
+
+      // 3. Purge tenant scoped data in localStorage
+      try {
+        localStorage.removeItem(`billson_customers_${targetId}`);
+        localStorage.removeItem(`billson_invoices_${targetId}`);
+        localStorage.removeItem(`billson_products_${targetId}`);
+        localStorage.removeItem(`billson_banks_${targetId}`);
+        localStorage.removeItem(`billson_user_${targetId}`);
+        localStorage.removeItem(`billson_user_logo_${targetId}`);
+        if (userToDelete.email) {
+          localStorage.removeItem(`billson_user_logo_${userToDelete.email.toLowerCase()}`);
+        }
+        const reg = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+        const updatedReg = reg.filter((u) => u.id !== targetId && u.email !== userToDelete.email);
+        localStorage.setItem('billson_registered_users', JSON.stringify(updatedReg));
+      } catch (e) {}
+
+      // 4. Remove associated invoices & customers from current session state
+      if (setInvoices) {
+        setInvoices((prev) => prev.filter((inv) => inv.user_id !== targetId && inv.userId !== targetId));
+      }
+      if (setCustomers) {
+        setCustomers((prev) => prev.filter((c) => c.user_id !== targetId && c.userId !== targetId));
+      }
+
+      addToast(`Tenant "${targetName}" and associated data permanently deleted`, 'success', 'Tenant Deleted');
+      setUserToDelete(null);
+      if (selectedUserModal && selectedUserModal.id === targetId) {
+        setSelectedUserModal(null);
+      }
+    } catch (err) {
+      setAdminUsers((prev) => prev.filter((u) => u.id !== targetId));
+      addToast(`Tenant "${targetName}" removed from portal view`, 'info');
+      setUserToDelete(null);
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  // Admin delete invoice from global list
+  const handleConfirmDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    setIsDeletingInvoice(true);
+    const invId = invoiceToDelete.id || invoiceToDelete.invoiceNumber || invoiceToDelete.invoice_number;
+    const invNum = invoiceToDelete.invoiceNumber || invoiceToDelete.invoice_number || invId;
+
+    try {
+      await api.deleteInvoice(invId);
+      if (setInvoices) {
+        setInvoices((prev) => prev.filter((i) => i.id !== invId && i.invoiceNumber !== invId && i.invoice_number !== invId));
+      }
+      addToast(`Invoice ${invNum} permanently deleted`, 'success', 'Invoice Deleted');
+      setInvoiceToDelete(null);
+    } catch (err) {
+      addToast(`Failed to delete invoice: ${err.message}`, 'error');
+    } finally {
+      setIsDeletingInvoice(false);
+    }
   };
 
   return (
@@ -290,11 +370,18 @@ export const AdminDashboard = ({
                             onClick={() => handleToggleUserStatus(usr.id)}
                             className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
                               usr.status === 'Active'
-                                ? 'bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30'
                                 : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
                             }`}
                           >
                             {usr.status === 'Active' ? 'Suspend' : 'Activate'}
+                          </button>
+                          <button
+                            onClick={() => setUserToDelete(usr)}
+                            className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 hover:border-red-500/60 transition-colors"
+                            title="Delete User & All Tenant Data"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -350,10 +437,17 @@ export const AdminDashboard = ({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-between items-center pt-2 border-t border-amber-500/20">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(selectedUserModal)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 text-xs font-bold transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Tenant
+              </button>
               <button
                 onClick={() => setSelectedUserModal(null)}
-                className="px-5 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20"
+                className="px-5 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 hover:bg-amber-400 transition-colors"
               >
                 Close Details
               </button>
@@ -440,12 +534,21 @@ export const AdminDashboard = ({
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <button
-                            onClick={() => setSelectedAdminInvoice(inv)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> View & Download PDF
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setSelectedAdminInvoice(inv)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> View & Download PDF
+                            </button>
+                            <button
+                              onClick={() => setInvoiceToDelete(inv)}
+                              className="p-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 transition-all cursor-pointer"
+                              title="Delete Invoice"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -515,6 +618,112 @@ export const AdminDashboard = ({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL: PERMANENTLY DELETE TENANT */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-md w-full border border-red-500/40 shadow-2xl shadow-red-950/50 animate-slide-up space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-red-500/20">
+              <div className="p-3 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white font-serif">Delete Tenant Account?</h3>
+                <p className="text-xs text-red-300 font-mono">Irreversible Super Admin Action</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 text-xs space-y-2">
+              <p className="text-slate-200">
+                Are you sure you want to permanently delete user <strong className="text-white font-bold">{userToDelete.name || userToDelete.company}</strong>?
+              </p>
+              <div className="font-mono text-[11px] text-slate-400 space-y-1 bg-dark-950/60 p-2.5 rounded-xl border border-red-500/20">
+                <div><span className="text-slate-500">User ID:</span> <span className="text-amber-300">{userToDelete.id}</span></div>
+                <div><span className="text-slate-500">Company:</span> <span className="text-slate-200">{userToDelete.company || userToDelete.companyName || 'N/A'}</span></div>
+                <div><span className="text-slate-500">Email:</span> <span className="text-slate-200">{userToDelete.email}</span></div>
+                <div><span className="text-slate-500">GSTIN:</span> <span className="text-indigo-300">{userToDelete.gst || userToDelete.gstNumber || 'N/A'}</span></div>
+              </div>
+              <p className="text-red-400 text-[11px] leading-relaxed pt-1 font-semibold">
+                ⚠️ All customer records, invoices, products, and bank accounts registered under this tenant will be permanently deleted from MySQL and local storage.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingUser}
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingUser}
+                onClick={handleConfirmDeleteUser}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingUser ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting Tenant...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Yes, Permanently Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL: DELETE INVOICE */}
+      {invoiceToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-md w-full border border-red-500/40 shadow-2xl animate-slide-up space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-red-500/20">
+              <div className="p-3 rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white font-serif">Delete Invoice?</h3>
+                <p className="text-xs text-red-300 font-mono">Admin Database Removal</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-dark-950 border border-red-500/20 text-xs space-y-2">
+              <p className="text-slate-200">
+                Delete invoice <strong className="text-indigo-300 font-mono">{invoiceToDelete.invoiceNumber || invoiceToDelete.invoice_number}</strong> billed to <strong className="text-white">{invoiceToDelete.customerName || invoiceToDelete.customer_name}</strong>?
+              </p>
+              <p className="text-slate-400 font-mono text-[11px]">
+                Total: ₹{(invoiceToDelete.grandTotal || invoiceToDelete.grand_total || 0).toLocaleString('en-IN')}
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingInvoice}
+                onClick={() => setInvoiceToDelete(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingInvoice}
+                onClick={handleConfirmDeleteInvoice}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-red-600/30 disabled:opacity-50"
+              >
+                {isDeletingInvoice ? 'Deleting...' : 'Delete Invoice'}
+              </button>
+            </div>
           </div>
         </div>
       )}

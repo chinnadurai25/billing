@@ -86,4 +86,5 @@ export const api = {
 
   // Admin Registered Users
   getAdminUsers: () => request('/admin/users'),
+  deleteAdminUser: (id) => request(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
