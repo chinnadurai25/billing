@@ -69,7 +69,6 @@ router.post('/', async (req, res) => {
         `INSERT INTO customers (id, user_id, name, ledger, address, gst_number, pan_number, mobile, email, city, state, total_billed, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
-           user_id = VALUES(user_id),
            name = VALUES(name),
            ledger = VALUES(ledger),
            address = VALUES(address),

@@ -208,7 +208,7 @@ export const UserDashboard = ({
       addToast(`Customer ${custForm.name} updated successfully!`, 'success', 'Customer Updated');
     } else {
       // CREATE new customer
-      const custId = `CUST-${Date.now().toString().slice(-6)}`;
+      const custId = `CUST-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
       const newCustomer = {
         id: custId,
         userId: user?.id || 'USR-901',
@@ -387,7 +387,7 @@ export const UserDashboard = ({
       addToast(`Account "${bankForm.accountName}" updated successfully!`, 'success', 'Account Updated');
     } else {
       // CREATE new bank/cash ledger
-      const bankId = `BANK-00${bankAccounts.length + 1}`;
+      const bankId = `BANK-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
       const newBank = {
         id: bankId,
         bankType: bankForm.bankType,
@@ -537,7 +537,8 @@ export const UserDashboard = ({
       addToast(`${itemForm.entryType} "${itemForm.itemName}" updated successfully!`, 'success', `${itemForm.entryType} Updated`);
     } else {
       // CREATE new item
-      const itemId = `SRV-00${products.length + 1}`;
+      const prefix = itemForm.entryType === 'Service' ? 'SRV' : 'PRD';
+      const itemId = `${prefix}-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
       const newItem = {
         id: itemId,
         title: itemForm.itemName,
