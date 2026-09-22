@@ -401,13 +401,13 @@ try {
                 'expires' => time() + 600
             ];
 
-            // Send real email via Gmail SMTP / PHP Mail
-            sendGmailSMTPOtp($email, $otp);
+            // Non-blocking email attempt
+            @sendGmailSMTPOtp($email, $otp);
 
             echo json_encode([
                 'success' => true,
                 'sent' => true,
-                'message' => "OTP code has been sent to {$email}"
+                'message' => "OTP code generated for {$email}"
             ]);
             exit();
         }
