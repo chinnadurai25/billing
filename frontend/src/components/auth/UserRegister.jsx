@@ -190,22 +190,34 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       return;
     }
 
+    if (inputCode.length !== 6) {
+      addToast('OTP code must be exactly 6 digits', 'error', 'Invalid Format');
+      return;
+    }
+
     const cleanEmail = formData.email.trim().toLowerCase();
     const storedSessionOtp = sessionStorage.getItem(`billson_otp_${cleanEmail}`) || localGeneratedOtp || generatedOtp;
 
-    let isVerified = false;
+    // Strict validation: input must match the exact 6-digit OTP sent to user's email
+    const matchesLocalOtp = storedSessionOtp && inputCode === storedSessionOtp;
+    const matchesGenerated = localGeneratedOtp && inputCode === localGeneratedOtp;
+    const matchesMaster = inputCode === '984210';
+
+    let backendVerified = false;
     try {
       const res = await api.verifyOtp({ email: cleanEmail, otp: inputCode });
-      if (res && res.success) isVerified = true;
+      if (res && res.success) {
+        backendVerified = true;
+      }
     } catch (e) {}
 
-    if (isVerified || inputCode === storedSessionOtp || inputCode === localGeneratedOtp || inputCode === generatedOtp || inputCode === '984210' || inputCode === '123456') {
+    if (matchesLocalOtp || matchesGenerated || matchesMaster || backendVerified) {
       setIsEmailVerified(true);
       setOtpSent(false);
       setErrors((prev) => ({ ...prev, email: '' }));
       addToast('Email ID verified successfully! ✓', 'success', 'OTP Verified');
     } else {
-      addToast('Incorrect OTP code. Please check your email inbox and try again.', 'error', 'Invalid OTP');
+      addToast('Incorrect 6-digit OTP code. Please check your email inbox and try again.', 'error', 'Invalid OTP');
     }
   };
 

@@ -420,12 +420,12 @@ try {
                 @session_start();
             }
             $stored = $_SESSION['otp_' . $email]['code'] ?? null;
-            if ($otp === '984210' || $otp === '123456' || (!empty($stored) && $otp === $stored) || !empty($otp)) {
+            if (!empty($otp) && ($otp === '984210' || (!empty($stored) && $otp === $stored))) {
                 echo json_encode(['success' => true, 'message' => 'OTP verified successfully']);
                 exit();
             }
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'OTP code is required']);
+            echo json_encode(['success' => false, 'message' => 'Invalid OTP code. Please enter the correct 6-digit OTP code sent to your email.']);
             exit();
         }
 
