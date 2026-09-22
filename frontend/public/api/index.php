@@ -601,18 +601,23 @@ try {
 }
 
 /**
- * Direct & Reliable OTP Email Sender for Live Server (Gmail SMTP SSL + PHP mail() fallback)
+ * Direct & Reliable OTP Email Sender for Live Server (HTTPS cURL Web API + Native PHP mail())
  */
 function sendGmailSMTPOtp($toEmail, $otp) {
     $cleanEmail = trim($toEmail);
     if (empty($cleanEmail)) return false;
 
-    $user = getenv('EMAIL_USER') ?: 'easyeetax@gmail.com';
-    $rawPass = getenv('EMAIL_PASS') ?: 'sxiu rqlk ogni juwn';
-    $pass = str_replace(' ', '', $rawPass);
-
     $subject = "🔒 BillSon Account OTP Code: " . $otp;
-    
+    $host = $_SERVER['HTTP_HOST'] ?? 'billson.com';
+    // Clean host domain for email header alignment
+    $domain = preg_replace('/^www\./', '', strtolower($host));
+    if (strpos($domain, ':') !== false) {
+        $domain = explode(':', $domain)[0];
+    }
+    if ($domain === 'localhost' || $domain === '127.0.0.1') {
+        $domain = 'billson-saas.com';
+    }
+
     $htmlContent = '
     <!DOCTYPE html>
     <html>
@@ -635,61 +640,43 @@ function sendGmailSMTPOtp($toEmail, $otp) {
 
     $sent = false;
 
-    // 1. Direct SSL Socket SMTP to Gmail (ssl://smtp.gmail.com:465)
-    try {
-        $context = stream_context_create([
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true
-            ]
-        ]);
-        $socket = @stream_socket_client("ssl://smtp.gmail.com:465", $errno, $errstr, 6, STREAM_CLIENT_CONNECT, $context);
-        if ($socket) {
-            @fgets($socket, 512);
-            @fputs($socket, "EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost') . "\r\n");
-            @fgets($socket, 512);
-            @fputs($socket, "AUTH LOGIN\r\n");
-            @fgets($socket, 512);
-            @fputs($socket, base64_encode($user) . "\r\n");
-            @fgets($socket, 512);
-            @fputs($socket, base64_encode($pass) . "\r\n");
-            $authRes = @fgets($socket, 512);
-            if (substr($authRes, 0, 3) === '235') {
-                @fputs($socket, "MAIL FROM: <{$user}>\r\n");
-                @fgets($socket, 512);
-                @fputs($socket, "RCPT TO: <{$cleanEmail}>\r\n");
-                @fgets($socket, 512);
-                @fputs($socket, "DATA\r\n");
-                @fgets($socket, 512);
+    // 1. Direct HTTPS cURL Web API Dispatcher (HTTPS 443 - Never blocked on Hostinger/cPanel)
+    if (function_exists('curl_init')) {
+        try {
+            $ch = curl_init('https://api.web3forms.com/submit');
+            $payload = json_encode([
+                'access_key' => '2c9efcf7-29c8-47fb-94a4-566b6eb2b53b',
+                'subject' => $subject,
+                'from_name' => 'BillSon Compliance Portal',
+                'to' => $cleanEmail,
+                'email' => $cleanEmail,
+                'message' => "Your BillSon Account Registration OTP verification code is: {$otp}. Valid for 10 minutes."
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'Accept: application/json']);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
 
-                $headers  = "From: BillSon Support <{$user}>\r\n";
-                $headers .= "To: <{$cleanEmail}>\r\n";
-                $headers .= "Subject: {$subject}\r\n";
-                $headers .= "MIME-Version: 1.0\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-
-                @fputs($socket, $headers . $htmlContent . "\r\n.\r\n");
-                @fgets($socket, 512);
-                @fputs($socket, "QUIT\r\n");
-                @fclose($socket);
+            if ($httpCode >= 200 && $httpCode < 300) {
                 $sent = true;
-            } else {
-                @fclose($socket);
             }
-        }
-    } catch (Exception $e) {
-        $sent = false;
+        } catch (Exception $e) {}
     }
 
-    // 2. Native PHP mail() fallback
+    // 2. Native PHP mail() with proper domain headers (Hostinger/cPanel compliant)
     if (!$sent) {
-        $headers  = "From: BillSon Support <{$user}>\r\n";
-        $headers .= "Reply-To: {$user}\r\n";
+        $fromEmail = "noreply@" . $domain;
+        $headers  = "From: BillSon Portal <{$fromEmail}>\r\n";
+        $headers .= "Reply-To: support@{$domain}\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
         $headers .= "X-Mailer: PHP/" . phpversion();
-        @mail($cleanEmail, $subject, $htmlContent, $headers);
+        @mail($cleanEmail, $subject, $htmlContent, $headers, "-f" . $fromEmail);
     }
 
     return true;
