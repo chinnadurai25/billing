@@ -53,50 +53,42 @@ export const sendOtpEmail = async (toEmail, otpCode) => {
   }
 
   const mailOptions = {
-    from: `"BillSon Compliance Portal" <${rawUser}>`,
+    from: `"BillSon Verification" <${cleanUser}>`,
     to: toEmail.trim(),
-    subject: `🔒 BillSon Account Registration OTP: ${otpCode}`,
+    replyTo: cleanUser,
+    subject: `BillSon Verification Code: ${otpCode}`,
+    text: `Your BillSon verification code is: ${otpCode}\n\nThis code is valid for 10 minutes.\n\nBillSon Billing & Financial Compliance Solutions • support@billson.in`,
     html: `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <style>
-          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #0b0f19; color: #f8fafc; margin: 0; padding: 20px; }
-          .card { max-width: 500px; margin: 0 auto; background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-          .header { text-align: center; border-b: 1px solid #1e293b; padding-bottom: 20px; margin-bottom: 24px; }
-          .logo { font-size: 24px; font-weight: 800; color: #818cf8; text-transform: uppercase; letter-spacing: 1px; }
-          .title { font-size: 18px; font-weight: 700; color: #ffffff; margin-top: 8px; }
-          .otp-container { text-align: center; margin: 28px 0; background: #1e1b4b; border: 1px solid #4f46e5; border-radius: 12px; padding: 20px; }
-          .otp-code { font-size: 36px; font-weight: 900; font-family: 'Courier New', monospace; letter-spacing: 8px; color: #38bdf8; }
-          .otp-sub { font-size: 12px; color: #a5b4fc; margin-top: 6px; }
-          .footer { font-size: 11px; color: #64748b; text-align: center; margin-top: 24px; border-t: 1px solid #1e293b; pt: 16px; }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BillSon Verification Code</title>
       </head>
-      <body>
-        <div class="card">
-          <div class="header">
-            <div class="logo">⚡ BillSon</div>
-            <div class="title">Email Address Verification</div>
+      <body style="margin:0;padding:24px;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+        <div style="max-width:500px;margin:0 auto;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:36px 32px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.04);">
+          <div style="border-bottom:1px solid #f1f5f9;padding-bottom:16px;margin-bottom:20px;">
+            <span style="font-size:22px;font-weight:800;color:#4338ca;letter-spacing:-0.5px;">BillSon</span>
+            <span style="font-size:13px;color:#64748b;margin-left:8px;font-weight:500;">Compliance &amp; Billing</span>
           </div>
-          <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">
-            Hello,
-          </p>
-          <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
-            Thank you for registering your company on BillSon SaaS Portal. Please use the following 6-digit One-Time Password (OTP) to complete your email verification:
-          </p>
           
-          <div class="otp-container">
-            <div class="otp-code">${otpCode}</div>
-            <div class="otp-sub">Valid for 10 minutes • Do not share this code with anyone</div>
-          </div>
-
-          <p style="font-size: 12px; color: #64748b; line-height: 1.4;">
-            If you did not initiate this registration request, please ignore this email or contact support immediately.
+          <h2 style="margin:0 0 12px 0;font-size:18px;font-weight:700;color:#0f172a;">Verify your email address</h2>
+          <p style="margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;">
+            Thank you for registering on BillSon. Please use the following 6-digit One-Time Password (OTP) verification code:
           </p>
 
-          <div class="footer">
-            © 2026 BillSon Billing & Financial Compliance Solutions. All rights reserved.
+          <div style="background-color:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:18px;margin:24px 0;text-align:center;">
+            <span style="font-size:34px;font-weight:800;letter-spacing:8px;color:#2563eb;font-family:monospace;">${otpCode}</span>
+            <div style="font-size:12px;color:#64748b;margin-top:6px;">Valid for 10 minutes</div>
+          </div>
+
+          <p style="margin:0 0 24px 0;font-size:13px;line-height:1.5;color:#64748b;">
+            Never share this code with anyone. If you did not initiate this registration, please disregard this email.
+          </p>
+
+          <div style="border-top:1px solid #f1f5f9;padding-top:16px;font-size:12px;color:#94a3b8;line-height:1.5;">
+            <p style="margin:0 0 4px 0;">BillSon Billing &amp; Financial Compliance Solutions • support@billson.in</p>
           </div>
         </div>
       </body>

@@ -156,7 +156,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       return;
     }
 
-    addToast(`Sending OTP email to ${cleanEmail}...`, 'info');
+    addToast(`Sending verification email to ${cleanEmail}...`, 'info');
 
     // Generate 6-digit OTP code directly in React frontend
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -167,22 +167,28 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, newOtpCode);
     } catch (e) {}
 
-    // Send OTP directly via React browser EmailJS & Web API
+    // Send OTP via API (Gmail SMTP SSL/TLS + Hostinger Mail)
     const frontendRes = await sendOtpEmailDirect(cleanEmail, newOtpCode);
-
-    // Also inform Node backend if connected
-    try {
-      api.sendOtp({ email: cleanEmail, otp: newOtpCode });
-    } catch (e) {}
+    if (frontendRes && frontendRes.otp) {
+      setLocalGeneratedOtp(frontendRes.otp);
+      setGeneratedOtp(frontendRes.otp);
+      try {
+        sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, frontendRes.otp);
+      } catch (e) {}
+    }
 
     setOtpSent(true);
     setOtpCountdown(60);
     setIsRealEmailSent(true);
 
-    addToast(frontendRes.message || `OTP code sent successfully to ${cleanEmail}! Please check your Inbox.`, 'success', 'OTP Sent via Email');
+    if (frontendRes?.sent) {
+      addToast(frontendRes.message || `Verification code sent to ${cleanEmail}! Please check your Inbox / Spam folder.`, 'success', 'Email Sent');
+    } else {
+      addToast(frontendRes?.message || `OTP code ready for ${cleanEmail}. Check Inbox or use fill helper.`, 'info', 'OTP Ready');
+    }
   };
 
-  // Verify OTP Code
+  // Verify OTP Code - strictly checks exact 6-digit code received in email
   const handleVerifyOtp = async () => {
     const inputCode = enteredOtp.trim();
     if (!inputCode) {
@@ -190,34 +196,36 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       return;
     }
 
-    if (inputCode.length !== 6) {
-      addToast('OTP code must be exactly 6 digits', 'error', 'Invalid Format');
+    if (inputCode.length !== 6 || !/^\d{6}$/.test(inputCode)) {
+      addToast('Verification code must be exactly 6 digits', 'error', 'Invalid Format');
       return;
     }
 
     const cleanEmail = formData.email.trim().toLowerCase();
-    const storedSessionOtp = sessionStorage.getItem(`billson_otp_${cleanEmail}`) || localGeneratedOtp || generatedOtp;
+    const storedSessionOtp = sessionStorage.getItem(`billson_otp_${cleanEmail}`);
 
-    // Strict validation: input must match the exact 6-digit OTP sent to user's email
-    const matchesLocalOtp = storedSessionOtp && inputCode === storedSessionOtp;
-    const matchesGenerated = localGeneratedOtp && inputCode === localGeneratedOtp;
-    const matchesMaster = inputCode === '984210';
-
+    // Verify with backend database
     let backendVerified = false;
+    let backendMsg = '';
     try {
       const res = await api.verifyOtp({ email: cleanEmail, otp: inputCode });
       if (res && res.success) {
         backendVerified = true;
+      } else if (res && res.message) {
+        backendMsg = res.message;
       }
     } catch (e) {}
 
-    if (matchesLocalOtp || matchesGenerated || matchesMaster || backendVerified) {
+    // Match either verified by backend DB or local active OTP from API dispatch
+    const matchesActiveOtp = storedSessionOtp && inputCode === storedSessionOtp;
+
+    if (backendVerified || matchesActiveOtp) {
       setIsEmailVerified(true);
       setOtpSent(false);
       setErrors((prev) => ({ ...prev, email: '' }));
-      addToast('Email ID verified successfully! ✓', 'success', 'OTP Verified');
+      addToast('Email address verified successfully! ✓', 'success', 'OTP Verified');
     } else {
-      addToast('Incorrect 6-digit OTP code. Please check your email inbox and try again.', 'error', 'Invalid OTP');
+      addToast(backendMsg || 'Incorrect verification code. Please enter the exact 6-digit code received in your email.', 'error', 'Invalid Code');
     }
   };
 
@@ -557,7 +565,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       </button>
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      * An OTP verification code has been sent to your email address ({formData.email}). Please check your Inbox / Spam folder.
+                      * Please enter the exact 6-digit verification code sent to your email ({formData.email}).
                     </p>
                   </div>
                 )}

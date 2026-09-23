@@ -50,10 +50,10 @@ router.post('/verify-otp', async (req, res) => {
 
     const record = otpStore.get(email.toLowerCase());
     
-    // Allow master codes or matching valid OTP
-    if (otp === '984210' || otp === '123456' || (record && record.code === otp && record.expiresAt > Date.now())) {
+    // Strict validation: input must match the exact 6-digit OTP sent to user's email
+    if (record && record.code === otp && record.expiresAt > Date.now()) {
       otpStore.delete(email.toLowerCase());
-      return res.json({ success: true, message: 'Email verified successfully' });
+      return res.json({ success: true, message: 'Email verified successfully! ✓' });
     }
 
     if (!record) {

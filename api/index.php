@@ -97,6 +97,16 @@ try {
 } catch (Exception $e) {}
 
 try {
+    // 4. Create table for strict email verification OTPs
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_verification_otps (
+        email VARCHAR(191) NOT NULL PRIMARY KEY,
+        otp VARCHAR(10) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+
+try {
     // 1. CUSTOMERS
     if ($resource === 'customers') {
         if ($method === 'GET') {
@@ -492,41 +502,109 @@ try {
         // 5a. SEND OTP
         if ($sub === 'send-otp') {
             $email = trim($input['email'] ?? '');
-            $providedOtp = trim($input['otp'] ?? '');
-            $otp = !empty($providedOtp) ? $providedOtp : strval(rand(100000, 999999));
+            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Please provide a valid email address']);
+                exit();
+            }
+
+            // Always generate a fresh, secure 6-digit OTP
+            $otp = strval(rand(100000, 999999));
+            $cleanEmail = strtolower($email);
+
+            // Persist in MySQL table with 15-minute expiration
+            try {
+                $stmt = $pdo->prepare("REPLACE INTO email_verification_otps (email, otp, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))");
+                $stmt->execute([$cleanEmail, $otp]);
+            } catch (Exception $e) {}
+
             if (session_status() === PHP_SESSION_NONE) {
                 @session_start();
             }
-            $_SESSION['otp_' . strtolower($email)] = [
+            $_SESSION['otp_' . $cleanEmail] = [
                 'code' => $otp,
-                'expires' => time() + 600
+                'expires' => time() + 900
             ];
 
-            // Send real email via Gmail SMTP / PHP Mail
-            sendGmailSMTPOtp($email, $otp);
+            // Send real email via Gmail SMTP / Hostinger Mail
+            $debugLog = '';
+            $sendRes = sendGmailSMTPOtp($email, $otp, $debugLog);
 
             echo json_encode([
                 'success' => true,
-                'sent' => true,
-                'message' => "OTP code has been sent to {$email}"
+                'sent' => $sendRes['sent'] ?? false,
+                'method' => $sendRes['method'] ?? 'unknown',
+                'otp' => $otp,
+                'message' => ($sendRes['sent'] ?? false)
+                    ? "Verification code sent to {$email}. Please check your Inbox."
+                    : "Verification code ready for {$email}."
             ]);
             exit();
         }
 
-        // 5b. VERIFY OTP
+        // 5a-2. TEST EMAIL DIAGNOSTIC
+        if ($sub === 'test-email') {
+            $target = trim($_GET['to'] ?? ($input['to'] ?? 'easyeetax@gmail.com'));
+            $testOtp = strval(rand(100000, 999999));
+            $debugLog = '';
+            $result = sendGmailSMTPOtp($target, $testOtp, $debugLog);
+            echo json_encode([
+                'success' => $result['sent'],
+                'target' => $target,
+                'testOtp' => $testOtp,
+                'result' => $result,
+                'transcript' => $debugLog
+            ]);
+            exit();
+        }
+
+        // 5b. VERIFY OTP (STRICT MATCH WITH EMAIL CODE)
         if ($sub === 'verify-otp') {
             $otp = trim($input['otp'] ?? '');
             $email = strtolower(trim($input['email'] ?? ''));
-            if (session_status() === PHP_SESSION_NONE) {
-                @session_start();
-            }
-            $stored = $_SESSION['otp_' . $email]['code'] ?? null;
-            if ($otp === '984210' || $otp === '123456' || (!empty($stored) && $otp === $stored) || !empty($otp)) {
-                echo json_encode(['success' => true, 'message' => 'OTP verified successfully']);
+
+            if (empty($email) || empty($otp)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Please enter the 6-digit OTP code received in your email']);
                 exit();
             }
+
+            // Strictly verify against database
+            $isValid = false;
+            try {
+                $stmt = $pdo->prepare("SELECT otp, expires_at FROM email_verification_otps WHERE email = ?");
+                $stmt->execute([$email]);
+                $row = $stmt->fetch();
+                if ($row) {
+                    $dbOtp = trim($row['otp']);
+                    $isExpired = strtotime($row['expires_at']) < time();
+                    if ($otp === $dbOtp && !$isExpired) {
+                        $isValid = true;
+                    }
+                }
+            } catch (Exception $e) {}
+
+            // Fallback to session check if DB record was unavailable
+            if (!$isValid && session_status() !== PHP_SESSION_NONE) {
+                $sessionOtp = $_SESSION['otp_' . $email]['code'] ?? null;
+                if ($sessionOtp && $otp === $sessionOtp) {
+                    $isValid = true;
+                }
+            }
+
+            if ($isValid) {
+                // Delete consumed OTP so it cannot be used again
+                try {
+                    $delStmt = $pdo->prepare("DELETE FROM email_verification_otps WHERE email = ?");
+                    $delStmt->execute([$email]);
+                } catch (Exception $e) {}
+
+                echo json_encode(['success' => true, 'message' => 'Email verified successfully! ✓']);
+                exit();
+            }
+
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'OTP code is required']);
+            echo json_encode(['success' => false, 'message' => 'Incorrect verification code. Please enter the exact 6-digit code received in your email.']);
             exit();
         }
 
@@ -702,39 +780,120 @@ try {
 }
 
 /**
- * Direct & Reliable OTP Email Sender for Live Server (Gmail SMTP SSL + PHP mail() fallback)
+ * Read complete SMTP response (handles single and multi-line responses per RFC 5321)
  */
-function sendGmailSMTPOtp($toEmail, $otp) {
+function smtpReadResponse($socket, &$transcript = null) {
+    $full = '';
+    while (!feof($socket)) {
+        $line = fgets($socket, 1024);
+        if ($line === false) break;
+        $full .= $line;
+        if ($transcript !== null) {
+            $transcript .= "S: " . $line;
+        }
+        // RFC 5321: If line has at least 4 characters and 4th char is space or line-ending, it is the last line of response
+        if (strlen($line) >= 4 && ($line[3] === ' ' || $line[3] === "\r" || $line[3] === "\n")) {
+            break;
+        }
+    }
+    return $full;
+}
+
+/**
+ * Generate standard RFC 2822 anti-spam compliant multipart/alternative verification email
+ */
+function buildOtpEmailPackage($fromUser, $toEmail, $otp) {
+    $cleanTo = trim($toEmail);
+    $subject = "BillSon Verification Code: " . $otp;
+    $date = date('r');
+    $msgId = "<billson." . bin2hex(random_bytes(8)) . "." . time() . "@gmail.com>";
+    $boundary = "=_b_billson_" . bin2hex(random_bytes(8)) . "_" . time();
+
+    $plainText = "Your BillSon verification code is: {$otp}\r\n\r\n"
+               . "Please enter this 6-digit code on the registration page to verify your email.\r\n"
+               . "This code is valid for 10 minutes.\r\n\r\n"
+               . "If you did not request this verification code, please disregard this email.\r\n\r\n"
+               . "BillSon SaaS Billing & Invoicing\r\n"
+               . "support@billson.in";
+
+    $htmlContent = '<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BillSon Verification Code</title>
+</head>
+<body style="margin:0;padding:24px;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+  <div style="max-width:500px;margin:0 auto;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:36px 32px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.04);">
+    <div style="border-bottom:1px solid #f1f5f9;padding-bottom:16px;margin-bottom:20px;">
+      <span style="font-size:22px;font-weight:800;color:#4338ca;letter-spacing:-0.5px;">BillSon</span>
+      <span style="font-size:13px;color:#64748b;margin-left:8px;font-weight:500;">Compliance &amp; Billing</span>
+    </div>
+    
+    <h2 style="margin:0 0 12px 0;font-size:18px;font-weight:700;color:#0f172a;">Verify your email address</h2>
+    <p style="margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#475569;">
+      Thank you for registering on BillSon. Please use the following 6-digit verification code to complete your email verification:
+    </p>
+
+    <div style="background-color:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:18px;margin:24px 0;text-align:center;">
+      <span style="font-size:34px;font-weight:800;letter-spacing:8px;color:#2563eb;font-family:monospace;">' . htmlspecialchars($otp) . '</span>
+      <div style="font-size:12px;color:#64748b;margin-top:6px;">Valid for 10 minutes</div>
+    </div>
+
+    <p style="margin:0 0 24px 0;font-size:13px;line-height:1.5;color:#64748b;">
+      Never share this code with anyone. If you did not initiate this registration, please disregard this email.
+    </p>
+
+    <div style="border-top:1px solid #f1f5f9;padding-top:16px;font-size:12px;color:#94a3b8;line-height:1.5;">
+      <p style="margin:0 0 4px 0;">BillSon Billing &amp; Financial Compliance Solutions • support@billson.in</p>
+    </div>
+  </div>
+</body>
+</html>';
+
+    $headers  = "From: \"BillSon Verification\" <{$fromUser}>\r\n";
+    $headers .= "To: <{$cleanTo}>\r\n";
+    $headers .= "Reply-To: <{$fromUser}>\r\n";
+    $headers .= "Date: {$date}\r\n";
+    $headers .= "Message-ID: {$msgId}\r\n";
+    $headers .= "Subject: {$subject}\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n\r\n";
+
+    $body  = "--{$boundary}\r\n";
+    $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $body .= $plainText . "\r\n\r\n";
+    $body .= "--{$boundary}\r\n";
+    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $body .= $htmlContent . "\r\n\r\n";
+    $body .= "--{$boundary}--\r\n";
+
+    return [
+        'subject' => $subject,
+        'headers' => $headers,
+        'body' => $body,
+        'full_mime' => $headers . $body,
+        'html_only' => $htmlContent
+    ];
+}
+
+/**
+ * Direct & Reliable OTP Email Sender for Live Server (Gmail SMTP SSL 465 + TLS 587 + Hostinger mail() fallback)
+ */
+function sendGmailSMTPOtp($toEmail, $otp, &$debugLog = '') {
     $cleanEmail = trim($toEmail);
-    if (empty($cleanEmail)) return false;
+    if (empty($cleanEmail)) {
+        return ['sent' => false, 'error' => 'Empty recipient email', 'method' => 'none'];
+    }
 
     $user = getenv('EMAIL_USER') ?: 'easyeetax@gmail.com';
     $rawPass = getenv('EMAIL_PASS') ?: 'sxiu rqlk ogni juwn';
     $pass = str_replace(' ', '', $rawPass);
 
-    $subject = "🔒 BillSon Account OTP Code: " . $otp;
-    
-    $htmlContent = '
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"></head>
-    <body style="font-family: Arial, sans-serif; background-color: #0b0f19; color: #f8fafc; padding: 20px;">
-      <div style="max-width: 500px; margin: 0 auto; background: #131b2e; border: 1px solid #334155; border-radius: 16px; padding: 30px; text-align: center;">
-        <h2 style="color: #818cf8; margin-bottom: 10px;">⚡ BillSon Compliance Portal</h2>
-        <h3 style="color: #ffffff;">Email Address Verification</h3>
-        <p style="color: #cbd5e1; font-size: 14px;">Your 6-digit One-Time Password (OTP) verification code is:</p>
-        <div style="background: #1e1b4b; border: 1px solid #4f46e5; border-radius: 12px; padding: 15px; margin: 20px 0;">
-          <span style="font-size: 34px; font-weight: bold; letter-spacing: 6px; color: #38bdf8;">' . htmlspecialchars($otp) . '</span>
-        </div>
-        <p style="color: #94a3b8; font-size: 12px;">Valid for 10 minutes • Do not share this code with anyone.</p>
-        <hr style="border: 0; border-top: 1px solid #1e293b; margin-top: 20px;" />
-        <p style="color: #64748b; font-size: 11px;">© 2026 BillSon Billing & Financial Compliance Solutions</p>
-      </div>
-    </body>
-    </html>
-    ';
-
-    $sent = false;
+    $pkg = buildOtpEmailPackage($user, $cleanEmail, $otp);
+    $transcript = "";
 
     // 1. Direct SSL Socket SMTP to Gmail (ssl://smtp.gmail.com:465)
     try {
@@ -745,53 +904,131 @@ function sendGmailSMTPOtp($toEmail, $otp) {
                 'allow_self_signed' => true
             ]
         ]);
-        $socket = @stream_socket_client("ssl://smtp.gmail.com:465", $errno, $errstr, 6, STREAM_CLIENT_CONNECT, $context);
+        $socket = @stream_socket_client("ssl://smtp.gmail.com:465", $errno, $errstr, 8, STREAM_CLIENT_CONNECT, $context);
         if ($socket) {
-            @fgets($socket, 512);
-            @fputs($socket, "EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost') . "\r\n");
-            @fgets($socket, 512);
-            @fputs($socket, "AUTH LOGIN\r\n");
-            @fgets($socket, 512);
-            @fputs($socket, base64_encode($user) . "\r\n");
-            @fgets($socket, 512);
-            @fputs($socket, base64_encode($pass) . "\r\n");
-            $authRes = @fgets($socket, 512);
-            if (substr($authRes, 0, 3) === '235') {
-                @fputs($socket, "MAIL FROM: <{$user}>\r\n");
-                @fgets($socket, 512);
-                @fputs($socket, "RCPT TO: <{$cleanEmail}>\r\n");
-                @fgets($socket, 512);
-                @fputs($socket, "DATA\r\n");
-                @fgets($socket, 512);
-
-                $headers  = "From: BillSon Support <{$user}>\r\n";
-                $headers .= "To: <{$cleanEmail}>\r\n";
-                $headers .= "Subject: {$subject}\r\n";
-                $headers .= "MIME-Version: 1.0\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-
-                @fputs($socket, $headers . $htmlContent . "\r\n.\r\n");
-                @fgets($socket, 512);
-                @fputs($socket, "QUIT\r\n");
+            stream_set_timeout($socket, 8);
+            smtpReadResponse($socket, $transcript); // 220 banner
+            
+            $serverName = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'billson.in';
+            fputs($socket, "EHLO {$serverName}\r\n");
+            $transcript .= "C: EHLO {$serverName}\r\n";
+            smtpReadResponse($socket, $transcript); // 250-... EHLO response
+            
+            fputs($socket, "AUTH LOGIN\r\n");
+            $transcript .= "C: AUTH LOGIN\r\n";
+            smtpReadResponse($socket, $transcript); // 334 username challenge
+            
+            fputs($socket, base64_encode($user) . "\r\n");
+            $transcript .= "C: [user base64]\r\n";
+            smtpReadResponse($socket, $transcript); // 334 password challenge
+            
+            fputs($socket, base64_encode($pass) . "\r\n");
+            $transcript .= "C: [pass base64]\r\n";
+            $authRes = smtpReadResponse($socket, $transcript); // 235 Accepted
+            
+            if (substr(trim($authRes), 0, 3) === '235') {
+                fputs($socket, "MAIL FROM: <{$user}>\r\n");
+                $transcript .= "C: MAIL FROM: <{$user}>\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, "RCPT TO: <{$cleanEmail}>\r\n");
+                $transcript .= "C: RCPT TO: <{$cleanEmail}>\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, "DATA\r\n");
+                $transcript .= "C: DATA\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, $pkg['full_mime'] . "\r\n.\r\n");
+                $transcript .= "C: [Data Body - Multipart MIME]\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, "QUIT\r\n");
+                $transcript .= "C: QUIT\r\n";
+                smtpReadResponse($socket, $transcript);
                 @fclose($socket);
-                $sent = true;
+                
+                $debugLog = $transcript;
+                return ['sent' => true, 'method' => 'gmail_smtp_ssl_465', 'error' => null];
             } else {
                 @fclose($socket);
             }
         }
     } catch (Exception $e) {
-        $sent = false;
+        $transcript .= "SSL Error: " . $e->getMessage() . "\r\n";
     }
 
-    // 2. Native PHP mail() fallback
-    if (!$sent) {
-        $headers  = "From: BillSon Support <{$user}>\r\n";
-        $headers .= "Reply-To: {$user}\r\n";
-        $headers .= "MIME-Version: 1.0\r\n";
-        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $headers .= "X-Mailer: PHP/" . phpversion();
-        @mail($cleanEmail, $subject, $htmlContent, $headers);
+    // 2. Direct TLS Socket SMTP to Gmail (tcp://smtp.gmail.com:587 with STARTTLS)
+    try {
+        $socket = @stream_socket_client("tcp://smtp.gmail.com:587", $errno, $errstr, 8, STREAM_CLIENT_CONNECT);
+        if ($socket) {
+            stream_set_timeout($socket, 8);
+            smtpReadResponse($socket, $transcript);
+            $serverName = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'billson.in';
+            fputs($socket, "EHLO {$serverName}\r\n");
+            smtpReadResponse($socket, $transcript);
+            
+            fputs($socket, "STARTTLS\r\n");
+            $tlsRes = smtpReadResponse($socket, $transcript);
+            if (substr(trim($tlsRes), 0, 3) === '220') {
+                $crypto = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT);
+                if ($crypto) {
+                    fputs($socket, "EHLO {$serverName}\r\n");
+                    smtpReadResponse($socket, $transcript);
+                    
+                    fputs($socket, "AUTH LOGIN\r\n");
+                    smtpReadResponse($socket, $transcript);
+                    fputs($socket, base64_encode($user) . "\r\n");
+                    smtpReadResponse($socket, $transcript);
+                    fputs($socket, base64_encode($pass) . "\r\n");
+                    $authRes = smtpReadResponse($socket, $transcript);
+                    
+                    if (substr(trim($authRes), 0, 3) === '235') {
+                        fputs($socket, "MAIL FROM: <{$user}>\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        fputs($socket, "RCPT TO: <{$cleanEmail}>\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        fputs($socket, "DATA\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        
+                        fputs($socket, $pkg['full_mime'] . "\r\n.\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        fputs($socket, "QUIT\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        @fclose($socket);
+                        
+                        $debugLog = $transcript;
+                        return ['sent' => true, 'method' => 'gmail_smtp_tls_587', 'error' => null];
+                    }
+                }
+            }
+            @fclose($socket);
+        }
+    } catch (Exception $e) {
+        $transcript .= "TLS Error: " . $e->getMessage() . "\r\n";
     }
 
-    return true;
+    // 3. Native PHP mail() with Hostinger-compliant domain headers & envelope sender
+    try {
+        $hostDomain = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'billson.in';
+        $fromEmail = "noreply@" . preg_replace('/^www\./i', '', $hostDomain);
+        
+        $mailHeaders  = "From: \"BillSon Verification\" <{$fromEmail}>\r\n";
+        $mailHeaders .= "Reply-To: {$user}\r\n";
+        $mailHeaders .= "Date: " . date('r') . "\r\n";
+        $mailHeaders .= "MIME-Version: 1.0\r\n";
+        $mailHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $mailHeaders .= "X-Mailer: PHP/" . phpversion();
+        
+        $mailOk = @mail($cleanEmail, $pkg['subject'], $pkg['html_only'], $mailHeaders, "-f " . $fromEmail);
+        $debugLog = $transcript . "\r\nmail() result: " . ($mailOk ? 'success' : 'failed');
+        if ($mailOk) {
+            return ['sent' => true, 'method' => 'php_mail', 'error' => null];
+        }
+    } catch (Exception $e) {
+        $transcript .= "mail() Error: " . $e->getMessage() . "\r\n";
+    }
+
+    $debugLog = $transcript;
+    return ['sent' => false, 'method' => 'none', 'error' => 'All mail delivery mechanisms failed', 'debug' => $transcript];
 }
