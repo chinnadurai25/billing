@@ -207,7 +207,8 @@ export const initDB = async () => {
         grand_total DECIMAL(15,2) NOT NULL,
         status ENUM('Paid', 'Pending', 'Overdue', 'Draft', 'Cancelled') DEFAULT 'Pending',
         items LONGTEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY idx_user_invoice (user_id, invoice_number)
       );
     `);
 
@@ -241,6 +242,14 @@ export const initDB = async () => {
     } catch (e) {
       // Column already exists
     }
+
+    try {
+      await connection.query(`ALTER TABLE invoices DROP INDEX invoice_number;`);
+    } catch (e) {}
+
+    try {
+      await connection.query(`ALTER TABLE invoices ADD UNIQUE KEY idx_user_invoice (user_id, invoice_number);`);
+    } catch (e) {}
 
     try {
       await connection.query(`ALTER TABLE invoices ADD COLUMN items LONGTEXT;`);

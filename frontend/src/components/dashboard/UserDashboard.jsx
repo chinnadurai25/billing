@@ -600,8 +600,6 @@ export const UserDashboard = ({
     try {
       const activeId = user?.id || 'USR-901';
       localStorage.setItem(`billson_invoices_${activeId}`, JSON.stringify(newInvoices));
-      localStorage.setItem('billson_invoices_global', JSON.stringify(newInvoices));
-      localStorage.setItem('billson_invoices', JSON.stringify(newInvoices));
     } catch (e) {}
   };
 
@@ -668,8 +666,11 @@ export const UserDashboard = ({
   const pendingAmount = pendingInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
   const outstandingAmount = overdueInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
 
-  // Filtered Invoices & Documents
+  // Filtered Invoices & Documents - strictly isolated to active tenant
   const displayInvoices = invoices.filter((inv) => {
+    const invOwner = inv.userId || inv.user_id;
+    if (user?.id && invOwner && invOwner !== user.id) return false;
+
     if (activeTab === 'payments') return inv.documentType === 'Payment';
     if (docSubTab === 'All') return true;
     if (docSubTab === 'Sales Invoice') return !inv.documentType || inv.documentType === 'Sales Invoice';

@@ -26,9 +26,14 @@ export const generateNextInvoiceNumber = (invoices = [], user = null, documentTy
     } catch (e) {}
   }
 
+  // Filter invoices to only active user's invoices to determine next invoice number
+  const userInvoices = user?.id 
+    ? invoices.filter(i => (i.userId && i.userId === user.id) || (i.user_id && i.user_id === user.id))
+    : invoices;
+
   // If default prefix is used but existing invoices have a prefix, extract prefix from most recent invoice
-  if (prefix === 'TP-2026-' && invoices.length > 0) {
-    const firstNum = invoices[0]?.invoiceNumber || invoices[0]?.invoice_number || '';
+  if (prefix === 'TP-2026-' && userInvoices.length > 0) {
+    const firstNum = userInvoices[0]?.invoiceNumber || userInvoices[0]?.invoice_number || '';
     const match = firstNum.match(/^(.*?)(\d+)$/);
     if (match && match[1]) {
       prefix = match[1];
@@ -38,7 +43,7 @@ export const generateNextInvoiceNumber = (invoices = [], user = null, documentTy
   let maxNum = 0;
   let padLen = 3; // Default 3 digits padding (001, 002, 003...)
 
-  invoices.forEach((inv) => {
+  userInvoices.forEach((inv) => {
     const invNum = String(inv.invoiceNumber || inv.invoice_number || '');
     const digitMatch = invNum.match(/\d+$/);
     if (digitMatch) {
@@ -919,6 +924,7 @@ export const QuickCreateInvoiceModal = ({
       const finalInvNumber = invoiceNumber || generateNextInvoiceNumber(invoices, user, documentType);
       const savedInvoice = {
         id: editingInvoice ? editingInvoice.id : `PAY-${Date.now()}`,
+        userId: user?.id || 'USR-901',
         documentType: 'Payment',
         invoiceNumber: finalInvNumber,
         customerName: paidTo || customerName || 'Party',
@@ -995,6 +1001,7 @@ export const QuickCreateInvoiceModal = ({
 
     const savedInvoice = {
       id: editingInvoice ? editingInvoice.id : `${effectiveSavedDocType.substring(0, 3).toUpperCase()}-${Date.now()}`,
+      userId: user?.id || 'USR-901',
       documentType: effectiveSavedDocType,
       document_type: effectiveSavedDocType,
       invoiceNumber: finalInvNumber,

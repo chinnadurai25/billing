@@ -74,8 +74,27 @@ if (!$pdo) {
     exit();
 }
 
+// Auto-migrate legacy indexes and scope invoices per tenant
+try {
+    // 1. Drop global UNIQUE index on invoice_number if present
+    $indexes = $pdo->query("SHOW INDEX FROM invoices WHERE Key_name = 'invoice_number' AND Non_unique = 0")->fetchAll();
+    if (!empty($indexes)) {
+        $pdo->exec("ALTER TABLE invoices DROP INDEX invoice_number");
+    }
+} catch (Exception $e) {}
 
+try {
+    // 2. Add compound UNIQUE index scoped to user_id + invoice_number so each company has their own sequence
+    $compound = $pdo->query("SHOW INDEX FROM invoices WHERE Key_name = 'idx_user_invoice_number'")->fetchAll();
+    if (empty($compound)) {
+        $pdo->exec("ALTER TABLE invoices ADD UNIQUE KEY idx_user_invoice_number (user_id, invoice_number)");
+    }
+} catch (Exception $e) {}
 
+try {
+    // 3. Fix misassigned invoice TP-2026-001 (created by Chinna for customer durai)
+    $pdo->exec("UPDATE invoices SET user_id = 'USR-cmNoaW5uYTIwMDN' WHERE invoice_number = 'TP-2026-001' AND customer_name = 'durai'");
+} catch (Exception $e) {}
 
 try {
     // 1. CUSTOMERS
@@ -223,24 +242,39 @@ try {
             exit();
         }
         if ($method === 'PUT' && $resourceId) {
-            $docType = $input['documentType'] ?? ($input['document_type'] ?? 'Sales Invoice');
-            $invNum = $input['invoiceNumber'] ?? ($input['invoice_number'] ?? $resourceId);
-            $custName = $input['customerName'] ?? ($input['customer_name'] ?? '');
-            $custGst = $input['customerGst'] ?? ($input['customer_gst'] ?? '');
-            $date = $input['date'] ?? date('Y-m-d');
-            $dueDate = $input['dueDate'] ?? ($input['due_date'] ?? date('Y-m-d', strtotime('+14 days')));
-            $subtotal = floatval($input['subtotal'] ?? 0);
-            $cgst = floatval($input['cgst'] ?? 0);
-            $sgst = floatval($input['sgst'] ?? 0);
-            $igst = floatval($input['igst'] ?? 0);
-            $totalTax = floatval($input['totalTax'] ?? ($input['total_tax'] ?? 0));
-            $grandTotal = floatval($input['grandTotal'] ?? ($input['grand_total'] ?? 0));
-            $status = $input['status'] ?? 'Pending';
-            $itemsJson = isset($input['items']) ? (is_string($input['items']) ? $input['items'] : json_encode($input['items'])) : '[]';
+            $docType = $input['documentType'] ?? ($input['document_type'] ?? null);
+            $invNum = $input['invoiceNumber'] ?? ($input['invoice_number'] ?? null);
+            $custName = $input['customerName'] ?? ($input['customer_name'] ?? null);
+            $custGst = $input['customerGst'] ?? ($input['customer_gst'] ?? null);
+            $date = $input['date'] ?? null;
+            $dueDate = $input['dueDate'] ?? ($input['due_date'] ?? null);
+            $subtotal = isset($input['subtotal']) ? floatval($input['subtotal']) : null;
+            $cgst = isset($input['cgst']) ? floatval($input['cgst']) : null;
+            $sgst = isset($input['sgst']) ? floatval($input['sgst']) : null;
+            $igst = isset($input['igst']) ? floatval($input['igst']) : null;
+            $totalTax = isset($input['totalTax']) ? floatval($input['totalTax']) : (isset($input['total_tax']) ? floatval($input['total_tax']) : null);
+            $grandTotal = isset($input['grandTotal']) ? floatval($input['grandTotal']) : (isset($input['grand_total']) ? floatval($input['grand_total']) : null);
+            $status = $input['status'] ?? null;
+            $itemsJson = isset($input['items']) ? (is_string($input['items']) ? $input['items'] : json_encode($input['items'])) : null;
 
-            $sql = "UPDATE invoices SET document_type = ?, invoice_number = ?, customer_name = ?, customer_gst = ?, date = ?, due_date = ?, subtotal = ?, cgst = ?, sgst = ?, igst = ?, total_tax = ?, grand_total = ?, status = ?, items = ? WHERE id = ?";
+            $sql = "UPDATE invoices SET 
+                document_type = COALESCE(?, document_type),
+                invoice_number = COALESCE(?, invoice_number),
+                customer_name = COALESCE(?, customer_name),
+                customer_gst = COALESCE(?, customer_gst),
+                date = COALESCE(?, date),
+                due_date = COALESCE(?, due_date),
+                subtotal = COALESCE(?, subtotal),
+                cgst = COALESCE(?, cgst),
+                sgst = COALESCE(?, sgst),
+                igst = COALESCE(?, igst),
+                total_tax = COALESCE(?, total_tax),
+                grand_total = COALESCE(?, grand_total),
+                status = COALESCE(?, status),
+                items = COALESCE(?, items)
+                WHERE id = ? OR invoice_number = ?";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$docType, $invNum, $custName, $custGst, $date, $dueDate, $subtotal, $cgst, $sgst, $igst, $totalTax, $grandTotal, $status, $itemsJson, $resourceId]);
+            $stmt->execute([$docType, $invNum, $custName, $custGst, $date, $dueDate, $subtotal, $cgst, $sgst, $igst, $totalTax, $grandTotal, $status, $itemsJson, $resourceId, $resourceId]);
             echo json_encode(['success' => true, 'message' => 'Invoice updated']);
             exit();
         }

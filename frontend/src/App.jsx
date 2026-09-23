@@ -48,7 +48,7 @@ const loadCachedItems = (entityKey, activeUserId, defaultFallback = []) => {
       if (stored !== null) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          return parsed; // Exactly what the active user saved, even if [] (all deleted)
+          return parsed.filter(item => (item.userId && item.userId === activeUserId) || (item.user_id && item.user_id === activeUserId));
         }
       }
       return []; // Real active user without cached data starts with empty array, NOT mock data
@@ -71,9 +71,6 @@ const saveCachedItems = (entityKey, activeUserId, items) => {
     if (!activeUserId) return;
     const list = Array.isArray(items) ? items : [];
     localStorage.setItem(`billson_${entityKey}_${activeUserId}`, JSON.stringify(list));
-    // Always sync global keys so they never contain deleted zombie items
-    localStorage.setItem(`billson_${entityKey}_global`, JSON.stringify(list));
-    localStorage.setItem(`billson_${entityKey}`, JSON.stringify(list));
   } catch (e) {
     console.warn(`Error saving cached ${entityKey}:`, e);
   }
@@ -271,10 +268,10 @@ function AppContent() {
         api.getInvoices(activeUserId)
       ]);
 
-      // 1. CUSTOMERS
+      // 1. CUSTOMERS - strictly isolate to active tenant
       if (custRes?.success && Array.isArray(custRes.data)) {
         const norm = custRes.data.map(normaliseCustomer);
-        const cleanNorm = norm.filter(c => !c.userId || c.userId === activeUserId);
+        const cleanNorm = norm.filter(c => (c.userId && c.userId === activeUserId) || (c.user_id && c.user_id === activeUserId));
         setCustomersState(cleanNorm);
         saveCachedItems('customers', activeUserId, cleanNorm);
       } else {
@@ -282,10 +279,10 @@ function AppContent() {
         setCustomersState(cachedCust);
       }
 
-      // 2. BANK ACCOUNTS
+      // 2. BANK ACCOUNTS - strictly isolate to active tenant
       if (bankRes?.success && Array.isArray(bankRes.data)) {
         const norm = bankRes.data.map(normaliseBank);
-        const cleanBanks = norm.filter(b => !b.userId || b.userId === activeUserId);
+        const cleanBanks = norm.filter(b => (b.userId && b.userId === activeUserId) || (b.user_id && b.user_id === activeUserId));
         setBankAccountsState(cleanBanks);
         saveCachedItems('bank_accounts', activeUserId, cleanBanks);
       } else {
@@ -293,10 +290,10 @@ function AppContent() {
         setBankAccountsState(cachedBanks);
       }
 
-      // 3. PRODUCTS
+      // 3. PRODUCTS - strictly isolate to active tenant
       if (prodRes?.success && Array.isArray(prodRes.data)) {
         const norm = prodRes.data.map(normaliseProduct);
-        const cleanProds = norm.filter(p => !p.userId || p.userId === activeUserId);
+        const cleanProds = norm.filter(p => (p.userId && p.userId === activeUserId) || (p.user_id && p.user_id === activeUserId));
         setProductsState(cleanProds);
         saveCachedItems('products', activeUserId, cleanProds);
       } else {
@@ -304,10 +301,10 @@ function AppContent() {
         setProductsState(cachedProds);
       }
 
-      // 4. INVOICES / PAYMENTS / ESTIMATES / DELIVERY CHALLANS
+      // 4. INVOICES / PAYMENTS / ESTIMATES / DELIVERY CHALLANS - strictly isolate to active tenant
       if (invRes?.success && Array.isArray(invRes.data)) {
         const norm = invRes.data.map(normaliseInvoice);
-        const cleanInvs = norm.filter(i => !i.userId || i.userId === activeUserId);
+        const cleanInvs = norm.filter(i => (i.userId && i.userId === activeUserId) || (i.user_id && i.user_id === activeUserId));
         setInvoicesState(cleanInvs);
         saveCachedItems('invoices', activeUserId, cleanInvs);
       } else {
