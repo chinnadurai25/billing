@@ -87,4 +87,7 @@ export const api = {
   // Admin Registered Users
   getAdminUsers: () => request('/admin/users'),
   deleteAdminUser: (id) => request(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Live GSTIN Taxpayer Lookup
+  lookupGst: (gstin) => request(`/gst-lookup/${encodeURIComponent(gstin)}`),
 };

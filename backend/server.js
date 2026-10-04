@@ -11,6 +11,7 @@ import bankRoutes from './routes/bankAccounts.js';
 import productRoutes from './routes/products.js';
 import invoiceRoutes from './routes/invoices.js';
 import adminRoutes from './routes/admin.js';
+import gstRoutes from './routes/gst.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,6 +49,7 @@ app.use('/api/bank-accounts', bankRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/gst-lookup', gstRoutes);
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {

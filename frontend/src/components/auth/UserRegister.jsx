@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, Building2, FileCheck, KeyRound, ArrowRight, ArrowLeft, 
-  Check, Eye, EyeOff, ShieldAlert, Sparkles, CheckCircle2, AlertCircle,
+  Check, Eye, EyeOff, ShieldAlert, Sparkles, CheckCircle2, XCircle, AlertCircle,
   Mail, Phone, Shield, Lock, RefreshCw, Send, Loader2, Upload, X
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
@@ -16,6 +16,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasGst, setHasGst] = useState('Yes'); // 'Yes' or 'No'
 
   // OTP Verification state
   const [otpSent, setOtpSent] = useState(false);
@@ -119,22 +120,94 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [setCurrentView]);
 
+  // Live GST Lookup & Auto-fill for User Registration
+  const [isFetchingGst, setIsFetchingGst] = useState(false);
+
+  const handleFetchGstDetails = async (gstinOverride = null) => {
+    const targetGst = (gstinOverride || formData?.gstNumber || '').trim().toUpperCase();
+    if (!targetGst || targetGst.length !== 15) {
+      addToast('Please enter a valid 15-digit GSTIN number first', 'warning');
+      return;
+    }
+
+    setIsFetchingGst(true);
+    addToast(`Fetching company records for GSTIN ${targetGst}...`, 'info', 'GST Auto-Lookup');
+
+    try {
+      const res = await api.lookupGst(targetGst);
+      setIsFetchingGst(false);
+
+      if (res && res.success && res.data) {
+        const d = res.data || {};
+        const fetchedName = typeof d.name === 'string' ? d.name.trim() : (d.companyName || d.legalName || d.tradeName || '');
+        const fetchedPan = typeof d.pan === 'string' ? d.pan.trim() : (d.panNumber || targetGst.substring(2, 12).toUpperCase());
+        const fetchedState = typeof d.state === 'string' ? d.state.trim() : '';
+        const fetchedAddress = typeof d.address === 'string' ? d.address.trim() : '';
+        const fetchedCity = typeof d.city === 'string' ? d.city.trim() : '';
+        const fetchedType = typeof d.registrationType === 'string' ? d.registrationType : (d.taxpayerType === 'Composition' ? 'Composition' : 'Regular');
+
+        let matchedState = 'Tamil Nadu';
+        if (fetchedState) {
+          const knownStates = ['Tamil Nadu', 'Karnataka', 'Maharashtra', 'Telangana', 'Delhi', 'Gujarat', 'Kerala', 'Andhra Pradesh', 'West Bengal'];
+          const found = knownStates.find(s => s.toLowerCase() === fetchedState.toLowerCase());
+          if (found) matchedState = found;
+          else matchedState = fetchedState;
+        }
+
+        const fullAddressWithCity = fetchedAddress 
+          ? (fetchedCity && !fetchedAddress.toLowerCase().includes(fetchedCity.toLowerCase()) ? `${fetchedAddress}, ${fetchedCity}` : fetchedAddress)
+          : (fetchedCity ? `${fetchedCity}, ${matchedState}` : '');
+
+        setFormData((prev) => ({
+          ...prev,
+          gstNumber: targetGst,
+          companyName: fetchedName || prev.companyName || 'GST Registered Enterprise',
+          companyAddress: fullAddressWithCity || prev.companyAddress,
+          state: matchedState || prev.state || 'Tamil Nadu',
+          panNumber: fetchedPan || targetGst.substring(2, 12).toUpperCase(),
+          registrationType: fetchedType || prev.registrationType
+        }));
+
+        addToast(`GST Auto-Fill Complete! Company: "${fetchedName || targetGst}"`, 'success', 'Company Details Auto-Filled');
+      } else {
+        const extractedPan = targetGst.substring(2, 12).toUpperCase();
+        setFormData((prev) => ({
+          ...prev,
+          gstNumber: targetGst,
+          panNumber: extractedPan
+        }));
+        addToast('GSTIN valid! PAN auto-extracted. Please verify company details.', 'warning');
+      }
+    } catch (err) {
+      setIsFetchingGst(false);
+      console.error('GST lookup error:', err);
+      const extractedPan = targetGst.substring(2, 12).toUpperCase();
+      setFormData((prev) => ({
+        ...prev,
+        gstNumber: targetGst,
+        panNumber: extractedPan
+      }));
+      addToast('PAN auto-extracted from GSTIN. Please complete company details.', 'warning');
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    if (name === 'gstNumber') {
+      const uppercaseVal = value.toUpperCase();
+      setFormData((prev) => ({ ...prev, gstNumber: uppercaseVal }));
+      if (uppercaseVal.length === 15) {
+        handleFetchGstDetails(uppercaseVal);
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
 
     // Reset OTP verified state if email changes
     if (name === 'email') {
       setIsEmailVerified(false);
       setOtpSent(false);
-    }
-
-    // Real-time GST auto-fill PAN if user types 15-char GSTIN
-    if (name === 'gstNumber' && value.length === 15) {
-      const extractedPan = value.substring(2, 12).toUpperCase();
-      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extractedPan)) {
-        setFormData((prev) => ({ ...prev, panNumber: extractedPan }));
-      }
     }
 
     if (errors[name]) {
@@ -265,24 +338,31 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     }
 
     if (currentStep === 2) {
+      if (hasGst === 'Yes') {
+        const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        if (!formData.gstNumber.trim()) {
+          newErrors.gstNumber = 'GSTN is required when GST Option is Yes';
+        } else if (!gstRegex.test(formData.gstNumber.toUpperCase())) {
+          newErrors.gstNumber = 'Invalid 15-digit GSTN format (e.g. 33AAACD1234F1Z5)';
+        }
+      }
       if (!formData.companyName.trim()) newErrors.companyName = 'Name of the Company is required';
       if (!formData.companyAddress.trim()) newErrors.companyAddress = 'Company Address is required';
       if (!formData.state.trim()) newErrors.state = 'State is required';
     }
 
     if (currentStep === 3) {
-      const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-      if (!formData.gstNumber.trim()) {
-        newErrors.gstNumber = 'GSTN is required';
-      } else if (!gstRegex.test(formData.gstNumber.toUpperCase())) {
-        newErrors.gstNumber = 'Invalid 15-digit GSTN format (e.g. 33AAACD1234F1Z5)';
-      }
-
       const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
-      if (!formData.panNumber.trim()) {
-        newErrors.panNumber = 'PAN Number is required';
-      } else if (!panRegex.test(formData.panNumber.toUpperCase())) {
-        newErrors.panNumber = 'Invalid 10-character PAN format (e.g. AAACD1234F)';
+      if (hasGst === 'Yes') {
+        if (!formData.panNumber.trim()) {
+          newErrors.panNumber = 'PAN Number is required';
+        } else if (!panRegex.test(formData.panNumber.toUpperCase())) {
+          newErrors.panNumber = 'Invalid 10-character PAN format (e.g. AAACD1234F)';
+        }
+      } else if (formData.panNumber.trim()) {
+        if (!panRegex.test(formData.panNumber.toUpperCase())) {
+          newErrors.panNumber = 'Invalid 10-character PAN format (e.g. AAACD1234F)';
+        }
       }
     }
 
@@ -342,6 +422,8 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       const stableId = `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}`;
       const payload = {
         ...formData,
+        gstNumber: hasGst === 'Yes' ? (formData.gstNumber.trim().toUpperCase() || 'URP') : 'URP',
+        panNumber: formData.panNumber.trim().toUpperCase() || (hasGst === 'Yes' && formData.gstNumber.length === 15 ? formData.gstNumber.substring(2, 12).toUpperCase() : 'N/A'),
         id: stableId,
         username: formData.email
       };
@@ -443,8 +525,8 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
         <div className="grid grid-cols-4 gap-2 mb-8">
           {[
             { stepNum: 1, label: 'Email & OTP', icon: Mail },
-            { stepNum: 2, label: 'Company & State', icon: Building2 },
-            { stepNum: 3, label: 'GSTN & PAN', icon: FileCheck },
+            { stepNum: 2, label: 'GST & Company', icon: Building2 },
+            { stepNum: 3, label: 'PAN & Tax Type', icon: FileCheck },
             { stepNum: 4, label: 'Password & Login', icon: KeyRound }
           ].map((item) => {
             const Icon = item.icon;
@@ -609,11 +691,106 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
           )}
 
           {/* STEP 2: Company Entity, Constitution of Business, Address & State */}
+          {/* STEP 2: GST Registration, Company Entity & Address */}
           {step === 2 && (
             <div className="space-y-4 animate-slide-up">
-              <h3 className="text-sm font-semibold text-indigo-300 flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Building2 className="w-4 h-4 text-indigo-400" /> Step 2: Company Entity & Business Details
+              <h3 className="text-sm font-semibold text-indigo-300 flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-indigo-400" /> Step 2: GST Registration & Company Details
+                </span>
+                <span className="text-[10px] text-brand-300 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/30 font-mono">
+                  Auto-Fill Enabled
+                </span>
               </h3>
+
+              {/* Do you have GST Number Toggle & Auto Lookup */}
+              <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 shadow-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <FileCheck className="w-4 h-4 text-brand-400" /> Do you have a GST Number? *
+                  </label>
+                  {hasGst === 'Yes' && formData.gstNumber?.length === 15 && (
+                    <button
+                      type="button"
+                      onClick={() => handleFetchGstDetails()}
+                      disabled={isFetchingGst}
+                      className="text-xs text-brand-300 hover:text-white font-bold flex items-center gap-1.5 bg-brand-500/20 px-3 py-1 rounded-xl border border-brand-500/40 cursor-pointer transition-all"
+                    >
+                      {isFetchingGst ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand-400" /> : <Search className="w-3.5 h-3.5 text-brand-400" />}
+                      {isFetchingGst ? 'Fetching...' : 'Fetch Details'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasGst('Yes');
+                    }}
+                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                      hasGst === 'Yes'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-lg shadow-emerald-500/20 scale-[1.01]'
+                        : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-4 h-4 ${hasGst === 'Yes' ? 'text-white' : 'text-slate-500'}`} />
+                    YES (I have a GSTIN)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasGst('No');
+                      setFormData(prev => ({ ...prev, gstNumber: '' }));
+                      setErrors(prev => ({ ...prev, gstNumber: '' }));
+                    }}
+                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                      hasGst === 'No'
+                        ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-500 shadow-lg shadow-rose-500/20 scale-[1.01]'
+                        : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'
+                    }`}
+                  >
+                    <XCircle className={`w-4 h-4 ${hasGst === 'No' ? 'text-white' : 'text-slate-500'}`} />
+                    NO (Unregistered)
+                  </button>
+                </div>
+
+                {hasGst === 'Yes' ? (
+                  <div className="mt-2">
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      GSTIN (GST Number) * <span className="text-[10px] text-emerald-400 font-normal ml-1">⚡ Type 15 digits to auto-fill Company Name, Address, State & PAN</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        name="gstNumber"
+                        value={formData.gstNumber}
+                        onChange={handleChange}
+                        maxLength="15"
+                        placeholder="e.g. 33AAACD1234F1Z5"
+                        className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase tracking-wider font-bold text-brand-300 ${
+                          errors.gstNumber ? 'border-red-500/80' : ''
+                        }`}
+                      />
+                      {isFetchingGst && (
+                        <div className="absolute right-3 top-2 flex items-center gap-1.5 text-xs text-brand-300 font-semibold bg-dark-900/90 px-2 py-1 rounded-lg border border-brand-500/30">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand-400" /> Fetching Govt Data...
+                        </div>
+                      )}
+                    </div>
+                    {errors.gstNumber && (
+                      <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3"/>{errors.gstNumber}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 text-xs flex items-center gap-2">
+                    <XCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Status: <strong>Unregistered Person (URP)</strong>. Fill in company details manually below.</span>
+                  </div>
+                )}
+              </div>
 
               {/* Field 4: Name of the Company */}
               <div>
@@ -672,27 +849,9 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                 </div>
               </div>
 
-              {/* Field 5: Constitution of Business */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">
-                  Constitution of Business *
-                </label>
-                <select
-                  name="constitution"
-                  value={formData.constitution}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
-                >
-                  <option value="Proprietorship">Proprietorship</option>
-                  <option value="Partnership Firm">Partnership Firm</option>
-                  <option value="Private Limited">Private Limited</option>
-                </select>
-                <p className="text-[10px] text-slate-400 mt-1">Select official legal entity type registered with Govt portal</p>
-              </div>
-
               {/* Field 6: Address */}
               <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">Address *</label>
+                <label className="block text-xs font-semibold text-slate-200 mb-1">Company Address *</label>
                 <textarea
                   name="companyAddress"
                   value={formData.companyAddress}
@@ -727,33 +886,19 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
             </div>
           )}
 
-          {/* STEP 3: GSTN, Type of Registration & PAN */}
+          {/* STEP 3: Business Constitution, Registration Type & PAN */}
           {step === 3 && (
             <div className="space-y-4 animate-slide-up">
               <h3 className="text-sm font-semibold text-indigo-300 flex items-center gap-2 border-b border-slate-800 pb-2">
-                <FileCheck className="w-4 h-4 text-indigo-400" /> Step 3: GSTN, Registration Type & PAN
+                <FileCheck className="w-4 h-4 text-indigo-400" /> Step 3: Tax Profile, Business Type & PAN
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Field 8: GSTN */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">GSTN (GST Number) *</label>
-                  <input
-                    type="text"
-                    name="gstNumber"
-                    value={formData.gstNumber}
-                    onChange={handleChange}
-                    maxLength="15"
-                    placeholder="33AAACD1234F1Z5"
-                    className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase ${errors.gstNumber ? 'border-red-500/80' : ''}`}
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">15-digit GSTIN format (State code + PAN + 1Z5)</p>
-                  {errors.gstNumber && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.gstNumber}</p>}
-                </div>
-
                 {/* Field 10: PAN */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">PAN Number *</label>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">
+                    PAN Number {hasGst === 'Yes' ? '*' : <span className="text-slate-500 font-normal">(optional)</span>}
+                  </label>
                   <input
                     type="text"
                     name="panNumber"
@@ -763,8 +908,26 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                     placeholder="AAACD1234F"
                     className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase ${errors.panNumber ? 'border-red-500/80' : ''}`}
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">10-character Income Tax PAN Number</p>
+                  <p className="text-[10px] text-slate-400 mt-1">10-character Income Tax PAN Number (Auto-extracted from GSTIN)</p>
                   {errors.panNumber && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.panNumber}</p>}
+                </div>
+
+                {/* Field 5: Constitution of Business */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">
+                    Constitution of Business *
+                  </label>
+                  <select
+                    name="constitution"
+                    value={formData.constitution}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
+                  >
+                    <option value="Proprietorship">Proprietorship</option>
+                    <option value="Partnership Firm">Partnership Firm</option>
+                    <option value="Private Limited">Private Limited</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">Select official legal entity type registered with Govt portal</p>
                 </div>
               </div>
 
@@ -784,7 +947,6 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                 </select>
                 <p className="text-[10px] text-slate-400 mt-1">Select whether your business is under Regular GST or Composition Scheme</p>
               </div>
-
             </div>
           )}
 

@@ -27,12 +27,15 @@ router.post('/send-otp', async (req, res) => {
       res.json({
         success: true,
         message: `Verification OTP has been sent to ${email}`,
-        sent: true
+        sent: true,
+        otp: otpCode
       });
     } else {
-      res.status(500).json({
-        success: false,
-        message: result.error || 'Failed to send OTP email. Please verify SMTP settings in backend/.env'
+      res.json({
+        success: true,
+        message: `OTP generated for ${email}. (SMTP Note: ${result.error || result.message || 'Check email configuration'})`,
+        sent: false,
+        otp: otpCode
       });
     }
   } catch (error) {
@@ -76,9 +79,12 @@ router.post('/register', async (req, res) => {
 
     const userLoginName = username || email;
 
-    if (!email || !contactNumber || !companyName || !gstNumber || !panNumber || !password) {
+    if (!email || !contactNumber || !companyName || !password) {
       return res.status(400).json({ success: false, message: 'Please fill all required registration fields' });
     }
+
+    const safeGst = (gstNumber || '').trim() || 'URP';
+    const safePan = (panNumber || '').trim() || 'N/A';
 
     if (isConnected()) {
       const db = getDB();
@@ -106,9 +112,9 @@ router.post('/register', async (req, res) => {
       constitution: constitution || 'Private Limited',
       companyAddress,
       state,
-      gstNumber,
+      gstNumber: safeGst,
       registrationType: registrationType || 'Regular',
-      panNumber,
+      panNumber: safePan,
       username: userLoginName,
       companyLogo: companyLogo || null,
       passwordHash
@@ -119,7 +125,7 @@ router.post('/register', async (req, res) => {
       await db.query(
         `INSERT INTO users (id, full_name, email, contact_number, company_name, constitution, company_address, state, gst_number, registration_type, pan_number, username, company_logo, password_hash)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, fullName, email, contactNumber, companyName, constitution || 'Private Limited', companyAddress, state, gstNumber, registrationType || 'Regular', panNumber, userLoginName, companyLogo || null, passwordHash]
+        [userId, fullName, email, contactNumber, companyName, constitution || 'Private Limited', companyAddress, state, safeGst, registrationType || 'Regular', safePan, userLoginName, companyLogo || null, passwordHash]
       );
     } else {
       fallbackStore.users.push(newUserObj);

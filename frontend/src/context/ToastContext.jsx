@@ -8,7 +8,9 @@ export const ToastProvider = ({ children }) => {
 
   const addToast = useCallback((message, type = 'success', title = '') => {
     const id = Date.now() + Math.random().toString(36).substring(2, 5);
-    const newToast = { id, message, type, title };
+    const safeMsg = typeof message === 'string' ? message : (message?.message || JSON.stringify(message || ''));
+    const safeTitle = typeof title === 'string' ? title : String(title || '');
+    const newToast = { id, message: safeMsg, type, title: safeTitle };
     
     setToasts((prev) => [...prev, newToast]);
 

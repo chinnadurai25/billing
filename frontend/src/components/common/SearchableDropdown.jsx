@@ -37,8 +37,9 @@ export default function SearchableDropdown({
     }
   }, [isOpen]);
 
-  const filteredOptions = options.filter((opt) =>
-    opt.toLowerCase().includes(searchQuery.trim().toLowerCase())
+  const safeOptions = Array.isArray(options) ? options : [];
+  const filteredOptions = safeOptions.filter((opt) =>
+    typeof opt === 'string' && opt.toLowerCase().includes((searchQuery || '').trim().toLowerCase())
   );
 
   const handleSelect = (optionValue) => {

@@ -32,6 +32,28 @@ const createTransporter = () => {
   });
 };
 
+const createFallbackTransporter = () => {
+  const rawUser = process.env.EMAIL_USER || '';
+  const rawPass = process.env.EMAIL_PASS || '';
+  const cleanUser = rawUser.trim();
+  const cleanPass = rawPass.replace(/\s+/g, '');
+
+  if (!cleanUser || !cleanPass) return null;
+
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // TLS
+    auth: {
+      user: cleanUser,
+      pass: cleanPass
+    },
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+};
+
 /**
  * Send 6-digit OTP verification email to user
  * @param {string} toEmail - Recipient email address
@@ -39,10 +61,11 @@ const createTransporter = () => {
  */
 export const sendOtpEmail = async (toEmail, otpCode) => {
   const transporter = createTransporter();
-  const rawUser = (process.env.EMAIL_USER || '').trim();
+  const rawUser = process.env.EMAIL_USER || '';
+  const cleanUser = rawUser.trim();
 
   // If no credentials configured yet, return status
-  if (!transporter) {
+  if (!transporter || !cleanUser) {
     console.log(`[Email Service Notice] Real SMTP credentials not configured in .env. OTP for ${toEmail}: ${otpCode}`);
     return { 
       sent: false, 
@@ -98,10 +121,21 @@ export const sendOtpEmail = async (toEmail, otpCode) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[Email Service Success] Real OTP ${otpCode} sent to ${toEmail}. MessageID: ${info.messageId}`);
+    console.log(`[Email Service Success - SSL] Real OTP ${otpCode} sent to ${toEmail}. MessageID: ${info.messageId}`);
     return { sent: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[Email Service SMTP Error] Failed to send email to ${toEmail}:`, error.message);
-    return { sent: false, error: error.message };
+    console.warn(`[Email Service SSL Attempt Note] ${error.message}. Retrying via TLS Port 587...`);
+    try {
+      const fallbackTransporter = createFallbackTransporter();
+      if (fallbackTransporter) {
+        const info2 = await fallbackTransporter.sendMail(mailOptions);
+        console.log(`[Email Service Success - TLS] Real OTP ${otpCode} sent to ${toEmail}. MessageID: ${info2.messageId}`);
+        return { sent: true, messageId: info2.messageId };
+      }
+      return { sent: false, error: error.message };
+    } catch (fallbackError) {
+      console.error(`[Email Service SMTP Error] Failed to send email to ${toEmail}:`, fallbackError.message);
+      return { sent: false, error: fallbackError.message };
+    }
   }
 };

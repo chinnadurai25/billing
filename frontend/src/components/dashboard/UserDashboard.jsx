@@ -4,7 +4,7 @@ import {
   CreditCard, TrendingUp, Clock, CheckCircle2, AlertCircle,
   Plus, Search, Filter, Download, ArrowUpRight, ChevronRight, Eye, ShieldCheck,
   Building, Landmark, Package, Wrench, Ban, X, Check, Pencil, Trash2, Edit3, AlertTriangle,
-  Calculator, Truck
+  Calculator, Truck, RefreshCw, XCircle, FileCheck
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell,
@@ -82,6 +82,17 @@ export const UserDashboard = ({
     state: ''
   });
 
+  // Bank / Cash Registration state inside Customer Registration Modal
+  const [includeBankReg, setIncludeBankReg] = useState(false);
+  const [custBankForm, setCustBankForm] = useState({
+    bankType: 'Bank Account',
+    accountName: '',
+    accountNumber: '',
+    bankName: '',
+    ifscCode: '',
+    balance: '0'
+  });
+
   // 2. REGISTRATION ( BANK / CASH ) Form State
   // bankAccounts & setBankAccounts come from App.jsx props (MySQL-sourced)
   const [bankForm, setBankForm] = useState({
@@ -107,39 +118,111 @@ export const UserDashboard = ({
     category: 'Sales Item'
   });
 
-  // Auto-fill PAN & State when GSTIN is typed in Customer Form
+  // Auto-fill PAN & State when GSTIN is typed in Customer Form & Fetch Live Details
+  const [isFetchingGst, setIsFetchingGst] = useState(false);
+
+  const handleFetchGstDetails = async (gstinOverride = null) => {
+    const targetGst = (gstinOverride || custForm?.gstNo || '').trim().toUpperCase();
+    if (!targetGst || targetGst.length !== 15) {
+      addToast('Please enter a valid 15-digit GSTIN number first', 'warning');
+      return;
+    }
+
+    setIsFetchingGst(true);
+    try {
+      const res = await api.lookupGst(targetGst);
+      if (res && res.success && res.data) {
+        const d = res.data || {};
+        const fetchedName = typeof d.name === 'string' ? d.name.trim() : '';
+        const fetchedLedger = typeof d.ledger === 'string' ? d.ledger.trim() : 'SUNDRY DEBTORS';
+        const fetchedPan = typeof d.pan === 'string' ? d.pan.trim() : '';
+        const fetchedMobile = typeof d.mobile === 'string' ? d.mobile.trim() : '';
+        const fetchedEmail = typeof d.email === 'string' ? d.email.trim() : '';
+        const fetchedState = typeof d.state === 'string' ? d.state.trim() : '';
+        const fetchedCity = typeof d.city === 'string' ? d.city.trim() : '';
+        const fetchedAddress = typeof d.address === 'string' ? d.address.trim() : '';
+
+        let matchedState = fetchedState;
+        if (fetchedState && Array.isArray(INDIAN_STATES)) {
+          const found = INDIAN_STATES.find((s) => typeof s === 'string' && s.toLowerCase() === fetchedState.toLowerCase());
+          if (found) matchedState = found;
+        }
+
+        // Validate city is in the matchedState cities list if available
+        let matchedCity = fetchedCity;
+        if (matchedState && INDIA_STATES_CITIES[matchedState] && Array.isArray(INDIA_STATES_CITIES[matchedState])) {
+          const cityList = INDIA_STATES_CITIES[matchedState];
+          const foundCity = cityList.find((c) => c.toLowerCase() === fetchedCity.toLowerCase());
+          matchedCity = foundCity || cityList[0] || fetchedCity;
+        }
+
+        setCustForm((prev) => ({
+          ...prev,
+          name: fetchedName || prev?.name || 'GST Registered Enterprise',
+          ledger: fetchedLedger || prev?.ledger || 'SUNDRY DEBTORS',
+          pan: fetchedPan || prev?.pan || '',
+          mobile: fetchedMobile || prev?.mobile || '',
+          email: fetchedEmail || prev?.email || '',
+          state: matchedState || prev?.state || 'Tamil Nadu',
+          city: matchedCity || prev?.city || 'Chennai',
+          address: fetchedAddress || prev?.address || ''
+        }));
+
+        const currentAccName = typeof custBankForm?.accountName === 'string' ? custBankForm.accountName : '';
+        if (includeBankReg && (!currentAccName || currentAccName.endsWith(' - Account'))) {
+          const effectiveName = fetchedName || custForm?.name || 'Customer';
+          setCustBankForm((b) => ({ ...b, accountName: `${effectiveName} - Account` }));
+        }
+
+        addToast(`GSTIN Auto-Fill Complete for ${fetchedName || targetGst}!`, 'success', 'All Fields Auto-Filled');
+      } else {
+        const errMsg = typeof res?.message === 'string' ? res.message : 'Could not fetch GST details online.';
+        addToast(errMsg, 'info');
+      }
+    } catch (err) {
+      console.error('GST Lookup error:', err);
+      const errText = typeof err?.message === 'string' ? err.message : 'Network error';
+      addToast(`GST Lookup note: ${errText}`, 'info');
+    } finally {
+      setIsFetchingGst(false);
+    }
+  };
+
   const handleCustGstChange = (val) => {
-    const uppercaseVal = val.toUpperCase();
+    const rawVal = (val || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     setCustForm((prev) => {
-      let updatedPan = prev.pan;
-      let updatedState = prev.state;
-      if (!prev.state && uppercaseVal.length >= 2) {
-        const code = uppercaseVal.substring(0, 2);
+      let updatedPan = prev?.pan || '';
+      let updatedState = prev?.state || '';
+      if (rawVal.length >= 2) {
+        const code = rawVal.substring(0, 2);
         if (GST_STATE_CODES[code]) {
           updatedState = GST_STATE_CODES[code];
         }
       }
-      if (uppercaseVal.length === 15) {
-        const extracted = uppercaseVal.substring(2, 12);
+      if (rawVal.length >= 12) {
+        const extracted = rawVal.substring(2, 12);
         if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(extracted)) {
           updatedPan = extracted;
         }
       }
       return {
         ...prev,
-        gstNo: uppercaseVal,
+        gstNo: rawVal,
         pan: updatedPan,
         state: updatedState,
-        city: prev.state !== updatedState ? '' : prev.city
+        city: prev?.state !== updatedState ? '' : (prev?.city || '')
       };
     });
   };
+
+  const [hasCustGst, setHasCustGst] = useState('Yes'); // 'Yes' or 'No'
 
   // ----------------------------------------------------
   // 1. CUSTOMER HANDLERS (Create, Edit, Update, Delete)
   // ----------------------------------------------------
   const handleOpenNewCustomer = () => {
     setEditingCustomer(null);
+    setHasCustGst('Yes');
     setCustForm({
       name: '',
       ledger: 'SUNDRY DEBTORS',
@@ -151,11 +234,22 @@ export const UserDashboard = ({
       city: '',
       state: ''
     });
+    setIncludeBankReg(false);
+    setCustBankForm({
+      bankType: 'Bank Account',
+      accountName: '',
+      accountNumber: '',
+      bankName: '',
+      ifscCode: '',
+      balance: '0'
+    });
     setShowCustomerModal(true);
   };
 
   const handleOpenEditCustomer = (customer) => {
     setEditingCustomer(customer);
+    const existingGst = customer.gstNumber || customer.gst_number || '';
+    setHasCustGst(existingGst && existingGst !== 'URP' && existingGst !== 'N/A' ? 'Yes' : 'No');
     setCustForm({
       name: customer.name || '',
       ledger: customer.ledger || 'SUNDRY DEBTORS',
@@ -166,6 +260,15 @@ export const UserDashboard = ({
       email: customer.email || '',
       city: customer.city || '',
       state: customer.state || ''
+    });
+    setIncludeBankReg(false);
+    setCustBankForm({
+      bankType: 'Bank Account',
+      accountName: customer.name ? `${customer.name} - Account` : '',
+      accountNumber: '',
+      bankName: '',
+      ifscCode: '',
+      balance: '0'
     });
     setShowCustomerModal(true);
   };
@@ -288,9 +391,85 @@ export const UserDashboard = ({
       addToast(`REGISTRATION (CUSTOMER) complete for ${custForm.name}!`, 'success', 'Customer Registered');
     }
 
+    // Optionally Register Bank / Cash Account if toggle enabled
+    if (includeBankReg && custBankForm.accountName.trim()) {
+      const isCash = custBankForm.bankType === 'Cash in Hand' || custBankForm.bankType === 'Petty Cash';
+      const bankId = `BANK-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+      const effectiveAccNo = custBankForm.accountNumber.trim() || (isCash ? `CASH-${Date.now().toString().slice(-6)}` : 'N/A');
+      const effectiveBankName = isCash ? custBankForm.bankType : (custBankForm.bankName.trim() || custBankForm.accountName.trim() || 'Standard Bank');
+      const effectiveIfsc = isCash ? 'N/A' : (custBankForm.ifscCode.trim() || 'N/A');
+      const effectiveUserId = user?.id || 'USR-901';
+
+      const newBank = {
+        id: bankId,
+        user_id: effectiveUserId,
+        userId: effectiveUserId,
+        bankType: custBankForm.bankType,
+        accountName: custBankForm.accountName.trim(),
+        accountNumber: effectiveAccNo,
+        bankName: effectiveBankName,
+        ifscCode: effectiveIfsc,
+        address: custForm.address ? `Linked to ${custForm.name}` : (isCash ? 'Office Safe' : 'Main Branch'),
+        balance: parseFloat(custBankForm.balance) || 0,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Active'
+      };
+
+      setBankAccounts((prev) => {
+        const updated = [newBank, ...prev];
+        try {
+          if (user?.id) {
+            localStorage.setItem(`billson_bank_accounts_${user.id}`, JSON.stringify(updated));
+          } else {
+            localStorage.setItem('billson_bank_accounts', JSON.stringify(updated));
+          }
+        } catch (e) {}
+        return updated;
+      });
+
+      try {
+        const res = await api.registerBankCash({
+          id: bankId,
+          bankType: custBankForm.bankType,
+          accountName: custBankForm.accountName.trim(),
+          accountNumber: effectiveAccNo,
+          bankName: effectiveBankName,
+          ifscCode: effectiveIfsc,
+          address: custForm.address ? `Linked to ${custForm.name}` : (isCash ? 'Office Safe' : 'Main Branch'),
+          balance: parseFloat(custBankForm.balance) || 0,
+          date: new Date().toISOString().split('T')[0],
+          userId: effectiveUserId
+        });
+
+        if (res && res.bankAccount) {
+          const normBank = {
+            id: res.bankAccount.id || bankId,
+            userId: res.bankAccount.user_id || res.bankAccount.userId || effectiveUserId,
+            user_id: res.bankAccount.user_id || res.bankAccount.userId || effectiveUserId,
+            bankType: res.bankAccount.bank_type || res.bankAccount.bankType || custBankForm.bankType,
+            accountName: res.bankAccount.account_name || res.bankAccount.accountName || custBankForm.accountName.trim(),
+            accountNumber: res.bankAccount.account_number || res.bankAccount.accountNumber || effectiveAccNo,
+            bankName: res.bankAccount.bank_name || res.bankAccount.bankName || effectiveBankName,
+            ifscCode: res.bankAccount.ifsc_code || res.bankAccount.ifscCode || effectiveIfsc,
+            address: res.bankAccount.address || (custForm.address ? `Linked to ${custForm.name}` : 'Main Branch'),
+            balance: parseFloat(res.bankAccount.balance || custBankForm.balance || 0),
+            date: res.bankAccount.date || new Date().toISOString().split('T')[0],
+            status: res.bankAccount.status || 'Active'
+          };
+          setBankAccounts((prev) => prev.map((b) => (b.id === bankId ? normBank : b)));
+        }
+      } catch (err) {
+        console.error('Error saving bank account during customer registration:', err);
+      }
+
+      addToast(`Bank/Cash Account "${custBankForm.accountName}" registered successfully!`, 'success', 'Account Registered');
+    }
+
     setShowCustomerModal(false);
     setEditingCustomer(null);
     setCustForm({ name: '', ledger: 'SUNDRY DEBTORS', address: '', gstNo: '', pan: '', mobile: '', email: '', city: '', state: '' });
+    setIncludeBankReg(false);
+    setCustBankForm({ bankType: 'Bank Account', accountName: '', accountNumber: '', bankName: '', ifscCode: '', balance: '0' });
   };
 
   const handleDeleteCustomer = (customer) => {
@@ -2266,7 +2445,7 @@ export const UserDashboard = ({
       {/* MODAL 1: REGISTRATION ( CUSTOMER ) - Supports Add & Edit/Update */}
       {showCustomerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
-          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-700 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div>
                 <h3 className="text-lg font-bold text-white font-serif">
@@ -2287,11 +2466,58 @@ export const UserDashboard = ({
                 <input
                   type="text"
                   value={custForm.name}
-                  onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setCustForm({ ...custForm, name: newName });
+                    if (includeBankReg && (!custBankForm.accountName || custBankForm.accountName.endsWith(' - Account'))) {
+                      setCustBankForm((prev) => ({
+                        ...prev,
+                        accountName: newName ? `${newName} - Account` : ''
+                      }));
+                    }
+                  }}
                   placeholder="e.g. Apex Global Tech Pvt Ltd"
                   className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
                   required
                 />
+              </div>
+
+              {/* Do you have GST Number Toggle */}
+              <div className="bg-dark-900/80 p-3 rounded-xl border border-slate-800 space-y-2">
+                <label className="block text-xs font-semibold text-slate-200">
+                  Do you have GST Number? <span className="text-indigo-400 font-bold">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasCustGst('Yes');
+                    }}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer ${
+                      hasCustGst === 'Yes'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
+                        : 'bg-dark-800 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-3.5 h-3.5 ${hasCustGst === 'Yes' ? 'text-white' : 'text-slate-500'}`} />
+                    YES (Registered)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasCustGst('No');
+                      setCustForm(prev => ({ ...prev, gstNo: '' }));
+                    }}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer ${
+                      hasCustGst === 'No'
+                        ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-500 shadow-md shadow-rose-500/20'
+                        : 'bg-dark-800 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <XCircle className={`w-3.5 h-3.5 ${hasCustGst === 'No' ? 'text-white' : 'text-slate-500'}`} />
+                    NO (Unregistered / Exempt)
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2308,15 +2534,41 @@ export const UserDashboard = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">GST NO <span className="text-slate-500 font-normal">(optional)</span></label>
-                  <input
-                    type="text"
-                    maxLength="15"
-                    value={custForm.gstNo}
-                    onChange={(e) => handleCustGstChange(e.target.value)}
-                    placeholder="33AAACD1234F1Z5"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono uppercase"
-                  />
+                  {hasCustGst === 'Yes' ? (
+                    <>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-slate-200">GST NO <span className="text-slate-500 font-normal">(15 digits)</span></label>
+                        {custForm.gstNo?.length === 15 && (
+                          <button
+                            type="button"
+                            onClick={() => handleFetchGstDetails()}
+                            disabled={isFetchingGst}
+                            className="text-[10px] text-brand-300 hover:text-white font-bold flex items-center gap-1 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/30 cursor-pointer transition-all"
+                          >
+                            {isFetchingGst ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+                            {isFetchingGst ? 'Fetching...' : 'Fetch Details'}
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        maxLength="15"
+                        value={custForm.gstNo}
+                        onChange={(e) => handleCustGstChange(e.target.value)}
+                        placeholder="33AAACD1234F1Z5"
+                        className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono uppercase"
+                      />
+                    </>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-200 mb-1">GST Status</label>
+                      <div className="flex items-center h-[38px] px-3 rounded-xl bg-dark-900/50 border border-slate-800 text-slate-400 text-xs">
+                        <span className="font-semibold text-amber-300 flex items-center gap-1.5 text-[11px]">
+                          <XCircle className="w-3.5 h-3.5 text-amber-400" /> Unregistered Party (URP)
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2398,6 +2650,124 @@ export const UserDashboard = ({
                   placeholder="Plot 42, Inner Ring Road, Chennai"
                   className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
                 />
+              </div>
+
+              {/* BANK / CASH REGISTRATION AT THE BOTTOM OF CUSTOMER FORM */}
+              <div className="pt-3 border-t border-slate-800/80">
+                <div className="flex items-center justify-between bg-dark-900/60 p-3 rounded-2xl border border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Landmark className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white">Register Bank / Cash Account</h4>
+                      <p className="text-[11px] text-slate-400">Optionally create Bank/Cash ledger for this customer</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeBankReg}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIncludeBankReg(checked);
+                        if (checked && !custBankForm.accountName && custForm.name) {
+                          setCustBankForm((prev) => ({
+                            ...prev,
+                            accountName: `${custForm.name} - Account`
+                          }));
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                {includeBankReg && (
+                  <div className="mt-3 p-4 rounded-2xl bg-slate-900/50 border border-slate-700/60 space-y-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold font-mono text-emerald-400 uppercase tracking-wider">
+                        New Bank / Cash Account Registration
+                      </span>
+                      <span className="text-[10px] text-slate-400">Will be saved to Bank / Cash Master</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">Account Type *</label>
+                        <select
+                          value={custBankForm.bankType}
+                          onChange={(e) => setCustBankForm({ ...custBankForm, bankType: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded-xl glass-input text-xs bg-dark-950 font-semibold text-white"
+                        >
+                          <option value="Bank Account">🏦 Bank Account</option>
+                          <option value="Cash in Hand">💵 Cash in Hand</option>
+                          <option value="Petty Cash">🪙 Petty Cash</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">Account / Ledger Name *</label>
+                        <input
+                          type="text"
+                          value={custBankForm.accountName}
+                          onChange={(e) => setCustBankForm({ ...custBankForm, accountName: e.target.value })}
+                          placeholder="e.g. Customer Bank / Cash Account"
+                          className="w-full px-3 py-1.5 rounded-xl glass-input text-xs"
+                          required={includeBankReg}
+                        />
+                      </div>
+                    </div>
+
+                    {custBankForm.bankType === 'Bank Account' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">Bank Name</label>
+                          <input
+                            type="text"
+                            value={custBankForm.bankName}
+                            onChange={(e) => setCustBankForm({ ...custBankForm, bankName: e.target.value })}
+                            placeholder="e.g. HDFC / SBI"
+                            className="w-full px-3 py-1.5 rounded-xl glass-input text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">Account Number</label>
+                          <input
+                            type="text"
+                            value={custBankForm.accountNumber}
+                            onChange={(e) => setCustBankForm({ ...custBankForm, accountNumber: e.target.value })}
+                            placeholder="987654321012"
+                            className="w-full px-3 py-1.5 rounded-xl glass-input text-xs font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">IFSC Code</label>
+                          <input
+                            type="text"
+                            value={custBankForm.ifscCode}
+                            onChange={(e) => setCustBankForm({ ...custBankForm, ifscCode: e.target.value.toUpperCase() })}
+                            placeholder="HDFC0001234"
+                            className="w-full px-3 py-1.5 rounded-xl glass-input text-xs font-mono uppercase"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Opening Balance / Initial Deposit (₹)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={custBankForm.balance}
+                        onChange={(e) => setCustBankForm({ ...custBankForm, balance: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full px-3 py-1.5 rounded-xl glass-input text-xs font-mono font-bold text-emerald-400"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-3">
@@ -2788,6 +3158,46 @@ export const UserDashboard = ({
               <span className="text-slate-500 block text-[10px]">REGISTERED ADDRESS</span>
               <p className="text-slate-200">{selectedCustomerDetail.address || `${selectedCustomerDetail.city || 'Chennai'}, ${selectedCustomerDetail.state || 'Tamil Nadu'}`}</p>
             </div>
+
+            {(() => {
+              const linkedBank = bankAccounts.find((b) => {
+                const accName = (b.accountName || b.account_name || '').toLowerCase();
+                const custName = (selectedCustomerDetail?.name || '').toLowerCase();
+                const bAddr = (b.address || '').toLowerCase();
+                return (
+                  (custName && accName.includes(custName)) ||
+                  (custName && bAddr.includes(custName)) ||
+                  (custName && bAddr.includes('linked to'))
+                );
+              });
+
+              if (!linkedBank) return null;
+
+              return (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 font-mono space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1">
+                      <Landmark className="w-3.5 h-3.5 text-amber-400" /> LINKED BANK / CASH ACCOUNT
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                      {linkedBank.bankType || linkedBank.bank_type}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <div className="text-xs font-bold text-white">{linkedBank.accountName || linkedBank.account_name}</div>
+                      <div className="text-[11px] text-slate-400">
+                        A/C: {linkedBank.accountNumber || linkedBank.account_number} • {linkedBank.bankName || linkedBank.bank_name || 'Cash'}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 block">Balance</span>
+                      <span className="text-xs font-bold text-emerald-400">₹{(linkedBank.balance || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
               <div>
