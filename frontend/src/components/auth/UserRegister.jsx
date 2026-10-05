@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  User, Building2, FileCheck, KeyRound, ArrowRight, ArrowLeft, 
+import {
+  User, Building2, FileCheck, KeyRound, ArrowRight, ArrowLeft,
   Check, Eye, EyeOff, ShieldAlert, Sparkles, CheckCircle2, XCircle, AlertCircle,
   Mail, Phone, Shield, Lock, RefreshCw, Send, Loader2, Upload, X, Search
 } from 'lucide-react';
@@ -175,7 +175,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name === 'gstNumber') {
       const uppercaseVal = value.toUpperCase();
       setFormData((prev) => ({ ...prev, gstNumber: uppercaseVal }));
@@ -220,7 +220,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
     try {
       sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, newOtpCode);
-    } catch (e) {}
+    } catch (e) { }
 
     // Send OTP via API (Gmail SMTP SSL/TLS + Hostinger Mail)
     const frontendRes = await sendOtpEmailDirect(cleanEmail, newOtpCode);
@@ -229,7 +229,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       setGeneratedOtp(frontendRes.otp);
       try {
         sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, frontendRes.otp);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     setOtpSent(true);
@@ -269,7 +269,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       } else if (res && res.message) {
         backendMsg = res.message;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Match either verified by backend DB or local active OTP from API dispatch
     const matchesActiveOtp = storedSessionOtp && inputCode === storedSessionOtp;
@@ -433,7 +433,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
           registered.push(registeredUser);
         }
         localStorage.setItem('billson_registered_users', JSON.stringify(registered));
-      } catch (err) {}
+      } catch (err) { }
 
       if (res && res.success) {
         if (res.token) {
@@ -459,7 +459,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
         const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
         registered.push(fallbackUser);
         localStorage.setItem('billson_registered_users', JSON.stringify(registered));
-      } catch (e) {}
+      } catch (e) { }
       addToast('Company Account created & GST setup complete! Welcome.', 'success', 'Registration Verified');
       onRegisterSuccess(fallbackUser);
     }
@@ -467,13 +467,13 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 py-8 bg-dark-950 relative overflow-hidden bg-grid-pattern">
-      
+
       {/* Background Glow Orbs */}
       <div className="absolute top-10 right-10 w-96 h-96 bg-brand-500/10 rounded-full blur-[130px] pointer-events-none" />
       <div className="absolute bottom-10 left-10 w-96 h-96 bg-brand-accent/10 rounded-full blur-[130px] pointer-events-none" />
 
       <div className="w-full max-w-4xl glass-card rounded-3xl p-6 sm:p-10 border border-slate-800 shadow-2xl relative z-10">
-        
+
         {/* Top Explicit Navigation Bar */}
         <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-800">
           <button
@@ -516,23 +516,20 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
             const isCurrent = step === item.stepNum;
             const isClickable = item.stepNum <= maxVisitedStep || item.stepNum <= step;
             return (
-              <div 
-                key={item.stepNum} 
+              <div
+                key={item.stepNum}
                 onClick={() => isClickable && goToStep(item.stepNum)}
                 title={isClickable ? `Jump to Step ${item.stepNum}` : 'Complete current step first'}
-                className={`flex flex-col items-center p-2.5 rounded-2xl border transition-all ${
-                  isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
-                } ${
-                  isCurrent 
-                    ? 'bg-brand-600/20 border-brand-500 text-white shadow-lg shadow-brand-500/10 ring-2 ring-brand-500/30' 
-                    : isCompleted 
-                    ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20' 
-                    : 'bg-dark-900/60 border-slate-800 text-slate-500'
-                }`}
+                className={`flex flex-col items-center p-2.5 rounded-2xl border transition-all ${isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                  } ${isCurrent
+                    ? 'bg-brand-600/20 border-brand-500 text-white shadow-lg shadow-brand-500/10 ring-2 ring-brand-500/30'
+                    : isCompleted
+                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20'
+                      : 'bg-dark-900/60 border-slate-800 text-slate-500'
+                  }`}
               >
-                <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold mb-1 ${
-                  isCurrent ? 'bg-brand-500 text-white' : isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
-                }`}>
+                <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold mb-1 ${isCurrent ? 'bg-brand-500 text-white' : isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                  }`}>
                   {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : item.stepNum}
                 </div>
                 <span className="text-[11px] font-medium hidden sm:inline">{item.label}</span>
@@ -543,7 +540,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
         {/* Wizard Form Area */}
         <form onSubmit={handleSubmit}>
-          
+
           {/* STEP 1: Email ID (OTP Verification Required) & Mobile Number */}
           {step === 1 && (
             <div className="space-y-5 animate-slide-up">
@@ -573,10 +570,9 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       value={formData.email}
                       onChange={handleChange}
                       readOnly={isEmailVerified}
-                      placeholder="e.g. chinna.durai@company.com"
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs ${
-                        isEmailVerified ? 'border-emerald-500/60 bg-emerald-950/20 text-emerald-200' : errors.email ? 'border-red-500/80' : ''
-                      }`}
+                      placeholder="e.g. example@gmail.com"
+                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs ${isEmailVerified ? 'border-emerald-500/60 bg-emerald-950/20 text-emerald-200' : errors.email ? 'border-red-500/80' : ''
+                        }`}
                     />
                   </div>
 
@@ -595,7 +591,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
 
                 {errors.email && (
                   <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3"/>{errors.email}
+                    <AlertCircle className="w-3 h-3" />{errors.email}
                   </p>
                 )}
 
@@ -645,13 +641,13 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                     name="contactNumber"
                     value={formData.contactNumber}
                     onChange={handleChange}
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 XXXXX XXXXX"
                     className={`w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs ${errors.contactNumber ? 'border-red-500/80' : ''}`}
                   />
                 </div>
                 {errors.contactNumber && (
                   <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3"/>{errors.contactNumber}
+                    <AlertCircle className="w-3 h-3" />{errors.contactNumber}
                   </p>
                 )}
               </div>
@@ -710,11 +706,10 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                     onClick={() => {
                       setHasGst('Yes');
                     }}
-                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
-                      hasGst === 'Yes'
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-lg shadow-emerald-500/20 scale-[1.01]'
-                        : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'
-                    }`}
+                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${hasGst === 'Yes'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-lg shadow-emerald-500/20 scale-[1.01]'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'
+                      }`}
                   >
                     <CheckCircle2 className={`w-4 h-4 ${hasGst === 'Yes' ? 'text-white' : 'text-slate-500'}`} />
                     YES (I have a GSTIN)
@@ -726,11 +721,10 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       setFormData(prev => ({ ...prev, gstNumber: '' }));
                       setErrors(prev => ({ ...prev, gstNumber: '' }));
                     }}
-                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
-                      hasGst === 'No'
-                        ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-500 shadow-lg shadow-rose-500/20 scale-[1.01]'
-                        : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'
-                    }`}
+                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${hasGst === 'No'
+                      ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-500 shadow-lg shadow-rose-500/20 scale-[1.01]'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:border-slate-600 hover:text-white'
+                      }`}
                   >
                     <XCircle className={`w-4 h-4 ${hasGst === 'No' ? 'text-white' : 'text-slate-500'}`} />
                     NO (Unregistered)
@@ -750,9 +744,8 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                         onChange={handleChange}
                         maxLength="15"
                         placeholder="e.g. 33AAACD1234F1Z5"
-                        className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase tracking-wider font-bold text-brand-300 ${
-                          errors.gstNumber ? 'border-red-500/80' : ''
-                        }`}
+                        className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase tracking-wider font-bold text-brand-300 ${errors.gstNumber ? 'border-red-500/80' : ''
+                          }`}
                       />
                       {isFetchingGst && (
                         <div className="absolute right-3 top-2 flex items-center gap-1.5 text-xs text-brand-300 font-semibold bg-dark-900/90 px-2 py-1 rounded-lg border border-brand-500/30">
@@ -762,7 +755,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                     </div>
                     {errors.gstNumber && (
                       <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3"/>{errors.gstNumber}
+                        <AlertCircle className="w-3 h-3" />{errors.gstNumber}
                       </p>
                     )}
                   </div>
@@ -785,7 +778,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   placeholder="e.g. Durai Tax Advisory & Financials Ltd"
                   className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs ${errors.companyName ? 'border-red-500/80' : ''}`}
                 />
-                {errors.companyName && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.companyName}</p>}
+                {errors.companyName && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.companyName}</p>}
               </div>
 
               {/* Company Logo Upload Field */}
@@ -796,9 +789,9 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                 <div className="flex items-center gap-4 p-3 rounded-2xl glass-card border border-slate-800 bg-dark-900/60">
                   {formData.companyLogo ? (
                     <div className="relative group shrink-0">
-                      <img 
-                        src={formData.companyLogo} 
-                        alt="Company Logo Preview" 
+                      <img
+                        src={formData.companyLogo}
+                        alt="Company Logo Preview"
                         className="w-14 h-14 object-contain rounded-xl bg-white/10 p-1 border border-indigo-500/40 shadow-inner"
                       />
                       <button
@@ -819,9 +812,9 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   <div className="flex-1 space-y-1">
                     <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all text-xs font-semibold border border-indigo-500/30 cursor-pointer">
                       <Upload className="w-3.5 h-3.5" /> {formData.companyLogo ? 'Change Logo Image' : 'Upload Logo Image'}
-                      <input 
-                        type="file" 
-                        accept="image/*" 
+                      <input
+                        type="file"
+                        accept="image/*"
                         onChange={handleLogoUpload}
                         className="hidden"
                       />
@@ -842,7 +835,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   placeholder="Suite 402, Quantum Tech Tower, Inner Ring Road"
                   className={`w-full px-4 py-2 rounded-xl glass-input text-xs ${errors.companyAddress ? 'border-red-500/80' : ''}`}
                 />
-                {errors.companyAddress && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.companyAddress}</p>}
+                {errors.companyAddress && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.companyAddress}</p>}
               </div>
 
               {/* Field 7: State */}
@@ -891,7 +884,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                     className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase ${errors.panNumber ? 'border-red-500/80' : ''}`}
                   />
                   <p className="text-[10px] text-slate-400 mt-1">10-character Income Tax PAN Number (Auto-extracted from GSTIN)</p>
-                  {errors.panNumber && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.panNumber}</p>}
+                  {errors.panNumber && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.panNumber}</p>}
                 </div>
 
                 {/* Field 5: Constitution of Business */}
@@ -987,7 +980,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       </div>
                     </div>
                   )}
-                  {errors.password && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.password}</p>}
+                  {errors.password && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.password}</p>}
                 </div>
 
                 <div>
@@ -1009,7 +1002,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {errors.confirmPassword && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/>{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.confirmPassword}</p>}
                 </div>
               </div>
             </div>

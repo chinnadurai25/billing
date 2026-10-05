@@ -60,27 +60,18 @@ router.get('/:gstin', async (req, res) => {
 
     // Derive smart entity fallback name if public lookup API is restricted
     const panCode = pan.substring(3, 7);
-    let derivedName = '';
-    if (entityChar === 'P') {
-      derivedName = `${panCode} Proprietary Enterprise`;
-    } else if (entityChar === 'C') {
-      derivedName = `${panCode} Global Tech Pvt Ltd`;
-    } else if (entityChar === 'F') {
-      derivedName = `${panCode} Allied Trading Firm`;
-    } else {
-      derivedName = `${panCode} Commercial Solutions`;
-    }
+    let derivedName = "";
 
     let result = {
       gstin: rawGstin,
       pan,
       state: stateName,
       city: defaultCity,
-      name: derivedName,
-      ledger: 'SUNDRY DEBTORS',
-      mobile: `+91 984${stateCode} ${rawGstin.substring(9, 14)}`,
-      email: `billing@${panCode.toLowerCase()}corp.com`,
-      address: `Plot ${rawGstin.substring(12, 14)}, Industrial Trade Corridor, ${defaultCity}`,
+      name: "",
+      ledger: "SUNDRY DEBTORS",
+      mobile: "",
+      email: "",
+      address: `Plot No. ${pan.substring(5, 9)}, Industrial Trade Corridor, ${defaultCity}`,
       registrationType: 'Regular',
       status: 'Active'
     };

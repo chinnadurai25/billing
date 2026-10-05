@@ -40,6 +40,7 @@ export const UserDashboard = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [bankSearchQuery, setBankSearchQuery] = useState('');
+  const [productSearchQuery, setProductSearchQuery] = useState('');
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [gstrSelectedMonthYear, setGstrSelectedMonthYear] = useState(() => new Date().toISOString().slice(0, 7));
@@ -48,11 +49,15 @@ export const UserDashboard = ({
   // Modal State Triggers
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [showServiceModal, setShowServiceModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
 
   // Edit states
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editingBank, setEditingBank] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editingService, setEditingService] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [docSubTab, setDocSubTab] = useState('All'); // 'All', 'Sales Invoice', 'Purchase Invoice', 'Estimate', 'Delivery Challan', 'Payment'
 
@@ -107,11 +112,40 @@ export const UserDashboard = ({
     date: new Date().toISOString().split('T')[0]
   });
 
-  // 3. REGISTRATION ( SALES / SERVICES ) Form State
-  const [itemForm, setItemForm] = useState({
-    entryType: 'Item', // 'Item' or 'Service'
+  // Helper to distinguish Service vs Product Item
+  const isServiceItem = (item) => {
+    if (!item) return false;
+    const cat = (item.category || '').toLowerCase();
+    const unit = (item.unit || '').toLowerCase();
+    const hsn = String(item.hsnSac || item.hsn_sac || '');
+    return cat.includes('service') || unit.includes('service') || hsn.startsWith('99') || (item.entryType || '').toLowerCase() === 'service';
+  };
+
+  // 3a. PRODUCT REGISTRATION ( GOODS ) Form State
+  const [productForm, setProductForm] = useState({
     itemName: '',
-    unit: 'Pices', // Pices / Number / Hours / Months / Box / Kg
+    unit: 'Pices', // Pices / Number / Box / Kg / Liter / Meter
+    hsnCode: '',
+    openingStock: '100',
+    date: new Date().toISOString().split('T')[0],
+    taxPercent: '18',
+    category: 'Sales Item'
+  });
+
+  // 3b. SERVICE REGISTRATION Form State
+  const [serviceForm, setServiceForm] = useState({
+    serviceName: '',
+    hsnCode: '',
+    date: new Date().toISOString().split('T')[0],
+    taxPercent: '18',
+    category: 'Service Item'
+  });
+
+  // Legacy itemForm compatibility
+  const [itemForm, setItemForm] = useState({
+    entryType: 'Item',
+    itemName: '',
+    unit: 'Pices',
     hsnCode: '',
     openingStock: '100',
     date: new Date().toISOString().split('T')[0],
@@ -639,12 +673,11 @@ export const UserDashboard = ({
   };
 
   // ----------------------------------------------------
-  // 3. SALES / SERVICES HANDLERS (Create, Edit, Update, Delete)
+  // 3a. PRODUCT (GOODS) HANDLERS (Create, Edit, Update, Delete)
   // ----------------------------------------------------
-  const handleOpenNewItem = () => {
-    setEditingItem(null);
-    setItemForm({
-      entryType: 'Item',
+  const handleOpenNewProduct = () => {
+    setEditingProduct(null);
+    setProductForm({
       itemName: '',
       unit: 'Pices',
       hsnCode: '',
@@ -653,109 +686,213 @@ export const UserDashboard = ({
       taxPercent: '18',
       category: 'Sales Item'
     });
-    setShowItemModal(true);
+    setShowProductModal(true);
   };
 
-  const handleOpenEditItem = (item) => {
-    setEditingItem(item);
-    const isSrv = (item.category || '').toLowerCase().includes('service') || (item.unit || '').toLowerCase().includes('service') || String(item.hsnSac || item.hsn_sac || '').startsWith('99');
-    setItemForm({
-      entryType: isSrv ? 'Service' : 'Item',
+  const handleOpenEditProduct = (item) => {
+    setEditingProduct(item);
+    setProductForm({
       itemName: item.title || '',
-      unit: item.unit || (isSrv ? 'Service' : 'Pices'),
+      unit: item.unit || 'Pices',
       hsnCode: item.hsnSac || item.hsn_sac || '',
       openingStock: item.openingStock !== undefined ? String(item.openingStock) : (item.opening_stock !== undefined ? String(item.opening_stock) : '100'),
       date: item.date || (item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
       taxPercent: item.taxPercent !== undefined ? String(item.taxPercent) : (item.tax_percent !== undefined ? String(item.tax_percent) : '18'),
-      category: item.category || (isSrv ? 'Service Item' : 'Sales Item')
+      category: item.category || 'Sales Item'
     });
-    setShowItemModal(true);
+    setShowProductModal(true);
   };
 
-  const handleRegisterSalesService = async (e) => {
+  const handleRegisterProduct = async (e) => {
     e.preventDefault();
-    if (!itemForm.itemName.trim()) {
-      addToast(`NAME OF ${itemForm.entryType === 'Service' ? 'SERVICE' : 'ITEM'} is required`, 'error');
+    if (!productForm.itemName.trim()) {
+      addToast('NAME OF THE PRODUCT is required', 'error');
       return;
     }
-    if (itemForm.entryType === 'Item' && !itemForm.hsnCode.trim()) {
-      addToast('HSN CODE is required for Goods / Item', 'error');
+    if (!productForm.hsnCode.trim()) {
+      addToast('HSN CODE is required for Goods / Product', 'error');
       return;
     }
 
-    const finalUnit = itemForm.entryType === 'Service' ? 'Service' : itemForm.unit;
-    const finalCategory = itemForm.entryType === 'Service' ? 'Service Item' : (itemForm.category || 'Sales Item');
-    const finalHsn = itemForm.hsnCode.trim() || (itemForm.entryType === 'Service' ? '998222' : '847130');
-    const finalStock = itemForm.entryType === 'Service' ? 0 : (parseInt(itemForm.openingStock) || 0);
-    const finalDate = itemForm.entryType === 'Item' ? itemForm.date : undefined;
+    const finalUnit = productForm.unit;
+    const finalCategory = productForm.category || 'Sales Item';
+    const finalHsn = productForm.hsnCode.trim() || '847130';
+    const finalStock = parseInt(productForm.openingStock) || 0;
+    const finalDate = productForm.date;
 
-    if (editingItem) {
-      // UPDATE existing item
+    if (editingProduct) {
       const updatedItem = {
-        ...editingItem,
-        title: itemForm.itemName,
+        ...editingProduct,
+        title: productForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
         openingStock: finalStock,
         date: finalDate,
-        taxPercent: parseFloat(itemForm.taxPercent) || 18,
+        taxPercent: parseFloat(productForm.taxPercent) || 18,
         category: finalCategory
       };
 
-      setProducts((prev) => prev.map((p) => p.id === editingItem.id ? updatedItem : p));
-      api.updateProduct(editingItem.id, {
-        title: itemForm.itemName,
+      setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? updatedItem : p));
+      api.updateProduct(editingProduct.id, {
+        title: productForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
         openingStock: finalStock,
         date: finalDate,
-        taxPercent: parseFloat(itemForm.taxPercent) || 18,
+        taxPercent: parseFloat(productForm.taxPercent) || 18,
         category: finalCategory
       });
 
-      addToast(`${itemForm.entryType} "${itemForm.itemName}" updated successfully!`, 'success', `${itemForm.entryType} Updated`);
+      addToast(`Product "${productForm.itemName}" updated successfully!`, 'success', 'Product Updated');
     } else {
-      // CREATE new item
-      const prefix = itemForm.entryType === 'Service' ? 'SRV' : 'PRD';
-      const itemId = `${prefix}-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+      const prodId = `PRD-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
       const newItem = {
-        id: itemId,
-        title: itemForm.itemName,
+        id: prodId,
+        title: productForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
         openingStock: finalStock,
         date: finalDate,
-        taxPercent: parseFloat(itemForm.taxPercent) || 18,
+        taxPercent: parseFloat(productForm.taxPercent) || 18,
         category: finalCategory
       };
 
       setProducts([newItem, ...products]);
       try {
         const res = await api.registerSalesService({
-          id: itemId,
-          title: itemForm.itemName,
+          id: prodId,
+          title: productForm.itemName,
           unit: finalUnit,
           hsnSac: finalHsn,
           openingStock: finalStock,
           date: finalDate,
-          taxPercent: parseFloat(itemForm.taxPercent) || 18,
+          taxPercent: parseFloat(productForm.taxPercent) || 18,
           category: finalCategory,
           userId: user?.id || 'USR-901'
         });
-        if (res && res.product && res.product.id && res.product.id !== itemId) {
-          setProducts((prev) => prev.map((p) => p.id === itemId ? { ...p, id: res.product.id } : p));
+        if (res && res.product && res.product.id && res.product.id !== prodId) {
+          setProducts((prev) => prev.map((p) => p.id === prodId ? { ...p, id: res.product.id } : p));
         }
       } catch (err) {
-        console.error('Error saving item to backend:', err);
+        console.error('Error saving product to backend:', err);
       }
 
-      addToast(`REGISTRATION (${itemForm.entryType.toUpperCase()}) complete for ${itemForm.itemName}!`, 'success', `${itemForm.entryType} Registered`);
+      addToast(`Product "${productForm.itemName}" registered successfully!`, 'success', 'Product Registered');
     }
 
-    setShowItemModal(false);
-    setEditingItem(null);
-    setItemForm({ entryType: 'Item', itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100', date: new Date().toISOString().split('T')[0], taxPercent: '18', category: 'Sales Item' });
+    setShowProductModal(false);
+    setEditingProduct(null);
+    setProductForm({ itemName: '', unit: 'Pices', hsnCode: '', openingStock: '100', date: new Date().toISOString().split('T')[0], taxPercent: '18', category: 'Sales Item' });
   };
+
+  // ----------------------------------------------------
+  // 3b. SERVICE HANDLERS (Create, Edit, Update, Delete)
+  // ----------------------------------------------------
+  const handleOpenNewService = () => {
+    setEditingService(null);
+    setServiceForm({
+      serviceName: '',
+      hsnCode: '',
+      date: new Date().toISOString().split('T')[0],
+      taxPercent: '18',
+      category: 'Service Item'
+    });
+    setShowServiceModal(true);
+  };
+
+  const handleOpenEditService = (item) => {
+    setEditingService(item);
+    setServiceForm({
+      serviceName: item.title || '',
+      hsnCode: item.hsnSac || item.hsn_sac || '',
+      date: item.date || (item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+      taxPercent: item.taxPercent !== undefined ? String(item.taxPercent) : (item.tax_percent !== undefined ? String(item.tax_percent) : '18'),
+      category: item.category || 'Service Item'
+    });
+    setShowServiceModal(true);
+  };
+
+  const handleRegisterService = async (e) => {
+    e.preventDefault();
+    if (!serviceForm.serviceName.trim()) {
+      addToast('NAME OF THE SERVICE is required', 'error');
+      return;
+    }
+
+    const finalUnit = 'Service';
+    const finalCategory = serviceForm.category || 'Service Item';
+    const finalHsn = serviceForm.hsnCode.trim() || '998222';
+    const finalDate = serviceForm.date || new Date().toISOString().split('T')[0];
+
+    if (editingService) {
+      const updatedItem = {
+        ...editingService,
+        title: serviceForm.serviceName,
+        unit: finalUnit,
+        hsnSac: finalHsn,
+        openingStock: 0,
+        date: finalDate,
+        taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+        category: finalCategory
+      };
+
+      setProducts((prev) => prev.map((p) => p.id === editingService.id ? updatedItem : p));
+      api.updateProduct(editingService.id, {
+        title: serviceForm.serviceName,
+        unit: finalUnit,
+        hsnSac: finalHsn,
+        openingStock: 0,
+        date: finalDate,
+        taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+        category: finalCategory
+      });
+
+      addToast(`Service "${serviceForm.serviceName}" updated successfully!`, 'success', 'Service Updated');
+    } else {
+      const srvId = `SRV-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+      const newItem = {
+        id: srvId,
+        title: serviceForm.serviceName,
+        unit: finalUnit,
+        hsnSac: finalHsn,
+        openingStock: 0,
+        date: finalDate,
+        taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+        category: finalCategory
+      };
+
+      setProducts([newItem, ...products]);
+      try {
+        const res = await api.registerSalesService({
+          id: srvId,
+          title: serviceForm.serviceName,
+          unit: finalUnit,
+          hsnSac: finalHsn,
+          openingStock: 0,
+          date: finalDate,
+          taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+          category: finalCategory,
+          userId: user?.id || 'USR-901'
+        });
+        if (res && res.product && res.product.id && res.product.id !== srvId) {
+          setProducts((prev) => prev.map((p) => p.id === srvId ? { ...p, id: res.product.id } : p));
+        }
+      } catch (err) {
+        console.error('Error saving service to backend:', err);
+      }
+
+      addToast(`Service "${serviceForm.serviceName}" registered successfully!`, 'success', 'Service Registered');
+    }
+
+    setShowServiceModal(false);
+    setEditingService(null);
+    setServiceForm({ serviceName: '', hsnCode: '', date: new Date().toISOString().split('T')[0], taxPercent: '18', category: 'Service Item' });
+  };
+
+  // Legacy item handlers compatibility
+  const handleOpenNewItem = () => handleOpenNewProduct();
+  const handleOpenEditItem = (item) => isServiceItem(item) ? handleOpenEditService(item) : handleOpenEditProduct(item);
+  const handleRegisterSalesService = (e) => handleRegisterProduct(e);
 
   const handleDeleteItem = (item) => {
     setDeleteModal({
@@ -902,7 +1039,36 @@ export const UserDashboard = ({
     );
   });
 
-  // Filtered Products & Services
+  // Separate Products vs Services
+  const onlyProducts = products.filter((p) => !isServiceItem(p));
+  const onlyServices = products.filter((p) => isServiceItem(p));
+
+  // Filtered Products (Goods)
+  const filteredOnlyProducts = onlyProducts.filter((p) => {
+    const q = productSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (p.title || '').toLowerCase().includes(q) ||
+      (p.hsnSac || p.hsn_sac || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q) ||
+      (p.unit || '').toLowerCase().includes(q) ||
+      (p.id || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Filtered Services
+  const filteredOnlyServices = onlyServices.filter((p) => {
+    const q = serviceSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (p.title || '').toLowerCase().includes(q) ||
+      (p.hsnSac || p.hsn_sac || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q) ||
+      (p.id || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Legacy filteredProducts for fallback
   const filteredProducts = products.filter((p) => {
     const q = serviceSearchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -1230,7 +1396,7 @@ export const UserDashboard = ({
                 </div>
 
                 <div
-                  onClick={() => setActiveTab('services')}
+                  onClick={() => setActiveTab('products')}
                   className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-emerald-500/40 cursor-pointer transition-all group"
                 >
                   <div className="flex items-center gap-3">
@@ -1238,8 +1404,24 @@ export const UserDashboard = ({
                       <Package className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">Services & Products</h4>
-                      <p className="text-xs text-slate-400 font-mono">{products.length} Master Items</p>
+                      <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">Products (Goods)</h4>
+                      <p className="text-xs text-slate-400 font-mono">{onlyProducts.length} Goods Registered</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                </div>
+
+                <div
+                  onClick={() => setActiveTab('services')}
+                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-cyan-500/40 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400">
+                      <Wrench className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">Services Catalog</h4>
+                      <p className="text-xs text-slate-400 font-mono">{onlyServices.length} Services Registered</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
@@ -1828,37 +2010,37 @@ export const UserDashboard = ({
         </div>
       )}
 
-      {/* SERVICES CATALOG TAB CONTENT (REGISTRATION - SALES / SERVICES) */}
-      {activeTab === 'services' && (
+      {/* PRODUCTS CATALOG TAB CONTENT (REGISTRATION - PRODUCTS / GOODS) */}
+      {activeTab === 'products' && (
         <div className="space-y-6 animate-slide-up">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( SALES / SERVICES )</h2>
-              <p className="text-xs text-slate-400 font-mono">Item & Service Master Catalog with HSN Codes & Opening Stock</p>
+              <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( PRODUCTS / GOODS )</h2>
+              <p className="text-xs text-slate-400 font-mono">Product & Goods Master Catalog with HSN Codes & Opening Stock</p>
             </div>
             <button
-              onClick={handleOpenNewItem}
+              onClick={handleOpenNewProduct}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 cursor-pointer w-fit"
             >
-              <Plus className="w-4 h-4" /> Register Sales / Service Item
+              <Plus className="w-4 h-4" /> Register New Product
             </button>
           </div>
 
           <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
-            {/* Service / Product Search Bar */}
+            {/* Product Search Bar */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-dark-900/60 p-3 rounded-2xl border border-slate-800">
               <div className="relative flex-1 w-full">
                 <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
                 <input
                   type="text"
-                  value={serviceSearchQuery}
-                  onChange={(e) => setServiceSearchQuery(e.target.value)}
-                  placeholder="Search products or services by item title, HSN/SAC code, category..."
+                  value={productSearchQuery}
+                  onChange={(e) => setProductSearchQuery(e.target.value)}
+                  placeholder="Search products by item title, HSN code, category..."
                   className="w-full pl-10 pr-10 py-2 rounded-xl glass-input text-xs"
                 />
-                {serviceSearchQuery && (
+                {productSearchQuery && (
                   <button
-                    onClick={() => setServiceSearchQuery('')}
+                    onClick={() => setProductSearchQuery('')}
                     className="absolute right-3 top-2.5 text-slate-400 hover:text-white transition-colors"
                   >
                     <X className="w-4 h-4" />
@@ -1866,20 +2048,20 @@ export const UserDashboard = ({
                 )}
               </div>
               <div className="text-xs text-slate-400 font-mono shrink-0">
-                Showing <span className="text-emerald-400 font-bold">{filteredProducts.length}</span> of {products.length} items
+                Showing <span className="text-emerald-400 font-bold">{filteredOnlyProducts.length}</span> of {onlyProducts.length} products
               </div>
             </div>
 
-            {/* Products & Services Row / Table Layout */}
-            {filteredProducts.length > 0 ? (
+            {/* Products Row / Table Layout */}
+            {filteredOnlyProducts.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
-                      <th className="py-3 px-4">Item ID</th>
-                      <th className="py-3 px-4">Item / Service Name</th>
+                      <th className="py-3 px-4">Product ID</th>
+                      <th className="py-3 px-4">Product Name</th>
                       <th className="py-3 px-4">Category</th>
-                      <th className="py-3 px-4">HSN / SAC</th>
+                      <th className="py-3 px-4">HSN Code</th>
                       <th className="py-3 px-4">GST Rate</th>
                       <th className="py-3 px-4">QTY Unit</th>
                       <th className="py-3 px-4">Opening Stock</th>
@@ -1888,13 +2070,12 @@ export const UserDashboard = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {filteredProducts.map((p) => {
-                      const isService = (p.category || '').toLowerCase().includes('service') || (p.unit || '').toLowerCase().includes('service') || String(p.hsnSac || p.hsn_sac || '').startsWith('99');
+                    {filteredOnlyProducts.map((p) => {
                       const itemTitle = p.title;
                       const hsn = p.hsnSac || p.hsn_sac;
                       const taxPct = p.taxPercent || p.tax_percent || 18;
                       const opStock = p.openingStock !== undefined ? p.openingStock : (p.opening_stock !== undefined ? p.opening_stock : 100);
-                      const itemDate = p.date || (p.created_at ? new Date(p.created_at).toISOString().split('T')[0] : '2026-09-07');
+                      const itemDate = p.date || (p.created_at ? new Date(p.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
 
                       return (
                         <tr
@@ -1902,15 +2083,15 @@ export const UserDashboard = ({
                           onClick={() => setSelectedServiceDetail(p)}
                           className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
                         >
-                          <td className="py-3.5 px-4 font-mono font-semibold text-brand-300 whitespace-nowrap">
-                            <span className="px-2.5 py-1 rounded-md bg-brand-500/20 text-brand-300 border border-brand-500/30 whitespace-nowrap inline-block font-mono text-[11px] font-bold">{p.id}</span>
+                          <td className="py-3.5 px-4 font-mono font-semibold text-emerald-300 whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap inline-block font-mono text-[11px] font-bold">{p.id}</span>
                           </td>
                           <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
                             <div>{itemTitle}</div>
                           </td>
                           <td className="py-3.5 px-4 font-mono whitespace-nowrap">
                             <span className="px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 whitespace-nowrap inline-block text-[10px]">
-                              {p.category || 'Sales / Service Item'}
+                              {p.category || 'Sales Item'}
                             </span>
                           </td>
                           <td className="py-3.5 px-4 font-mono font-bold text-indigo-300 whitespace-nowrap">
@@ -1920,34 +2101,34 @@ export const UserDashboard = ({
                             {taxPct}% GST
                           </td>
                           <td className="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
-                            {isService ? '-' : (p.unit || 'Pices')}
+                            {p.unit || 'Pices'}
                           </td>
                           <td className="py-3.5 px-4 font-mono text-slate-300 font-semibold whitespace-nowrap">
-                            {isService ? '-' : `${opStock} Units`}
+                            {`${opStock} Units`}
                           </td>
                           <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
-                            {isService ? '-' : itemDate}
+                            {itemDate}
                           </td>
                           <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => setSelectedServiceDetail(p)}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white transition-all border border-emerald-500/20 text-[11px] font-semibold cursor-pointer"
-                                title="View Item Details"
+                                title="View Product Details"
                               >
                                 <Eye className="w-3 h-3" /> View
                               </button>
                               <button
-                                onClick={() => handleOpenEditItem(p)}
+                                onClick={() => handleOpenEditProduct(p)}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white transition-all border border-emerald-500/30 text-[11px] font-semibold cursor-pointer"
-                                title="Edit Item"
+                                title="Edit Product"
                               >
                                 <Pencil className="w-3 h-3" /> Edit
                               </button>
                               <button
                                 onClick={() => handleDeleteItem(p)}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
-                                title="Delete Item"
+                                title="Delete Product"
                               >
                                 <Trash2 className="w-3 h-3" /> Delete
                               </button>
@@ -1962,12 +2143,152 @@ export const UserDashboard = ({
             ) : (
               <div className="p-12 text-center space-y-3">
                 <Package className="w-10 h-10 text-slate-600 mx-auto" />
-                <h4 className="text-sm font-bold text-slate-300">No matching products or services found</h4>
-                <p className="text-xs text-slate-500">Try adjusting your search query or register a new service item.</p>
+                <h4 className="text-sm font-bold text-slate-300">No matching products found</h4>
+                <p className="text-xs text-slate-500">Try adjusting your search query or register a new product item.</p>
+                {productSearchQuery && (
+                  <button
+                    onClick={() => setProductSearchQuery('')}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-emerald-400 hover:text-white font-medium inline-block transition-colors cursor-pointer"
+                  >
+                    Clear Search Query
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SERVICES CATALOG TAB CONTENT (REGISTRATION - SERVICES) */}
+      {activeTab === 'services' && (
+        <div className="space-y-6 animate-slide-up">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( SERVICES )</h2>
+              <p className="text-xs text-slate-400 font-mono">Service Master Catalog with SAC / HSN Codes</p>
+            </div>
+            <button
+              onClick={handleOpenNewService}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30 cursor-pointer w-fit"
+            >
+              <Plus className="w-4 h-4" /> Register New Service
+            </button>
+          </div>
+
+          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+            {/* Service Search Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-dark-900/60 p-3 rounded-2xl border border-slate-800">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  value={serviceSearchQuery}
+                  onChange={(e) => setServiceSearchQuery(e.target.value)}
+                  placeholder="Search services by service title, SAC/HSN code, category..."
+                  className="w-full pl-10 pr-10 py-2 rounded-xl glass-input text-xs"
+                />
                 {serviceSearchQuery && (
                   <button
                     onClick={() => setServiceSearchQuery('')}
-                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-emerald-400 hover:text-white font-medium inline-block transition-colors cursor-pointer"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <div className="text-xs text-slate-400 font-mono shrink-0">
+                Showing <span className="text-cyan-400 font-bold">{filteredOnlyServices.length}</span> of {onlyServices.length} services
+              </div>
+            </div>
+
+            {/* Services Row / Table Layout */}
+            {filteredOnlyServices.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
+                      <th className="py-3 px-4">Service ID</th>
+                      <th className="py-3 px-4">Service Name</th>
+                      <th className="py-3 px-4">Category</th>
+                      <th className="py-3 px-4">SAC / HSN Code</th>
+                      <th className="py-3 px-4">GST Rate</th>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {filteredOnlyServices.map((p) => {
+                      const itemTitle = p.title;
+                      const hsn = p.hsnSac || p.hsn_sac;
+                      const taxPct = p.taxPercent || p.tax_percent || 18;
+                      const itemDate = p.date || (p.created_at ? new Date(p.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => setSelectedServiceDetail(p)}
+                          className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                        >
+                          <td className="py-3.5 px-4 font-mono font-semibold text-cyan-300 whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 whitespace-nowrap inline-block font-mono text-[11px] font-bold">{p.id}</span>
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
+                            <div>{itemTitle}</div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 whitespace-nowrap inline-block text-[10px]">
+                              {p.category || 'Service Item'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-cyan-300 whitespace-nowrap">
+                            {hsn}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-emerald-400 font-semibold whitespace-nowrap">
+                            {taxPct}% GST
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-cyan-400 whitespace-nowrap">
+                            {itemDate}
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setSelectedServiceDetail(p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-600 text-cyan-400 hover:text-white transition-all border border-cyan-500/20 text-[11px] font-semibold cursor-pointer"
+                                title="View Service Details"
+                              >
+                                <Eye className="w-3 h-3" /> View
+                              </button>
+                              <button
+                                onClick={() => handleOpenEditService(p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white transition-all border border-cyan-500/30 text-[11px] font-semibold cursor-pointer"
+                                title="Edit Service"
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white transition-all border border-red-500/30 text-[11px] font-semibold cursor-pointer"
+                                title="Delete Service"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 text-center space-y-3">
+                <Wrench className="w-10 h-10 text-slate-600 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-300">No matching services found</h4>
+                <p className="text-xs text-slate-500">Try adjusting your search query or register a new service.</p>
+                {serviceSearchQuery && (
+                  <button
+                    onClick={() => setServiceSearchQuery('')}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-xs text-cyan-400 hover:text-white font-medium inline-block transition-colors cursor-pointer"
                   >
                     Clear Search Query
                   </button>
@@ -2922,143 +3243,97 @@ export const UserDashboard = ({
         </div>
       )}
 
-      {/* MODAL 3: REGISTRATION ( SALES / SERVICES ) - Supports Item (Goods) vs Service Selection */}
-      {showItemModal && (
+      {/* MODAL 3a: REGISTRATION ( PRODUCTS / GOODS ) */}
+      {showProductModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-dark-950/80 backdrop-blur-md">
           <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-2xl w-full border border-slate-700 shadow-2xl animate-slide-up">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div>
                 <h3 className="text-lg font-bold text-white font-serif">
-                  {editingItem ? 'EDIT REGISTRATION ( SALES / SERVICES )' : 'REGISTRATION ( SALES / SERVICES )'}
+                  {editingProduct ? 'EDIT REGISTRATION ( PRODUCT / GOODS )' : 'REGISTRATION ( PRODUCT / GOODS )'}
                 </h3>
-                <p className="text-xs text-slate-400 font-mono">
-                  Select Item or Service to configure required details
+                <p className="text-xs text-emerald-400 font-mono">
+                  Configure goods master details with HSN Code & Opening Stock
                 </p>
               </div>
-              <button onClick={() => setShowItemModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
+              <button onClick={() => setShowProductModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* ITEM vs SERVICE Toggle */}
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-300 mb-2">TYPE OF REGISTRATION *</label>
-              <div className="grid grid-cols-2 gap-2 p-1 bg-dark-900/90 rounded-2xl border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setItemForm({ ...itemForm, entryType: 'Item' })}
-                  className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    itemForm.entryType === 'Item'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Package className="w-4 h-4" /> Item (Goods)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setItemForm({ ...itemForm, entryType: 'Service', unit: 'Service' })}
-                  className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    itemForm.entryType === 'Service'
-                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Wrench className="w-4 h-4" /> Service
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleRegisterSalesService} className="space-y-3">
+            <form onSubmit={handleRegisterProduct} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-200 mb-1">
-                  {itemForm.entryType === 'Service' ? 'NAME OF THE SERVICE *' : 'NAME OF THE ITEM *'}
+                  NAME OF THE PRODUCT *
                 </label>
                 <input
                   type="text"
-                  value={itemForm.itemName}
-                  onChange={(e) => setItemForm({ ...itemForm, itemName: e.target.value })}
-                  placeholder={itemForm.entryType === 'Service' ? "e.g. Monthly GST Audit Service" : "e.g. Dell XPS 15 Laptop"}
+                  value={productForm.itemName}
+                  onChange={(e) => setProductForm({ ...productForm, itemName: e.target.value })}
+                  placeholder="e.g. Dell XPS 15 Laptop"
                   className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
                   required
                 />
               </div>
 
-              {itemForm.entryType === 'Item' ? (
-                /* ITEM specific fields: QTY Unit, HSN CODE, OPENING STOCK */
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">QTY Unit *</label>
-                    <select
-                      value={itemForm.unit}
-                      onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold text-emerald-400"
-                    >
-                      <option value="Pices">Pices</option>
-                      <option value="Number">Number</option>
-                      <option value="Box">Box</option>
-                      <option value="Kg">Kg</option>
-                      <option value="Liter">Liter</option>
-                      <option value="Meter">Meter</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">HSN CODE *</label>
-                    <input
-                      type="text"
-                      value={itemForm.hsnCode}
-                      onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
-                      placeholder="847130"
-                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">OPENING STOCK</label>
-                    <input
-                      type="number"
-                      value={itemForm.openingStock}
-                      onChange={(e) => setItemForm({ ...itemForm, openingStock: e.target.value })}
-                      placeholder="100"
-                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                    />
-                  </div>
-                </div>
-              ) : (
-                /* SERVICE specific fields: SAC / HSN CODE ONLY (NO OPENING STOCK) */
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">SAC / HSN CODE</label>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">QTY Unit *</label>
+                  <select
+                    value={productForm.unit}
+                    onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold text-emerald-400"
+                  >
+                    <option value="Pices">Pices</option>
+                    <option value="Number">Number</option>
+                    <option value="Box">Box</option>
+                    <option value="Kg">Kg</option>
+                    <option value="Liter">Liter</option>
+                    <option value="Meter">Meter</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">HSN CODE *</label>
                   <input
                     type="text"
-                    value={itemForm.hsnCode}
-                    onChange={(e) => setItemForm({ ...itemForm, hsnCode: e.target.value })}
-                    placeholder="998222"
+                    value={productForm.hsnCode}
+                    onChange={(e) => setProductForm({ ...productForm, hsnCode: e.target.value })}
+                    placeholder="847130"
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">OPENING STOCK</label>
+                  <input
+                    type="number"
+                    value={productForm.openingStock}
+                    onChange={(e) => setProductForm({ ...productForm, openingStock: e.target.value })}
+                    placeholder="100"
                     className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
                   />
                 </div>
-              )}
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {itemForm.entryType === 'Item' ? (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">DATE *</label>
-                    <input
-                      type="date"
-                      value={itemForm.date}
-                      onChange={(e) => setItemForm({ ...itemForm, date: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono text-white"
-                      required
-                    />
-                  </div>
-                ) : null}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">DATE *</label>
+                  <input
+                    type="date"
+                    value={productForm.date}
+                    onChange={(e) => setProductForm({ ...productForm, date: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono text-white"
+                    required
+                  />
+                </div>
 
-                <div className={itemForm.entryType === 'Service' ? 'sm:col-span-2' : ''}>
+                <div>
                   <label className="block text-xs font-semibold text-slate-200 mb-1">GST TAX PERCENT (%)</label>
                   <select
-                    value={itemForm.taxPercent}
-                    onChange={(e) => setItemForm({ ...itemForm, taxPercent: e.target.value })}
+                    value={productForm.taxPercent}
+                    onChange={(e) => setProductForm({ ...productForm, taxPercent: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
                   >
                     {(() => {
@@ -3070,7 +3345,7 @@ export const UserDashboard = ({
                           if (Array.isArray(parsed) && parsed.length > 0) rates = parsed;
                         }
                       } catch (e) {}
-                      const currentStr = String(itemForm.taxPercent || '18');
+                      const currentStr = String(productForm.taxPercent || '18');
                       if (currentStr && !rates.includes(currentStr)) {
                         rates = [...rates, currentStr].sort((a, b) => parseFloat(a) - parseFloat(b));
                       }
@@ -3087,23 +3362,122 @@ export const UserDashboard = ({
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowItemModal(false)}
+                  onClick={() => setShowProductModal(false)}
                   className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className={`px-6 py-2 rounded-xl text-white text-xs font-bold shadow-lg cursor-pointer ${
-                    itemForm.entryType === 'Service'
-                      ? 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-600/30'
-                      : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30'
-                  }`}
+                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 cursor-pointer"
                 >
-                  {editingItem 
-                    ? (itemForm.entryType === 'Service' ? 'Update Service' : 'Update Item')
-                    : (itemForm.entryType === 'Service' ? 'Register Service' : 'Register Item')
-                  }
+                  {editingProduct ? 'Update Product' : 'Register Product'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3b: REGISTRATION ( SERVICES ) */}
+      {showServiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-dark-950/80 backdrop-blur-md">
+          <div className="glass-card rounded-3xl p-6 sm:p-8 max-w-2xl w-full border border-slate-700 shadow-2xl animate-slide-up">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-white font-serif">
+                  {editingService ? 'EDIT REGISTRATION ( SERVICE )' : 'REGISTRATION ( SERVICE )'}
+                </h3>
+                <p className="text-xs text-cyan-400 font-mono">
+                  Configure service master details with SAC / HSN Code
+                </p>
+              </div>
+              <button onClick={() => setShowServiceModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterService} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-200 mb-1">
+                  NAME OF THE SERVICE *
+                </label>
+                <input
+                  type="text"
+                  value={serviceForm.serviceName}
+                  onChange={(e) => setServiceForm({ ...serviceForm, serviceName: e.target.value })}
+                  placeholder="e.g. Monthly GST Audit Service"
+                  className="w-full px-3.5 py-2 rounded-xl glass-input text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-200 mb-1">SAC / HSN CODE</label>
+                <input
+                  type="text"
+                  value={serviceForm.hsnCode}
+                  onChange={(e) => setServiceForm({ ...serviceForm, hsnCode: e.target.value })}
+                  placeholder="998222"
+                  className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">DATE *</label>
+                  <input
+                    type="date"
+                    value={serviceForm.date}
+                    onChange={(e) => setServiceForm({ ...serviceForm, date: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono text-white"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">GST TAX PERCENT (%)</label>
+                  <select
+                    value={serviceForm.taxPercent}
+                    onChange={(e) => setServiceForm({ ...serviceForm, taxPercent: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
+                  >
+                    {(() => {
+                      let rates = ['0', '5', '12', '18', '28'];
+                      try {
+                        const saved = localStorage.getItem(`billson_custom_tax_rates_${user?.id}`) || localStorage.getItem(`taxpulse_custom_tax_rates_${user?.id}`);
+                        if (saved) {
+                          const parsed = JSON.parse(saved);
+                          if (Array.isArray(parsed) && parsed.length > 0) rates = parsed;
+                        }
+                      } catch (e) {}
+                      const currentStr = String(serviceForm.taxPercent || '18');
+                      if (currentStr && !rates.includes(currentStr)) {
+                        rates = [...rates, currentStr].sort((a, b) => parseFloat(a) - parseFloat(b));
+                      }
+                      return rates.map((r) => (
+                        <option key={r} value={r}>
+                          {r}% GST {r === '18' ? '(Standard)' : r === '0' ? '(Exempted)' : ''}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowServiceModal(false)}
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30 cursor-pointer"
+                >
+                  {editingService ? 'Update Service' : 'Register Service'}
                 </button>
               </div>
             </form>

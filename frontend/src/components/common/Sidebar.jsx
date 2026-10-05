@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   LayoutDashboard, FileText, Users, ShoppingBag, CreditCard, 
   PieChart, ShieldCheck, Building2, Activity, Settings, X, PlusCircle,
-  TrendingUp, Sparkles, HelpCircle, FileCheck
+  TrendingUp, Sparkles, HelpCircle, FileCheck, Package, Wrench
 } from 'lucide-react';
 
 export const Sidebar = ({ 
@@ -18,7 +18,8 @@ export const Sidebar = ({
     { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'invoices', label: 'Invoice Hub', icon: FileText, badge: invoicesCount !== undefined ? String(invoicesCount) : undefined },
     { id: 'customers', label: 'Customers', icon: Users },
-    { id: 'services', label: 'Services & Products', icon: ShoppingBag },
+    { id: 'products', label: 'Products (Goods)', icon: Package },
+    { id: 'services', label: 'Services Catalog', icon: Wrench },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'tax-reports', label: 'GSTR & Tax Reports', icon: PieChart },
     { id: 'settings', label: 'Account & App Settings', icon: Settings },
