@@ -924,8 +924,8 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   onChange={handleChange}
                   className="w-full px-4 py-2.5 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
                 >
-                  <option value="Regular">Regular Tax Payer (18% Standard GST Rate)</option>
-                  <option value="Composition">Composition Scheme (Fixed Low Tax Rate)</option>
+                  <option value="Regular">Regular Tax Payer</option>
+                  <option value="Composition">Composition Scheme</option>
                 </select>
                 <p className="text-[10px] text-slate-400 mt-1">Select whether your business is under Regular GST or Composition Scheme</p>
               </div>
