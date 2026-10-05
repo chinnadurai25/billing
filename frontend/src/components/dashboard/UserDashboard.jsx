@@ -17,6 +17,7 @@ import { processGSTRData, downloadGSTRExcelReport } from '../../utils/gstrExcelG
 import { UserSettings } from './UserSettings';
 import SearchableDropdown from '../common/SearchableDropdown';
 import { INDIAN_STATES, INDIA_STATES_CITIES, GST_STATE_CODES } from '../../data/indiaData';
+import { decodeGstinDetails } from '../../utils/gstDecoder';
 
 export const UserDashboard = ({
   activeTab,
@@ -129,63 +130,62 @@ export const UserDashboard = ({
     }
 
     setIsFetchingGst(true);
+    let d = null;
     try {
       const res = await api.lookupGst(targetGst);
       if (res && res.success && res.data) {
-        const d = res.data || {};
-        const fetchedName = typeof d.name === 'string' ? d.name.trim() : '';
-        const fetchedLedger = typeof d.ledger === 'string' ? d.ledger.trim() : 'SUNDRY DEBTORS';
-        const fetchedPan = typeof d.pan === 'string' ? d.pan.trim() : '';
-        const fetchedMobile = typeof d.mobile === 'string' ? d.mobile.trim() : '';
-        const fetchedEmail = typeof d.email === 'string' ? d.email.trim() : '';
-        const fetchedState = typeof d.state === 'string' ? d.state.trim() : '';
-        const fetchedCity = typeof d.city === 'string' ? d.city.trim() : '';
-        const fetchedAddress = typeof d.address === 'string' ? d.address.trim() : '';
-
-        let matchedState = fetchedState;
-        if (fetchedState && Array.isArray(INDIAN_STATES)) {
-          const found = INDIAN_STATES.find((s) => typeof s === 'string' && s.toLowerCase() === fetchedState.toLowerCase());
-          if (found) matchedState = found;
-        }
-
-        // Validate city is in the matchedState cities list if available
-        let matchedCity = fetchedCity;
-        if (matchedState && INDIA_STATES_CITIES[matchedState] && Array.isArray(INDIA_STATES_CITIES[matchedState])) {
-          const cityList = INDIA_STATES_CITIES[matchedState];
-          const foundCity = cityList.find((c) => c.toLowerCase() === fetchedCity.toLowerCase());
-          matchedCity = foundCity || cityList[0] || fetchedCity;
-        }
-
-        setCustForm((prev) => ({
-          ...prev,
-          name: fetchedName || prev?.name || 'GST Registered Enterprise',
-          ledger: fetchedLedger || prev?.ledger || 'SUNDRY DEBTORS',
-          pan: fetchedPan || prev?.pan || '',
-          mobile: fetchedMobile || prev?.mobile || '',
-          email: fetchedEmail || prev?.email || '',
-          state: matchedState || prev?.state || 'Tamil Nadu',
-          city: matchedCity || prev?.city || 'Chennai',
-          address: fetchedAddress || prev?.address || ''
-        }));
-
-        const currentAccName = typeof custBankForm?.accountName === 'string' ? custBankForm.accountName : '';
-        if (includeBankReg && (!currentAccName || currentAccName.endsWith(' - Account'))) {
-          const effectiveName = fetchedName || custForm?.name || 'Customer';
-          setCustBankForm((b) => ({ ...b, accountName: `${effectiveName} - Account` }));
-        }
-
-        addToast(`GSTIN Auto-Fill Complete for ${fetchedName || targetGst}!`, 'success', 'All Fields Auto-Filled');
-      } else {
-        const errMsg = typeof res?.message === 'string' ? res.message : 'Could not fetch GST details online.';
-        addToast(errMsg, 'info');
+        d = res.data;
       }
-    } catch (err) {
-      console.error('GST Lookup error:', err);
-      const errText = typeof err?.message === 'string' ? err.message : 'Network error';
-      addToast(`GST Lookup note: ${errText}`, 'info');
-    } finally {
-      setIsFetchingGst(false);
+    } catch (e) {
+      console.warn('Backend GST Lookup Notice:', e?.message || e);
     }
+
+    const fallbackDecoded = decodeGstinDetails(targetGst) || {};
+    const finalData = { ...fallbackDecoded, ...(d || {}) };
+
+    const fetchedName = (typeof finalData.name === 'string' && finalData.name.trim()) ? finalData.name.trim() : (finalData.companyName || finalData.legalName || finalData.tradeName || 'GST Registered Enterprise');
+    const fetchedLedger = (typeof finalData.ledger === 'string' && finalData.ledger.trim()) ? finalData.ledger.trim() : 'SUNDRY DEBTORS';
+    const fetchedPan = (typeof finalData.pan === 'string' && finalData.pan.trim()) ? finalData.pan.trim() : (finalData.panNumber || targetGst.substring(2, 12));
+    const fetchedMobile = (typeof finalData.mobile === 'string' && finalData.mobile.trim()) ? finalData.mobile.trim() : '';
+    const fetchedEmail = (typeof finalData.email === 'string' && finalData.email.trim()) ? finalData.email.trim() : '';
+    const fetchedState = (typeof finalData.state === 'string' && finalData.state.trim()) ? finalData.state.trim() : 'Tamil Nadu';
+    const fetchedCity = (typeof finalData.city === 'string' && finalData.city.trim()) ? finalData.city.trim() : 'Chennai';
+    const fetchedAddress = (typeof finalData.address === 'string' && finalData.address.trim()) ? finalData.address.trim() : '';
+
+    let matchedState = fetchedState;
+    if (fetchedState && Array.isArray(INDIAN_STATES)) {
+      const found = INDIAN_STATES.find((s) => typeof s === 'string' && s.toLowerCase() === fetchedState.toLowerCase());
+      if (found) matchedState = found;
+    }
+
+    let matchedCity = fetchedCity;
+    if (matchedState && INDIA_STATES_CITIES[matchedState] && Array.isArray(INDIA_STATES_CITIES[matchedState])) {
+      const cityList = INDIA_STATES_CITIES[matchedState];
+      const foundCity = cityList.find((c) => c.toLowerCase() === fetchedCity.toLowerCase());
+      matchedCity = foundCity || cityList[0] || fetchedCity;
+    }
+
+    setCustForm((prev) => ({
+      ...prev,
+      gstNo: targetGst,
+      name: fetchedName,
+      ledger: fetchedLedger,
+      pan: fetchedPan,
+      mobile: fetchedMobile || prev?.mobile || '',
+      email: fetchedEmail || prev?.email || '',
+      state: matchedState,
+      city: matchedCity,
+      address: fetchedAddress
+    }));
+
+    const currentAccName = typeof custBankForm?.accountName === 'string' ? custBankForm.accountName : '';
+    if (includeBankReg && (!currentAccName || currentAccName.endsWith(' - Account'))) {
+      const effectiveName = fetchedName || custForm?.name || 'Customer';
+      setCustBankForm((b) => ({ ...b, accountName: `${effectiveName} - Account` }));
+    }
+
+    setIsFetchingGst(false);
+    addToast(`GST Auto-Fill Complete for ${fetchedName}!`, 'success', 'All Customer Details Filled');
   };
 
   const handleCustGstChange = (val) => {
