@@ -107,6 +107,14 @@ try {
 } catch (Exception $e) {}
 
 try {
+    // 5. Ensure status column exists in users table
+    $colCheck = $pdo->query("SHOW COLUMNS FROM users LIKE 'status'")->fetchAll();
+    if (empty($colCheck)) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN status VARCHAR(50) DEFAULT 'Active'");
+    }
+} catch (Exception $e) {}
+
+try {
     // 1. CUSTOMERS
     if ($resource === 'customers') {
         if ($method === 'GET') {
@@ -659,16 +667,35 @@ try {
 
         // 5d. USER LOGIN
         if ($sub === 'login') {
-            $loginId = $input['email'] ?? ($input['username'] ?? '');
+            $loginId = trim($input['email'] ?? ($input['username'] ?? ''));
             $password = $input['password'] ?? '';
 
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? OR username = ?");
-            $stmt->execute([$loginId, $loginId]);
+            if (empty($loginId) || empty($password)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Email address and password are required']);
+                exit();
+            }
+
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? OR username = ? OR LOWER(email) = ? OR LOWER(username) = ?");
+            $stmt->execute([$loginId, $loginId, strtolower($loginId), strtolower($loginId)]);
             $user = $stmt->fetch();
 
             if (!$user) {
                 http_response_code(401);
                 echo json_encode(['success' => false, 'message' => 'Invalid email or password']);
+                exit();
+            }
+
+            // STRICT SECURITY: Block suspended users immediately
+            $userStatus = strtolower(trim($user['status'] ?? 'active'));
+            if ($userStatus === 'suspended') {
+                $adminEmail = getenv('EMAIL_USER') ?: 'easyeetax@gmail.com';
+                http_response_code(403);
+                echo json_encode([
+                    'success' => false,
+                    'suspended' => true,
+                    'message' => "Your account has been suspended by the administrator. For further details, please contact administrator at {$adminEmail}."
+                ]);
                 exit();
             }
 
@@ -714,7 +741,8 @@ try {
                     'gstNumber' => $user['gst_number'],
                     'panNumber' => $user['pan_number'],
                     'constitution' => $user['constitution'],
-                    'username' => $user['username']
+                    'username' => $user['username'],
+                    'status' => $user['status'] ?? 'Active'
                 ],
                 'token' => 'jwt_token_' . time()
             ]);
@@ -740,8 +768,91 @@ try {
         }
     }
 
-    // 6. ADMIN USERS
+    // 6. ADMIN USERS & USER STATUS MANAGEMENT
     if ($resource === 'admin' && ($pathParts[1] ?? '') === 'users') {
+        $subAction = $pathParts[3] ?? '';
+        $targetUserId = $pathParts[2] ?? ($_GET['id'] ?? ($input['id'] ?? null));
+
+        // 6a. User Status Update (Active <-> Suspended) + Automated Email Dispatch
+        // Supports: POST/PATCH/PUT on /api/admin/users/:id/status
+        if ($subAction === 'status' || (!empty($input['status']) && in_array($method, ['POST', 'PATCH', 'PUT']))) {
+            $newStatus = trim($input['status'] ?? '');
+            if (!in_array($newStatus, ['Active', 'Suspended'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Status must be either "Active" or "Suspended"']);
+                exit();
+            }
+
+            $cleanId = trim($targetUserId ?? ($input['id'] ?? ''));
+            $cleanEmail = strtolower(trim($input['email'] ?? ''));
+            $cleanUsername = trim($input['username'] ?? '');
+            $providedName = trim($input['name'] ?? '');
+            $providedCompany = trim($input['company'] ?? ($input['companyName'] ?? ''));
+
+            // Look up existing user in DB
+            $foundUser = null;
+            $stmt = $pdo->prepare("SELECT id, full_name, email, company_name, username, status FROM users WHERE id = ? OR username = ? OR email = ? OR LOWER(email) = ? LIMIT 1");
+            $stmt->execute([$cleanId, $cleanId, $cleanId, $cleanEmail]);
+            $foundUser = $stmt->fetch();
+
+            $targetEmail = !empty($foundUser['email']) ? trim($foundUser['email']) : $cleanEmail;
+            $targetQueryId = !empty($foundUser['id']) ? $foundUser['id'] : $cleanId;
+            $displayName = !empty($foundUser['full_name']) ? $foundUser['full_name'] : (!empty($providedName) ? $providedName : (!empty($foundUser['company_name']) ? $foundUser['company_name'] : 'Valued User'));
+            $companyName = !empty($foundUser['company_name']) ? $foundUser['company_name'] : $providedCompany;
+
+            // 1. Update status in database
+            $upStmt = $pdo->prepare("UPDATE users SET status = ? WHERE id = ? OR LOWER(email) = ? OR username = ?");
+            $upStmt->execute([$newStatus, $targetQueryId, strtolower($targetEmail), $cleanUsername ?: $cleanId]);
+
+            // If user record wasn't existing yet, upsert it
+            if ($upStmt->rowCount() === 0 && (!empty($cleanEmail) || !empty($cleanId))) {
+                try {
+                    $insertId = (!empty($cleanId) && strpos($cleanId, 'USR-') === 0) ? $cleanId : ('USR-' . round(microtime(true) * 1000));
+                    $insEmail = !empty($cleanEmail) ? $cleanEmail : ($insertId . '@user.local');
+                    $dummyHash = '$2y$10$e8wF5qQ1wA4aVbC3dE2fGu1h2i3j4k5l6m7n8o9p0q1r2s3t4u5v';
+                    $insStmt = $pdo->prepare("INSERT INTO users (id, full_name, email, contact_number, company_name, constitution, company_address, state, gst_number, registration_type, pan_number, username, password_hash, status)
+                                              VALUES (?, ?, ?, '9876543210', ?, 'Private Limited', 'Address', 'Tamil Nadu', '33AAACD1234F1Z5', 'Regular', 'AAACD1234F', ?, ?, ?)
+                                              ON DUPLICATE KEY UPDATE status = VALUES(status)");
+                    $insStmt->execute([$insertId, $displayName, $insEmail, $companyName ?: $displayName, $cleanUsername ?: explode('@', $insEmail)[0], $dummyHash, $newStatus]);
+                } catch (Exception $e) {}
+            }
+
+            // 2. Dispatch automated email notification
+            $emailSent = false;
+            $emailError = null;
+            $adminEmail = getenv('EMAIL_USER') ?: 'easyeetax@gmail.com';
+            $debugLog = '';
+
+            if (!empty($targetEmail) && filter_var($targetEmail, FILTER_VALIDATE_EMAIL) && substr($targetEmail, -6) !== '.local') {
+                $mailRes = sendUserStatusEmailPhp($targetEmail, $displayName, $newStatus, $companyName, $adminEmail, $debugLog);
+                $emailSent = !empty($mailRes['sent']);
+                $emailError = $mailRes['error'] ?? null;
+            } else {
+                $emailError = 'No valid email address found for user';
+            }
+
+            $message = ($newStatus === 'Suspended')
+                ? "User account suspended. " . ($emailSent ? "Official notice email sent to {$targetEmail}." : "(Email note: " . ($emailError ?: 'Check SMTP') . ")")
+                : "User suspension cancelled. " . ($emailSent ? "Reactivation email sent to {$targetEmail}." : "(Email note: " . ($emailError ?: 'Check SMTP') . ")");
+
+            echo json_encode([
+                'success' => true,
+                'message' => $message,
+                'status' => $newStatus,
+                'user' => [
+                    'id' => $targetQueryId,
+                    'email' => $targetEmail,
+                    'name' => $displayName,
+                    'status' => $newStatus
+                ],
+                'emailSent' => $emailSent,
+                'emailError' => $emailError,
+                'adminEmail' => $adminEmail
+            ]);
+            exit();
+        }
+
+        // 6b. DELETE User and cascade delete associated tenant data
         if ($method === 'DELETE') {
             $delUserId = $pathParts[2] ?? ($_GET['id'] ?? ($input['id'] ?? null));
             if (!$delUserId) {
@@ -750,7 +861,6 @@ try {
                 exit();
             }
             try {
-                // Cascade delete associated tenant data safely
                 try { $pdo->prepare("DELETE FROM invoices WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
                 try { $pdo->prepare("DELETE FROM customers WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
                 try { $pdo->prepare("DELETE FROM products_services WHERE user_id = ?")->execute([$delUserId]); } catch (Exception $e) {}
@@ -767,7 +877,9 @@ try {
                 exit();
             }
         }
-        $stmt = $pdo->query("SELECT id, full_name as name, email, contact_number as phone, company_name as company, constitution, company_address as address, state, gst_number as gst, pan_number as pan, username, 'Enterprise Pro' as plan, 'Active' as status, DATE(created_at) as date FROM users ORDER BY created_at DESC");
+
+        // 6c. List all users (query actual status from DB)
+        $stmt = $pdo->query("SELECT id, full_name as name, email, contact_number as phone, company_name as company, constitution, company_address as address, state, gst_number as gst, pan_number as pan, username, 'Enterprise Pro' as plan, COALESCE(NULLIF(status, ''), 'Active') as status, DATE(created_at) as date FROM users ORDER BY created_at DESC");
         echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
         exit();
     }
@@ -1014,6 +1126,364 @@ function sendGmailSMTPOtp($toEmail, $otp, &$debugLog = '') {
         $fromEmail = "noreply@" . preg_replace('/^www\./i', '', $hostDomain);
         
         $mailHeaders  = "From: \"BillSon Verification\" <{$fromEmail}>\r\n";
+        $mailHeaders .= "Reply-To: {$user}\r\n";
+        $mailHeaders .= "Date: " . date('r') . "\r\n";
+        $mailHeaders .= "MIME-Version: 1.0\r\n";
+        $mailHeaders .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $mailHeaders .= "X-Mailer: PHP/" . phpversion();
+        
+        $mailOk = @mail($cleanEmail, $pkg['subject'], $pkg['html_only'], $mailHeaders, "-f " . $fromEmail);
+        $debugLog = $transcript . "\r\nmail() result: " . ($mailOk ? 'success' : 'failed');
+        if ($mailOk) {
+            return ['sent' => true, 'method' => 'php_mail', 'error' => null];
+        }
+    } catch (Exception $e) {
+        $transcript .= "mail() Error: " . $e->getMessage() . "\r\n";
+    }
+
+    $debugLog = $transcript;
+    return ['sent' => false, 'method' => 'none', 'error' => 'All mail delivery mechanisms failed', 'debug' => $transcript];
+}
+
+/**
+ * Generate standard RFC 2822 anti-spam compliant multipart/alternative user status notification email
+ */
+function buildUserStatusEmailPackage($fromUser, $toEmail, $userName, $status, $companyName = '') {
+    $cleanTo = trim($toEmail);
+    $displayName = htmlspecialchars($userName ?: 'Valued User');
+    $isSuspended = ($status === 'Suspended');
+    $companyInfo = !empty($companyName) ? " (" . htmlspecialchars($companyName) . ")" : "";
+    $adminEmail = htmlspecialchars($fromUser);
+
+    $subject = $isSuspended
+        ? "⚠️ Account Suspended Notice - Action Required | BillSon Administration"
+        : "✅ Account Reactivated - Suspension Cancelled | BillSon Administration";
+
+    $date = date('r');
+    $msgId = "<billson.status." . bin2hex(random_bytes(8)) . "." . time() . "@gmail.com>";
+    $boundary = "=_b_billson_status_" . bin2hex(random_bytes(8)) . "_" . time();
+
+    if ($isSuspended) {
+        $plainText = "Dear {$displayName},\r\n\r\n"
+                   . "Your BillSon account ({$cleanTo}){$companyInfo} has been suspended by the administrator.\r\n\r\n"
+                   . "All access to your billing features, invoicing, and account management has been temporarily placed on hold.\r\n\r\n"
+                   . "FOR FURTHER DETAILS & CONTACTING ADMINISTRATOR:\r\n"
+                   . "For further details or reactivation assistance, please contact the administrator directly at:\r\n"
+                   . "Administrator Email: {$fromUser}\r\n\r\n"
+                   . "Please mention your registered account email ({$cleanTo}) in your inquiry.\r\n\r\n"
+                   . "BillSon Billing & Financial Compliance Solutions • Admin Desk";
+
+        $htmlContent = '<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BillSon Account Suspended Notice</title>
+</head>
+<body style="margin:0;padding:24px;background-color:#0b0f17;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#e2e8f0;">
+  <div style="max-width:560px;margin:0 auto;background-color:#111827;border:1px solid rgba(239,68,68,0.3);border-top:4px solid #ef4444;border-radius:14px;padding:36px 32px;box-shadow:0 12px 30px rgba(0,0,0,0.5);">
+    <div style="border-bottom:1px solid #1f2937;padding-bottom:16px;margin-bottom:24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td>
+            <span style="font-size:24px;font-weight:900;color:#f59e0b;letter-spacing:-0.5px;">BillSon</span>
+            <span style="font-size:12px;color:#94a3b8;margin-left:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Admin Desk</span>
+          </td>
+          <td style="text-align:right;">
+            <span style="background-color:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#f87171;font-size:11px;font-weight:700;padding:5px 12px;border-radius:999px;text-transform:uppercase;letter-spacing:0.5px;display:inline-block;">
+              Account Suspended
+            </span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h2 style="margin:0 0 14px 0;font-size:20px;font-weight:800;color:#ffffff;line-height:1.3;">
+      Your Account Has Been Suspended
+    </h2>
+
+    <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#cbd5e1;">
+      Dear <strong style="color:#ffffff;">' . $displayName . '</strong>,
+    </p>
+
+    <p style="margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#94a3b8;">
+      This is an official notice that your BillSon account associated with <span style="color:#f59e0b;font-weight:600;">' . htmlspecialchars($cleanTo) . '</span>' . $companyInfo . ' has been <span style="color:#f87171;font-weight:700;">suspended by the administrator</span>. Access to billing operations, invoices, and tenant features is currently paused.
+    </p>
+
+    <div style="background-color:#1e1b2e;border:1px solid rgba(248,113,113,0.3);border-left:4px solid #ef4444;border-radius:10px;padding:20px;margin:24px 0;">
+      <div style="margin-bottom:10px;">
+        <span style="font-size:16px;margin-right:6px;">⚠️</span>
+        <strong style="color:#fca5a5;font-size:14px;letter-spacing:0.3px;">Contact Administrator For Further Details</strong>
+      </div>
+      <p style="margin:0 0 14px 0;font-size:13px;line-height:1.6;color:#cbd5e1;">
+        For further details regarding why your account was suspended, or to discuss account reactivation and compliance, please contact the administrator directly:
+      </p>
+      <div style="background-color:#0b0f17;border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:14px 18px;margin-bottom:12px;">
+        <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">
+          Administrator Email Address:
+        </div>
+        <a href="mailto:' . $adminEmail . '" style="font-size:17px;font-weight:800;color:#60a5fa;text-decoration:none;font-family:monospace;letter-spacing:0.5px;">
+          ' . $adminEmail . '
+        </a>
+      </div>
+      <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5;">
+        📌 <em>Please mention your registered email (<strong>' . htmlspecialchars($cleanTo) . '</strong>) in your inquiry email to expedite verification.</em>
+      </p>
+    </div>
+
+    <div style="text-align:center;margin:28px 0 20px 0;">
+      <a href="mailto:' . $adminEmail . '?subject=' . rawurlencode('Account Suspension Inquiry - ' . $cleanTo) . '" 
+         style="background:linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;padding:12px 28px;border-radius:8px;display:inline-block;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(239,68,68,0.3);">
+        Contact Administrator
+      </a>
+    </div>
+
+    <div style="border-top:1px solid #1f2937;padding-top:20px;margin-top:28px;font-size:12px;color:#64748b;line-height:1.6;">
+      <p style="margin:0 0 4px 0;">BillSon Billing &amp; Financial Compliance Solutions</p>
+      <p style="margin:0;color:#475569;">Official Administrative Security &amp; Compliance Notification</p>
+    </div>
+  </div>
+</body>
+</html>';
+    } else {
+        $plainText = "Dear {$displayName},\r\n\r\n"
+                   . "We are pleased to inform you that the suspension on your BillSon account ({$cleanTo}){$companyInfo} has been cancelled by the administrator.\r\n\r\n"
+                   . "Your account has been fully reactivated. You can now log in and continue managing your invoices, customers, and financial compliance without restriction.\r\n\r\n"
+                   . "If you have any questions or require support, please contact the administrator at: {$fromUser}\r\n\r\n"
+                   . "BillSon Billing & Financial Compliance Solutions • Admin Desk";
+
+        $htmlContent = '<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BillSon Account Reactivated</title>
+</head>
+<body style="margin:0;padding:24px;background-color:#0b0f17;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:#e2e8f0;">
+  <div style="max-width:560px;margin:0 auto;background-color:#111827;border:1px solid rgba(16,185,129,0.3);border-top:4px solid #10b981;border-radius:14px;padding:36px 32px;box-shadow:0 12px 30px rgba(0,0,0,0.5);">
+    <div style="border-bottom:1px solid #1f2937;padding-bottom:16px;margin-bottom:24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td>
+            <span style="font-size:24px;font-weight:900;color:#f59e0b;letter-spacing:-0.5px;">BillSon</span>
+            <span style="font-size:12px;color:#94a3b8;margin-left:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Admin Desk</span>
+          </td>
+          <td style="text-align:right;">
+            <span style="background-color:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#34d399;font-size:11px;font-weight:700;padding:5px 12px;border-radius:999px;text-transform:uppercase;letter-spacing:0.5px;display:inline-block;">
+              Suspension Cancelled
+            </span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h2 style="margin:0 0 14px 0;font-size:20px;font-weight:800;color:#ffffff;line-height:1.3;">
+      Account Suspension Cancelled &amp; Reactivated
+    </h2>
+
+    <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#cbd5e1;">
+      Dear <strong style="color:#ffffff;">' . $displayName . '</strong>,
+    </p>
+
+    <p style="margin:0 0 20px 0;font-size:14px;line-height:1.6;color:#94a3b8;">
+      We are pleased to inform you that your BillSon account associated with <span style="color:#f59e0b;font-weight:600;">' . htmlspecialchars($cleanTo) . '</span>' . $companyInfo . ' <span style="color:#34d399;font-weight:700;">suspension has been cancelled</span> by the administrator.
+    </p>
+
+    <div style="background-color:#062319;border:1px solid rgba(16,185,129,0.3);border-left:4px solid #10b981;border-radius:10px;padding:20px;margin:24px 0;">
+      <div style="margin-bottom:10px;">
+        <span style="font-size:16px;margin-right:6px;">✅</span>
+        <strong style="color:#6ee7b7;font-size:14px;letter-spacing:0.3px;">Account Restored &amp; Ready for Use</strong>
+      </div>
+      <p style="margin:0 0 14px 0;font-size:13px;line-height:1.6;color:#d1fae5;">
+        All previous account restrictions have been cleared. You now have immediate, unrestricted access to your billing dashboard, invoice management, GST tools, and financial ledgers.
+      </p>
+      <div style="background-color:#0b0f17;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:14px 18px;">
+        <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">
+          Administrator Contact:
+        </div>
+        <a href="mailto:' . $adminEmail . '" style="font-size:16px;font-weight:800;color:#34d399;text-decoration:none;font-family:monospace;">
+          ' . $adminEmail . '
+        </a>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin:28px 0 20px 0;">
+      <span style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg, #10b981 0%, #059669 100%);color:#ffffff;font-weight:700;font-size:13px;border-radius:8px;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(16,185,129,0.3);">
+        You May Now Log In and Use Your Account
+      </span>
+    </div>
+
+    <div style="border-top:1px solid #1f2937;padding-top:20px;margin-top:28px;font-size:12px;color:#64748b;line-height:1.6;">
+      <p style="margin:0 0 4px 0;">BillSon Billing &amp; Financial Compliance Solutions</p>
+      <p style="margin:0;color:#475569;">Official Administrative Security &amp; Compliance Notification</p>
+    </div>
+  </div>
+</body>
+</html>';
+    }
+
+    $headers  = "From: \"BillSon Administration\" <{$fromUser}>\r\n";
+    $headers .= "To: <{$cleanTo}>\r\n";
+    $headers .= "Reply-To: <{$fromUser}>\r\n";
+    $headers .= "Date: {$date}\r\n";
+    $headers .= "Message-ID: {$msgId}\r\n";
+    $headers .= "Subject: {$subject}\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n\r\n";
+
+    $body  = "--{$boundary}\r\n";
+    $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $body .= $plainText . "\r\n\r\n";
+    $body .= "--{$boundary}\r\n";
+    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $body .= $htmlContent . "\r\n\r\n";
+    $body .= "--{$boundary}--\r\n";
+
+    return [
+        'subject' => $subject,
+        'headers' => $headers,
+        'body' => $body,
+        'full_mime' => $headers . $body,
+        'html_only' => $htmlContent
+    ];
+}
+
+/**
+ * Send User Status Email in PHP Live Server (Gmail SSL 465 -> TLS 587 -> Hostinger mail())
+ */
+function sendUserStatusEmailPhp($toEmail, $userName, $status, $companyName = '', $adminEmail = null, &$debugLog = '') {
+    $cleanEmail = trim($toEmail);
+    if (empty($cleanEmail)) {
+        return ['sent' => false, 'error' => 'Empty recipient email', 'method' => 'none'];
+    }
+
+    $user = $adminEmail ?: (getenv('EMAIL_USER') ?: 'easyeetax@gmail.com');
+    $rawPass = getenv('EMAIL_PASS') ?: 'sxiu rqlk ogni juwn';
+    $pass = str_replace(' ', '', $rawPass);
+
+    $pkg = buildUserStatusEmailPackage($user, $cleanEmail, $userName, $status, $companyName);
+    $transcript = "";
+
+    // 1. Direct SSL Socket SMTP to Gmail (ssl://smtp.gmail.com:465)
+    try {
+        $context = stream_context_create([
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            ]
+        ]);
+        $socket = @stream_socket_client("ssl://smtp.gmail.com:465", $errno, $errstr, 8, STREAM_CLIENT_CONNECT, $context);
+        if ($socket) {
+            stream_set_timeout($socket, 8);
+            smtpReadResponse($socket, $transcript);
+            $serverName = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'billson.in';
+            fputs($socket, "EHLO {$serverName}\r\n");
+            $transcript .= "C: EHLO {$serverName}\r\n";
+            smtpReadResponse($socket, $transcript);
+            
+            fputs($socket, "AUTH LOGIN\r\n");
+            $transcript .= "C: AUTH LOGIN\r\n";
+            smtpReadResponse($socket, $transcript);
+            
+            fputs($socket, base64_encode($user) . "\r\n");
+            $transcript .= "C: [user base64]\r\n";
+            smtpReadResponse($socket, $transcript);
+            
+            fputs($socket, base64_encode($pass) . "\r\n");
+            $transcript .= "C: [pass base64]\r\n";
+            $authRes = smtpReadResponse($socket, $transcript);
+            
+            if (substr(trim($authRes), 0, 3) === '235') {
+                fputs($socket, "MAIL FROM: <{$user}>\r\n");
+                $transcript .= "C: MAIL FROM: <{$user}>\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, "RCPT TO: <{$cleanEmail}>\r\n");
+                $transcript .= "C: RCPT TO: <{$cleanEmail}>\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, "DATA\r\n");
+                $transcript .= "C: DATA\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, $pkg['full_mime'] . "\r\n.\r\n");
+                $transcript .= "C: [Data Body - Multipart MIME]\r\n";
+                smtpReadResponse($socket, $transcript);
+                
+                fputs($socket, "QUIT\r\n");
+                $transcript .= "C: QUIT\r\n";
+                smtpReadResponse($socket, $transcript);
+                @fclose($socket);
+                
+                $debugLog = $transcript;
+                return ['sent' => true, 'method' => 'gmail_smtp_ssl_465', 'error' => null];
+            } else {
+                @fclose($socket);
+            }
+        }
+    } catch (Exception $e) {
+        $transcript .= "SSL Error: " . $e->getMessage() . "\r\n";
+    }
+
+    // 2. Direct TLS Socket SMTP to Gmail (tcp://smtp.gmail.com:587 with STARTTLS)
+    try {
+        $socket = @stream_socket_client("tcp://smtp.gmail.com:587", $errno, $errstr, 8, STREAM_CLIENT_CONNECT);
+        if ($socket) {
+            stream_set_timeout($socket, 8);
+            smtpReadResponse($socket, $transcript);
+            $serverName = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'billson.in';
+            fputs($socket, "EHLO {$serverName}\r\n");
+            smtpReadResponse($socket, $transcript);
+            
+            fputs($socket, "STARTTLS\r\n");
+            $tlsRes = smtpReadResponse($socket, $transcript);
+            if (substr(trim($tlsRes), 0, 3) === '220') {
+                $crypto = @stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT);
+                if ($crypto) {
+                    fputs($socket, "EHLO {$serverName}\r\n");
+                    smtpReadResponse($socket, $transcript);
+                    
+                    fputs($socket, "AUTH LOGIN\r\n");
+                    smtpReadResponse($socket, $transcript);
+                    fputs($socket, base64_encode($user) . "\r\n");
+                    smtpReadResponse($socket, $transcript);
+                    fputs($socket, base64_encode($pass) . "\r\n");
+                    $authRes = smtpReadResponse($socket, $transcript);
+                    
+                    if (substr(trim($authRes), 0, 3) === '235') {
+                        fputs($socket, "MAIL FROM: <{$user}>\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        fputs($socket, "RCPT TO: <{$cleanEmail}>\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        fputs($socket, "DATA\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        
+                        fputs($socket, $pkg['full_mime'] . "\r\n.\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        fputs($socket, "QUIT\r\n");
+                        smtpReadResponse($socket, $transcript);
+                        @fclose($socket);
+                        
+                        $debugLog = $transcript;
+                        return ['sent' => true, 'method' => 'gmail_smtp_tls_587', 'error' => null];
+                    }
+                }
+            }
+            @fclose($socket);
+        }
+    } catch (Exception $e) {
+        $transcript .= "TLS Error: " . $e->getMessage() . "\r\n";
+    }
+
+    // 3. Native PHP mail() with Hostinger-compliant domain headers & envelope sender
+    try {
+        $hostDomain = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'billson.in';
+        $fromEmail = "noreply@" . preg_replace('/^www\./i', '', $hostDomain);
+        
+        $mailHeaders  = "From: \"BillSon Administration\" <{$fromEmail}>\r\n";
         $mailHeaders .= "Reply-To: {$user}\r\n";
         $mailHeaders .= "Date: " . date('r') . "\r\n";
         $mailHeaders .= "MIME-Version: 1.0\r\n";
