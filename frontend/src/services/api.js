@@ -86,6 +86,10 @@ export const api = {
 
   // Admin Registered Users
   getAdminUsers: () => request('/admin/users'),
+  updateUserStatus: (id, payload) => request(`/admin/users/${encodeURIComponent(id)}/status`, {
+    method: 'POST',
+    body: JSON.stringify(typeof payload === 'string' ? { status: payload } : payload)
+  }),
   deleteAdminUser: (id) => request(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // Live GSTIN Taxpayer Lookup

@@ -40,6 +40,45 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
       }
     }
 
+    // Helper to check if user is suspended in local persistence
+    const isSuspendedLocally = (identifier) => {
+      if (!identifier) return false;
+      const clean = identifier.trim().toLowerCase();
+      try {
+        const adminUsers = JSON.parse(localStorage.getItem('billson_admin_users') || '[]');
+        const matchAdmin = adminUsers.find(u => 
+          (u.email && u.email.trim().toLowerCase() === clean) ||
+          (u.username && u.username.trim().toLowerCase() === clean) ||
+          (u.id && u.id.trim().toLowerCase() === clean)
+        );
+        if (matchAdmin && (matchAdmin.status || '').trim().toLowerCase() === 'suspended') {
+          return true;
+        }
+      } catch (e) {}
+
+      try {
+        const regUsers = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+        const matchReg = regUsers.find(u => 
+          (u.email && u.email.trim().toLowerCase() === clean) ||
+          (u.username && u.username.trim().toLowerCase() === clean) ||
+          (u.id && u.id.trim().toLowerCase() === clean)
+        );
+        if (matchReg && (matchReg.status || '').trim().toLowerCase() === 'suspended') {
+          return true;
+        }
+      } catch (e) {}
+
+      return false;
+    };
+
+    // Fast-fail check: If suspended locally, immediately reject login
+    if (isSuspendedLocally(cleanEmail)) {
+      const errorMsg = 'Your account has been suspended by the administrator. For further details, please contact administrator at easyeetax@gmail.com.';
+      setError(errorMsg);
+      addToast(errorMsg, 'error', 'Account Suspended');
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await api.loginUser({ username: email.trim(), email: email.trim(), password });
@@ -52,7 +91,35 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
           (uObj.email ? localStorage.getItem(`billson_user_logo_${uObj.email.toLowerCase()}`) : null);
       };
 
+      // 1. Backend rejected because user is suspended
+      if (res?.suspended || (res?.message && res.message.toLowerCase().includes('suspend'))) {
+        const errorMsg = res.message || 'Your account has been suspended by the administrator. For further details, please contact administrator at easyeetax@gmail.com.';
+        setError(errorMsg);
+        addToast(errorMsg, 'error', 'Account Suspended');
+
+        // Sync local storage to mark user suspended
+        try {
+          const adminUsers = JSON.parse(localStorage.getItem('billson_admin_users') || '[]');
+          const updated = adminUsers.map(u => 
+            (u.email && u.email.toLowerCase() === cleanEmail) || (u.username && u.username.toLowerCase() === cleanEmail)
+              ? { ...u, status: 'Suspended' }
+              : u
+          );
+          localStorage.setItem('billson_admin_users', JSON.stringify(updated));
+        } catch (e) {}
+        return;
+      }
+
+      // 2. Successful login from backend
       if (res && res.success) {
+        // Double check returned user status
+        if ((res.user?.status || '').trim().toLowerCase() === 'suspended' || isSuspendedLocally(res.user?.email) || isSuspendedLocally(res.user?.id)) {
+          const errorMsg = 'Your account has been suspended by the administrator. For further details, please contact administrator at easyeetax@gmail.com.';
+          setError(errorMsg);
+          addToast(errorMsg, 'error', 'Account Suspended');
+          return;
+        }
+
         if (res.token) {
           localStorage.setItem('billson_token', res.token);
           localStorage.removeItem('taxpulse_token');
@@ -62,11 +129,25 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
         onLoginSuccess(userToPass);
       } else if ((res && res.fallback) || (res?.message && (res.message.includes('Route') || res.message.includes('not found')))) {
         // High-resilience session fallback so user is never blocked on port conflict or missing route
+        if (isSuspendedLocally(cleanEmail)) {
+          const errorMsg = 'Your account has been suspended by the administrator. For assistance, contact admin at easyeetax@gmail.com.';
+          setError(errorMsg);
+          addToast(errorMsg, 'error', 'Account Suspended');
+          return;
+        }
+
         let localUser = null;
         try {
           const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
           localUser = registered.find(u => u.email && u.email.toLowerCase() === cleanEmail);
         } catch (e) {}
+
+        if ((localUser?.status || '').trim().toLowerCase() === 'suspended') {
+          const errorMsg = 'Your account has been suspended by the administrator. For assistance, contact admin at easyeetax@gmail.com.';
+          setError(errorMsg);
+          addToast(errorMsg, 'error', 'Account Suspended');
+          return;
+        }
 
         const stableId = localUser?.id || `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}`;
         const userToLogin = localUser || {
@@ -90,11 +171,26 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
     } catch (err) {
       setLoading(false);
       const cleanEmail = email.trim().toLowerCase();
+
+      if (isSuspendedLocally(cleanEmail)) {
+        const errorMsg = 'Your account has been suspended by the administrator. For assistance, contact admin at easyeetax@gmail.com.';
+        setError(errorMsg);
+        addToast(errorMsg, 'error', 'Account Suspended');
+        return;
+      }
+
       let localUser = null;
       try {
         const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
         localUser = registered.find(u => u.email && u.email.toLowerCase() === cleanEmail);
       } catch (e) {}
+
+      if ((localUser?.status || '').trim().toLowerCase() === 'suspended') {
+        const errorMsg = 'Your account has been suspended by the administrator. For assistance, contact admin at easyeetax@gmail.com.';
+        setError(errorMsg);
+        addToast(errorMsg, 'error', 'Account Suspended');
+        return;
+      }
 
       const stableId = localUser?.id || `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}`;
       const userToLogin = localUser || {

@@ -45,7 +45,8 @@ export const fallbackStore = {
       registrationType: 'Regular',
       panNumber: 'AAACD1234F',
       username: 'chinna_durai',
-      passwordHash: bcrypt.hashSync('password123', 10)
+      passwordHash: bcrypt.hashSync('password123', 10),
+      status: 'Active'
     }
   ],
   customers: [],
@@ -128,13 +129,20 @@ export const initDB = async () => {
         username VARCHAR(100) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         company_logo LONGTEXT,
+        status VARCHAR(50) DEFAULT 'Active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Ensure company_logo column exists in users table if already created
+    // Ensure company_logo and status columns exist in users table if already created
     try {
       await connection.query(`ALTER TABLE users ADD COLUMN company_logo LONGTEXT;`);
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await connection.query(`ALTER TABLE users ADD COLUMN status VARCHAR(50) DEFAULT 'Active';`);
     } catch (e) {
       // Column already exists, ignore
     }

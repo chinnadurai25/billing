@@ -173,14 +173,33 @@ router.post('/login', async (req, res) => {
 
     if (isConnected()) {
       const db = getDB();
-      const [rows] = await db.query('SELECT * FROM users WHERE email = ? OR username = ?', [loginId, loginId]);
+      const [rows] = await db.query(
+        'SELECT * FROM users WHERE email = ? OR username = ? OR LOWER(email) = ? OR LOWER(username) = ?',
+        [loginId, loginId, loginId.toLowerCase(), loginId.toLowerCase()]
+      );
       if (rows.length > 0) foundUser = rows[0];
     } else {
-      foundUser = fallbackStore.users.find(u => u.email === loginId || u.username === loginId);
+      foundUser = fallbackStore.users.find(u => 
+        u.email === loginId || 
+        u.username === loginId || 
+        (u.email && u.email.toLowerCase() === loginId.toLowerCase())
+      );
     }
 
     if (!foundUser) {
       return res.status(401).json({ success: false, message: 'Invalid email address or password' });
+    }
+
+    // STRICT SECURITY CHECK: Block suspended users immediately
+    const userStatus = (foundUser.status || '').trim().toLowerCase();
+    if (userStatus === 'suspended') {
+      const adminEmail = (process.env.EMAIL_USER || 'easyeetax@gmail.com').trim();
+      console.log(`[Auth Security] Login blocked: User ${foundUser.email} is suspended.`);
+      return res.status(403).json({
+        success: false,
+        suspended: true,
+        message: `Your account has been suspended by the administrator. For further details, please contact administrator at ${adminEmail}.`
+      });
     }
 
     const isMatch = await bcrypt.compare(password, foundUser.password_hash || foundUser.passwordHash);
@@ -205,6 +224,7 @@ router.post('/login', async (req, res) => {
         panNumber: foundUser.pan_number || foundUser.panNumber,
         constitution: foundUser.constitution,
         username: foundUser.username,
+        status: foundUser.status || 'Active',
         companyLogo: foundUser.company_logo || foundUser.companyLogo || null
       },
       token

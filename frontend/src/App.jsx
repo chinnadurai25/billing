@@ -83,7 +83,48 @@ function AppContent() {
       const stored = localStorage.getItem('billson_active_user') || localStorage.getItem('taxpulse_active_user');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && !parsed.companyLogo && !parsed.company_logo) {
+        if (!parsed) return null;
+
+        const cleanEmail = (parsed.email || '').trim().toLowerCase();
+        const userId = parsed.id || '';
+        const userStatus = (parsed.status || '').trim().toLowerCase();
+
+        // Strict security: Check if stored user is suspended
+        let isSuspended = userStatus === 'suspended';
+        if (!isSuspended) {
+          try {
+            const adminUsers = JSON.parse(localStorage.getItem('billson_admin_users') || '[]');
+            const matched = adminUsers.find(u => 
+              (userId && u.id === userId) || 
+              (cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail)
+            );
+            if (matched && (matched.status || '').trim().toLowerCase() === 'suspended') {
+              isSuspended = true;
+            }
+          } catch (e) {}
+        }
+        if (!isSuspended) {
+          try {
+            const regUsers = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+            const matched = regUsers.find(u => 
+              (userId && u.id === userId) || 
+              (cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail)
+            );
+            if (matched && (matched.status || '').trim().toLowerCase() === 'suspended') {
+              isSuspended = true;
+            }
+          } catch (e) {}
+        }
+
+        if (isSuspended) {
+          localStorage.removeItem('billson_active_user');
+          localStorage.removeItem('billson_token');
+          localStorage.removeItem('taxpulse_active_user');
+          localStorage.removeItem('taxpulse_token');
+          return null;
+        }
+
+        if (!parsed.companyLogo && !parsed.company_logo) {
           const logo = (parsed.id ? localStorage.getItem(`billson_user_logo_${parsed.id}`) : null) ||
                        (parsed.email ? localStorage.getItem(`billson_user_logo_${parsed.email.toLowerCase()}`) : null);
           if (logo) parsed.companyLogo = logo;
@@ -376,6 +417,33 @@ function AppContent() {
       const cleanEmail = (loggedInUser.email || '').trim().toLowerCase();
       const stableFallbackId = cleanEmail ? `USR-${btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}` : `USR-901`;
       const targetUserId = loggedInUser.id || stableFallbackId;
+      const userStatus = (loggedInUser.status || '').trim().toLowerCase();
+
+      // STRICT SECURITY CHECK: Block suspended user session immediately
+      let isSuspended = userStatus === 'suspended';
+      if (!isSuspended) {
+        try {
+          const adminUsers = JSON.parse(localStorage.getItem('billson_admin_users') || '[]');
+          const matched = adminUsers.find(u => 
+            (targetUserId && u.id === targetUserId) || 
+            (cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail)
+          );
+          if (matched && (matched.status || '').trim().toLowerCase() === 'suspended') {
+            isSuspended = true;
+          }
+        } catch (e) {}
+      }
+
+      if (isSuspended) {
+        try {
+          localStorage.removeItem('billson_active_user');
+          localStorage.removeItem('billson_token');
+          localStorage.removeItem('taxpulse_active_user');
+          localStorage.removeItem('taxpulse_token');
+        } catch (e) {}
+        setCurrentView('user-login');
+        return;
+      }
 
       const userLogo = loggedInUser.companyLogo || loggedInUser.company_logo ||
                        (targetUserId ? localStorage.getItem(`billson_user_logo_${targetUserId}`) : null) ||
@@ -392,6 +460,7 @@ function AppContent() {
         companyAddress: loggedInUser.companyAddress || loggedInUser.company_address || '',
         state: loggedInUser.state || 'Tamil Nadu',
         constitution: loggedInUser.constitution || 'Private Limited',
+        status: loggedInUser.status || 'Active',
         companyLogo: userLogo || null
       };
 
@@ -454,7 +523,7 @@ function AppContent() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     try {
       localStorage.removeItem('billson_active_user');
       localStorage.removeItem('billson_token');
@@ -468,7 +537,44 @@ function AppContent() {
     setProductsState([]);
     setInvoicesState([]);
     setCurrentView('landing');
-  };
+  }, [setCurrentView]);
+
+  // Active Watchdog: Instantly evict user if their account gets suspended while logged in
+  useEffect(() => {
+    if (!userData?.id && !userData?.email) return;
+
+    const checkSuspensionStatus = () => {
+      const cleanEmail = (userData.email || '').trim().toLowerCase();
+      const userId = userData.id;
+      let isSuspended = (userData.status || '').trim().toLowerCase() === 'suspended';
+
+      if (!isSuspended) {
+        try {
+          const adminUsers = JSON.parse(localStorage.getItem('billson_admin_users') || '[]');
+          const matched = adminUsers.find(u => 
+            (userId && u.id === userId) || 
+            (cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail)
+          );
+          if (matched && (matched.status || '').trim().toLowerCase() === 'suspended') {
+            isSuspended = true;
+          }
+        } catch (e) {}
+      }
+
+      if (isSuspended) {
+        handleLogout();
+        setCurrentView('user-login');
+      }
+    };
+
+    checkSuspensionStatus();
+    window.addEventListener('storage', checkSuspensionStatus);
+    const interval = setInterval(checkSuspensionStatus, 2000);
+    return () => {
+      window.removeEventListener('storage', checkSuspensionStatus);
+      clearInterval(interval);
+    };
+  }, [userData, handleLogout, setCurrentView]);
 
   return (
     <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col selection:bg-brand-500 selection:text-white">
