@@ -33,6 +33,14 @@ export const sendOtpEmailDirect = async (toEmail, otpCode) => {
         otp: activeOtp,
         message: res.message || `OTP verification code sent to ${cleanEmail}. Please check your Inbox / Spam folder.`
       };
+    } else if (res && res.success === false) {
+      // Backend reported failure (e.g. Email already exists or validation error)
+      return {
+        success: false,
+        sent: false,
+        exists: res.exists || false,
+        message: res.message || 'An account with this Email address already exists. Please login instead.'
+      };
     }
   } catch (err) {
     console.warn('[OTP Email API Notice]:', err?.message || err);
@@ -52,16 +60,25 @@ export const sendOtpEmailDirect = async (toEmail, otpCode) => {
       body: JSON.stringify({ email: cleanEmail, otp: otpCode })
     });
 
-    if (directRes.ok) {
-      const data = await directRes.json();
-      if (data && data.success) {
-        return {
-          success: true,
-          sent: data.sent ?? true,
-          otp: data.otp || otpCode,
-          message: data.message || `OTP verification code sent to ${cleanEmail}`
-        };
-      }
+    const data = await directRes.json().catch(() => null);
+    if (directRes.ok && data?.success) {
+      const activeOtp = data.otp || otpCode;
+      try {
+        sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, activeOtp);
+      } catch (e) {}
+      return {
+        success: true,
+        sent: data.sent ?? true,
+        otp: activeOtp,
+        message: data.message || `OTP verification code sent to ${cleanEmail}`
+      };
+    } else if (data && (data.exists || data.success === false)) {
+      return {
+        success: false,
+        sent: false,
+        exists: data.exists || false,
+        message: data.message || 'An account with this Email address already exists. Please login instead.'
+      };
     }
   } catch (fetchErr) {
     console.warn('[Direct OTP API Error]:', fetchErr?.message || fetchErr);

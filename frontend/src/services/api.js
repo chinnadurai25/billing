@@ -52,6 +52,7 @@ export const api = {
   registerUser: (userData) => request('/auth/register', { method: 'POST', body: JSON.stringify(userData) }),
   loginUser: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
   loginAdmin: (credentials) => request('/auth/admin/login', { method: 'POST', body: JSON.stringify(credentials) }),
+  checkEmail: (email) => request('/auth/check-email', { method: 'POST', body: JSON.stringify({ email }) }),
   sendOtp: (data) => request('/auth/send-otp', { method: 'POST', body: JSON.stringify(data) }),
   verifyOtp: (data) => request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(data) }),
   updateUserProfile: (userId, profileData) => request(`/auth/profile/${userId}`, { method: 'PUT', body: JSON.stringify(profileData) }),

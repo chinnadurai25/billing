@@ -26,6 +26,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
   const [localGeneratedOtp, setLocalGeneratedOtp] = useState('');
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(0);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
   // 10 Exact Required Input Fields State + Company Logo
   const [formData, setFormData] = useState({
@@ -197,7 +198,56 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
     }
   };
 
-  // Trigger Direct Frontend Email OTP Sending (No PHP Required)
+  // Check if account already exists with given email (Local DB + Server DB)
+  const checkIfEmailExists = async (emailToCheck) => {
+    const cleanEmail = (emailToCheck || '').trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { exists: false };
+    }
+
+    // 1. Check local registered users & admin users cache
+    try {
+      const regUsers = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+      const adminUsers = JSON.parse(localStorage.getItem('billson_admin_users') || '[]');
+      const localMatch = regUsers.find(u => (u.email && u.email.trim().toLowerCase() === cleanEmail)) ||
+                         adminUsers.find(u => (u.email && u.email.trim().toLowerCase() === cleanEmail));
+      if (localMatch) {
+        return {
+          exists: true,
+          message: 'An account with this Email address already exists. Please login instead.'
+        };
+      }
+    } catch (e) { }
+
+    // 2. Check server API endpoint
+    try {
+      const res = await api.checkEmail(cleanEmail);
+      if (res && res.exists) {
+        return {
+          exists: true,
+          message: res.message || 'An account with this Email address already exists. Please login instead.'
+        };
+      }
+    } catch (e) { }
+
+    return { exists: false };
+  };
+
+  // Check email on blur
+  const handleEmailBlur = async () => {
+    const cleanEmail = formData.email.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || isEmailVerified) {
+      return;
+    }
+    const checkResult = await checkIfEmailExists(cleanEmail);
+    if (checkResult.exists) {
+      const errMsg = checkResult.message || 'An account with this Email address already exists. Please login instead.';
+      setErrors((prev) => ({ ...prev, email: errMsg }));
+      addToast(errMsg, 'warning', 'Email Already Exists');
+    }
+  };
+
+  // Trigger Direct Frontend Email OTP Sending (Strictly verifies email existence first)
   const handleSendOtp = async () => {
     const cleanEmail = formData.email.trim();
     if (!cleanEmail) {
@@ -211,26 +261,43 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       return;
     }
 
+    setIsCheckingEmail(true);
+
+    // Step 1: Verify whether user account already exists before sending OTP
+    const checkResult = await checkIfEmailExists(cleanEmail);
+    if (checkResult.exists) {
+      setIsCheckingEmail(false);
+      const errMsg = checkResult.message || 'An account with this Email address already exists. Please login instead.';
+      setErrors((prev) => ({ ...prev, email: errMsg }));
+      addToast(errMsg, 'error', 'Email Already Exists');
+      setOtpSent(false);
+      return;
+    }
+
     addToast(`Sending verification email to ${cleanEmail}...`, 'info');
 
     // Generate 6-digit OTP code directly in React frontend
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setLocalGeneratedOtp(newOtpCode);
-    setGeneratedOtp(newOtpCode);
-
-    try {
-      sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, newOtpCode);
-    } catch (e) { }
 
     // Send OTP via API (Gmail SMTP SSL/TLS + Hostinger Mail)
     const frontendRes = await sendOtpEmailDirect(cleanEmail, newOtpCode);
-    if (frontendRes && frontendRes.otp) {
-      setLocalGeneratedOtp(frontendRes.otp);
-      setGeneratedOtp(frontendRes.otp);
-      try {
-        sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, frontendRes.otp);
-      } catch (e) { }
+    setIsCheckingEmail(false);
+
+    // If backend reports email already exists or sending fails
+    if (!frontendRes?.success) {
+      const errMsg = frontendRes?.message || 'An account with this Email address already exists. Please login instead.';
+      setErrors((prev) => ({ ...prev, email: errMsg }));
+      addToast(errMsg, 'error', frontendRes?.exists ? 'Email Already Exists' : 'OTP Error');
+      setOtpSent(false);
+      return;
     }
+
+    const finalOtp = frontendRes.otp || newOtpCode;
+    setLocalGeneratedOtp(finalOtp);
+    setGeneratedOtp(finalOtp);
+    try {
+      sessionStorage.setItem(`billson_otp_${cleanEmail.toLowerCase()}`, finalOtp);
+    } catch (e) { }
 
     setOtpSent(true);
     setOtpCountdown(60);
@@ -569,6 +636,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
+                      onBlur={handleEmailBlur}
                       readOnly={isEmailVerified}
                       placeholder="e.g. example@gmail.com"
                       className={`w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs ${isEmailVerified ? 'border-emerald-500/60 bg-emerald-950/20 text-emerald-200' : errors.email ? 'border-red-500/80' : ''
@@ -580,19 +648,40 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                     <button
                       type="button"
                       onClick={handleSendOtp}
-                      disabled={otpCountdown > 0}
-                      className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 shrink-0 transition-all"
+                      disabled={otpCountdown > 0 || isCheckingEmail}
+                      className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:opacity-60 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
                     >
-                      <Send className="w-3.5 h-3.5" />
-                      {otpCountdown > 0 ? `Resend (${otpCountdown}s)` : otpSent ? 'Resend OTP' : 'Send OTP'}
+                      {isCheckingEmail ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Checking...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{otpCountdown > 0 ? `Resend (${otpCountdown}s)` : otpSent ? 'Resend OTP' : 'Send OTP'}</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
 
                 {errors.email && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />{errors.email}
-                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-red-400">
+                    <p className="flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {errors.email}
+                    </p>
+                    {errors.email.toLowerCase().includes('already exist') && setCurrentView && (
+                      <button
+                        type="button"
+                        onClick={() => setCurrentView('user-login')}
+                        className="text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2 ml-auto cursor-pointer"
+                      >
+                        Go to Login →
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* Inline OTP Input Box */}

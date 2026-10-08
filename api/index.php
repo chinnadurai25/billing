@@ -507,6 +507,33 @@ try {
     if ($resource === 'auth') {
         $sub = $pathParts[1] ?? '';
 
+        // 5a-0. CHECK EMAIL
+        if ($sub === 'check-email') {
+            $email = trim($input['email'] ?? ($_GET['email'] ?? ''));
+            $cleanEmail = strtolower($email);
+            if (empty($cleanEmail)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Email address is required']);
+                exit();
+            }
+
+            $exists = false;
+            try {
+                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(username) = ? LIMIT 1");
+                $checkStmt->execute([$cleanEmail, $cleanEmail]);
+                $exists = (bool)$checkStmt->fetch();
+            } catch (Exception $e) {}
+
+            echo json_encode([
+                'success' => true,
+                'exists' => $exists,
+                'message' => $exists
+                    ? 'An account with this Email address already exists. Please login instead.'
+                    : 'Email is available'
+            ]);
+            exit();
+        }
+
         // 5a. SEND OTP
         if ($sub === 'send-otp') {
             $email = trim($input['email'] ?? '');
@@ -516,9 +543,25 @@ try {
                 exit();
             }
 
+            $cleanEmail = strtolower($email);
+
+            // Verify if an account with this email address already exists
+            try {
+                $checkStmt = $pdo->prepare("SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(username) = ? LIMIT 1");
+                $checkStmt->execute([$cleanEmail, $cleanEmail]);
+                if ($checkStmt->fetch()) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'success' => false,
+                        'exists' => true,
+                        'message' => 'An account with this Email address already exists. Please login instead.'
+                    ]);
+                    exit();
+                }
+            } catch (Exception $e) {}
+
             // Always generate a fresh, secure 6-digit OTP
             $otp = strval(rand(100000, 999999));
-            $cleanEmail = strtolower($email);
 
             // Persist in MySQL table with 15-minute expiration
             try {

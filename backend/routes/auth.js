@@ -7,7 +7,50 @@ import { sendOtpEmail } from '../services/emailService.js';
 const router = express.Router();
 const otpStore = new Map(); // In-memory OTP storage
 
-// OTP Endpoint 1: Send OTP to User Email via Nodemailer
+// Helper function to check if an account with this email/username already exists
+export const checkUserExistsByEmail = async (email) => {
+  if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
+  if (isConnected()) {
+    try {
+      const db = getDB();
+      const [rows] = await db.query(
+        'SELECT id, email FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?',
+        [cleanEmail, cleanEmail]
+      );
+      if (rows && rows.length > 0) return true;
+    } catch (e) {
+      console.error('Error checking user exists by email in MySQL:', e);
+    }
+  }
+  // Check in fallbackStore
+  return fallbackStore.users.some(
+    u => (u.email && u.email.trim().toLowerCase() === cleanEmail) ||
+         (u.username && u.username.trim().toLowerCase() === cleanEmail)
+  );
+};
+
+// Check Email Endpoint: Check if email already registered before OTP
+router.all('/check-email', async (req, res) => {
+  try {
+    const email = req.body?.email || req.query?.email;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
+    }
+    const exists = await checkUserExistsByEmail(email);
+    return res.json({
+      success: true,
+      exists,
+      message: exists
+        ? 'An account with this Email address already exists. Please login instead.'
+        : 'Email is available'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// OTP Endpoint 1: Send OTP to User Email via Nodemailer (Verifies account existence first)
 router.post('/send-otp', async (req, res) => {
   try {
     const { email } = req.body;
@@ -15,25 +58,37 @@ router.post('/send-otp', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email address is required' });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Verify if an account with this email already exists before sending OTP
+    const alreadyExists = await checkUserExistsByEmail(cleanEmail);
+    if (alreadyExists) {
+      return res.status(400).json({
+        success: false,
+        exists: true,
+        message: 'An account with this Email address already exists. Please login instead.'
+      });
+    }
+
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(email.toLowerCase(), {
+    otpStore.set(cleanEmail, {
       code: otpCode,
       expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes
     });
 
-    const result = await sendOtpEmail(email, otpCode);
+    const result = await sendOtpEmail(cleanEmail, otpCode);
 
     if (result.sent) {
       res.json({
         success: true,
-        message: `Verification OTP has been sent to ${email}`,
+        message: `Verification OTP has been sent to ${cleanEmail}`,
         sent: true,
         otp: otpCode
       });
     } else {
       res.json({
         success: true,
-        message: `OTP generated for ${email}. (SMTP Note: ${result.error || result.message || 'Check email configuration'})`,
+        message: `OTP generated for ${cleanEmail}. (SMTP Note: ${result.error || result.message || 'Check email configuration'})`,
         sent: false,
         otp: otpCode
       });
@@ -86,17 +141,9 @@ router.post('/register', async (req, res) => {
     const safeGst = (gstNumber || '').trim() || 'URP';
     const safePan = (panNumber || '').trim() || 'N/A';
 
-    if (isConnected()) {
-      const db = getDB();
-      const [existing] = await db.query('SELECT id FROM users WHERE email = ? OR username = ?', [email, userLoginName]);
-      if (existing.length > 0) {
-        return res.status(400).json({ success: false, message: 'An account with this Email address already exists' });
-      }
-    } else {
-      const existing = fallbackStore.users.find(u => u.email === email || u.username === userLoginName);
-      if (existing) {
-        return res.status(400).json({ success: false, message: 'An account with this Email address already exists' });
-      }
+    const alreadyExists = await checkUserExistsByEmail(email) || await checkUserExistsByEmail(userLoginName);
+    if (alreadyExists) {
+      return res.status(400).json({ success: false, message: 'An account with this Email address already exists. Please login instead.' });
     }
 
     const salt = await bcrypt.genSalt(10);
