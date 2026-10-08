@@ -47,6 +47,11 @@ export const getStateFromGstOrAddress = (gstNum, fallbackState = '') => {
   return 'Tamil Nadu';
 };
 
+export const isInvoiceCancelled = (status) => {
+  const s = String(status || '').toLowerCase().trim();
+  return s === 'cancelled' || s === 'canceled' || s === 'void';
+};
+
 export const processGSTRData = (invoices = [], customers = [], userState = 'Tamil Nadu', selectedMonthYear = 'all', products = []) => {
   let filteredInvoices = invoices;
 
@@ -92,7 +97,11 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
   const b2cRows = [];
   const hsnMap = new Map();
 
-  filteredInvoices.forEach((inv) => {
+  // Cancelled invoices are strictly excluded from taxable turnover (B2B, B2C, HSN),
+  // but are accounted for under Document Issued (Table 13 Cancelled column).
+  const activeInvoices = filteredInvoices.filter((inv) => !isInvoiceCancelled(inv.status));
+
+  activeInvoices.forEach((inv) => {
     const custIdKey = inv.customerId || inv.customer_id || inv.userId;
     const custNameKey = (inv.customerName || inv.customer_name || '').toLowerCase().trim();
 
@@ -307,17 +316,22 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
   }));
 
   // Process Document Issued details (GSTR-1 Table 13)
-  const salesInvoices = filteredInvoices.filter(inv => {
-    const docType = inv.documentType || inv.document_type || '';
-    if (!docType || docType === 'Sales Invoice') return true;
-    const invId = String(inv.invoiceNumber || inv.invoice_number || inv.id || '');
-    return invId.startsWith('INV');
+  const salesInvoices = filteredInvoices.filter((inv) => {
+    const docType = (inv.documentType || inv.document_type || '').toLowerCase().trim();
+    if (docType === 'delivery challan' || docType === 'purchase invoice' || docType === 'estimate' || docType === 'payment' || docType === 'receipt') {
+      return false;
+    }
+    const invId = String(inv.invoiceNumber || inv.invoice_number || inv.id || '').toUpperCase();
+    if (invId.startsWith('DC') || invId.startsWith('PUR') || invId.startsWith('EST') || invId.startsWith('PAY') || invId.startsWith('REC')) {
+      return false;
+    }
+    return true;
   });
 
-  const deliveryChallans = filteredInvoices.filter(inv => {
-    const docType = inv.documentType || inv.document_type || '';
-    if (docType === 'Delivery Challan') return true;
-    const invId = String(inv.invoiceNumber || inv.invoice_number || inv.id || '');
+  const deliveryChallans = filteredInvoices.filter((inv) => {
+    const docType = (inv.documentType || inv.document_type || '').toLowerCase().trim();
+    if (docType === 'delivery challan') return true;
+    const invId = String(inv.invoiceNumber || inv.invoice_number || inv.id || '').toUpperCase();
     return invId.startsWith('DC');
   });
 
@@ -347,8 +361,8 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
     parsedNums.sort((a, b) => a - b);
 
     const totalCount = list.length;
-    const cancelled = list.filter(d => (d.status || '').toLowerCase() === 'cancelled').length;
-    const netIssued = totalCount - cancelled;
+    const cancelled = list.filter((d) => isInvoiceCancelled(d.status)).length;
+    const netIssued = Math.max(0, totalCount - cancelled);
 
     return {
       docCategory: category,

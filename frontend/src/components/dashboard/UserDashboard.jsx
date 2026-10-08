@@ -61,11 +61,16 @@ export const UserDashboard = ({
   const [editingItem, setEditingItem] = useState(null);
   const [docSubTab, setDocSubTab] = useState('All'); // 'All', 'Sales Invoice', 'Purchase Invoice', 'Estimate', 'Delivery Challan', 'Payment'
 
-  // Delete Confirmation Modal state
+  // Delete & Action Confirmation Modal state
   const [deleteModal, setDeleteModal] = useState({
     isOpen: false,
     title: '',
+    subtitle: '',
     message: '',
+    confirmText: '',
+    cancelText: '',
+    confirmColor: '',
+    iconType: '',
     onConfirm: null
   });
 
@@ -950,33 +955,77 @@ export const UserDashboard = ({
   };
 
   const handleCancelInvoice = (inv) => {
-    const invNum = inv.invoiceNumber || inv.invoice_number || '';
-    const custName = inv.customerName || inv.customer_name || '';
+    const invNum = inv.invoiceNumber || inv.invoice_number || inv.id || '';
+    const custName = inv.customerName || inv.customer_name || 'Customer';
+    const targetId = inv.id || inv.invoiceNumber || inv.invoice_number;
     setDeleteModal({
       isOpen: true,
       title: 'Cancel / Void Tax Invoice',
-      message: `Are you sure you want to cancel Tax Invoice "${invNum}" for ${custName}? Its status will be marked as Cancelled.`,
-      onConfirm: () => {
+      subtitle: 'Status will be updated to Cancelled',
+      confirmText: 'Cancel Invoice',
+      cancelText: 'Keep Invoice',
+      confirmColor: 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/30',
+      iconType: 'cancel',
+      message: `Are you sure you want to cancel Tax Invoice "${invNum}" for ${custName}? Its status will be marked as Cancelled and counted under Cancelled in the GSTR Tax Report.`,
+      onConfirm: async () => {
         setInvoices((prev) => {
-          const updated = prev.map((i) => i.id === inv.id ? { ...i, status: 'Cancelled' } : i);
+          const updated = prev.map((i) =>
+            (i.id === inv.id || (invNum && (i.invoiceNumber === invNum || i.invoice_number === invNum)))
+              ? { ...i, status: 'Cancelled' }
+              : i
+          );
           updateLocalInvoices(updated);
           return updated;
         });
-        api.updateInvoice(inv.id, { status: 'Cancelled' });
-        addToast(`Invoice ${invNum} has been cancelled.`, 'info', 'Invoice Cancelled');
+        try {
+          await api.updateInvoice(targetId, { status: 'Cancelled' });
+        } catch (e) {}
+        addToast(`Invoice ${invNum} has been cancelled & recorded in Tax Report.`, 'info', 'Invoice Cancelled');
       }
     });
   };
 
-  // Financial Stat calculations
+  const handleRestoreInvoice = (inv) => {
+    const invNum = inv.invoiceNumber || inv.invoice_number || inv.id || '';
+    const custName = inv.customerName || inv.customer_name || 'Customer';
+    const targetId = inv.id || inv.invoiceNumber || inv.invoice_number;
+    setDeleteModal({
+      isOpen: true,
+      title: 'Restore Cancelled Invoice',
+      subtitle: 'Status will return to Pending',
+      confirmText: 'Restore Invoice',
+      cancelText: 'Keep Cancelled',
+      confirmColor: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30',
+      iconType: 'restore',
+      message: `Do you want to restore Invoice "${invNum}" for ${custName}? Its status will be changed back to Pending and reinstated in active turnover.`,
+      onConfirm: async () => {
+        setInvoices((prev) => {
+          const updated = prev.map((i) =>
+            (i.id === inv.id || (invNum && (i.invoiceNumber === invNum || i.invoice_number === invNum)))
+              ? { ...i, status: 'Pending' }
+              : i
+          );
+          updateLocalInvoices(updated);
+          return updated;
+        });
+        try {
+          await api.updateInvoice(targetId, { status: 'Pending' });
+        } catch (e) {}
+        addToast(`Invoice ${invNum} restored to Pending status.`, 'success', 'Invoice Restored');
+      }
+    });
+  };
+
+  // Financial Stat calculations (Excluding cancelled invoices from active billed turnover)
   const totalInvoicesCount = invoices.length;
-  const totalSales = invoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
-  const totalTax = invoices.reduce((acc, inv) => acc + (inv.totalTax || inv.total_tax || 0), 0);
+  const activeFinancialInvoices = invoices.filter(inv => (inv.status || '').toLowerCase() !== 'cancelled');
+  const totalSales = activeFinancialInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
+  const totalTax = activeFinancialInvoices.reduce((acc, inv) => acc + (inv.totalTax || inv.total_tax || 0), 0);
 
   const paidInvoices = invoices.filter(inv => inv.status === 'Paid');
   const pendingInvoices = invoices.filter(inv => inv.status === 'Pending');
   const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue');
-  const cancelledInvoices = invoices.filter(inv => inv.status === 'Cancelled');
+  const cancelledInvoices = invoices.filter(inv => (inv.status || '').toLowerCase() === 'cancelled');
 
   const paidAmount = paidInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
   const pendingAmount = pendingInvoices.reduce((acc, inv) => acc + (inv.grandTotal || inv.grand_total || 0), 0);
@@ -1129,6 +1178,14 @@ export const UserDashboard = ({
             >
               <CreditCard className="w-4 h-4 text-white" /> + Payment
             </button>
+
+            {/* 6. Receipt Button */}
+            <button
+              onClick={() => onQuickCreateInvoice(null, 'Receipt')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-purple-400/30"
+            >
+              <FileCheck className="w-4 h-4 text-white" /> + Receipt
+            </button>
           </div>
 
           {/* Quick Registration Master Buttons */}
@@ -1146,10 +1203,16 @@ export const UserDashboard = ({
               <Landmark className="w-3.5 h-3.5 text-amber-400" /> + Bank / Cash
             </button>
             <button
-              onClick={handleOpenNewItem}
+              onClick={handleOpenNewProduct}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
-              <Package className="w-3.5 h-3.5 text-emerald-400" /> + Item / Service
+              <Package className="w-3.5 h-3.5 text-emerald-400" /> + Product
+            </button>
+            <button
+              onClick={handleOpenNewService}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+            >
+              <Wrench className="w-3.5 h-3.5 text-cyan-400" /> + Service
             </button>
           </div>
 
@@ -1328,11 +1391,14 @@ export const UserDashboard = ({
                           <td className="py-3 px-3 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
                           <td className="py-3 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${inv.status === 'Paid'
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                              inv.status === 'Paid'
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                                 : inv.status === 'Pending'
                                   ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                                  : 'bg-red-500/10 text-red-400 border-red-500/30'
+                                  : (inv.status || '').toLowerCase() === 'cancelled'
+                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 line-through'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/30'
                               }`}>
                               {inv.status}
                             </span>
@@ -1481,6 +1547,7 @@ export const UserDashboard = ({
               { id: 'Estimate', label: 'Estimates', color: 'from-pink-500 to-rose-600' },
               { id: 'Delivery Challan', label: 'Delivery Challans', color: 'from-amber-500 to-orange-600' },
               { id: 'Payment', label: 'Payments', color: 'from-cyan-500 to-blue-600' },
+              { id: 'Receipt', label: 'Receipts', color: 'from-purple-500 to-indigo-600' },
             ].map((tab) => {
               const count = tab.id === 'All' 
                 ? invoices.length 
@@ -1509,7 +1576,7 @@ export const UserDashboard = ({
           </div>
 
           {/* Invoice Specific KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
               <p className="text-xs text-slate-400 font-mono">Total {docSubTab} Records</p>
               <h3 className="text-2xl font-bold font-mono text-white mt-1">{filteredInvoices.length}</h3>
@@ -1518,9 +1585,9 @@ export const UserDashboard = ({
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
               <p className="text-xs text-slate-400 font-mono">Total Billed Volume</p>
               <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">
-                ₹{filteredInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal || inv.grand_total || inv.amountPaid || 0), 0).toLocaleString('en-IN')}
+                ₹{filteredInvoices.filter(i => (i.status || '').toLowerCase() !== 'cancelled').reduce((sum, inv) => sum + Number(inv.grandTotal || inv.grand_total || inv.amountPaid || 0), 0).toLocaleString('en-IN')}
               </h3>
-              <p className="text-[11px] text-emerald-400 font-mono mt-1">Inclusive of Taxes</p>
+              <p className="text-[11px] text-emerald-400 font-mono mt-1">Active (Excl. Cancelled)</p>
             </div>
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
               <p className="text-xs text-slate-400 font-mono">Cleared / Settled</p>
@@ -1532,9 +1599,16 @@ export const UserDashboard = ({
             <div className="glass-card p-5 rounded-2xl border border-slate-800">
               <p className="text-xs text-slate-400 font-mono">Pending / Active</p>
               <h3 className="text-2xl font-bold font-mono text-amber-300 mt-1">
-                {filteredInvoices.filter((i) => i.status !== 'Paid' && i.status !== 'Cancelled').length}
+                {filteredInvoices.filter((i) => i.status !== 'Paid' && (i.status || '').toLowerCase() !== 'cancelled').length}
               </h3>
               <p className="text-[11px] text-amber-400 font-mono mt-1">Requires attention</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl border border-rose-900/40 bg-rose-950/15">
+              <p className="text-xs text-rose-300 font-mono">Cancelled / Void</p>
+              <h3 className="text-2xl font-bold font-mono text-rose-400 mt-1">
+                {filteredInvoices.filter((i) => (i.status || '').toLowerCase() === 'cancelled').length}
+              </h3>
+              <p className="text-[11px] text-rose-400/80 font-mono mt-1">In Table 13 Tax Report</p>
             </div>
           </div>
 
@@ -1611,40 +1685,44 @@ export const UserDashboard = ({
                       const paymentMethod = inv.paymentMethod || 'N/A';
                       const paymentPurpose = inv.paymentPurpose || '';
 
+                      const isCancelled = (inv.status || '').toLowerCase() === 'cancelled';
+
                       return (
-                        <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={inv.id} className={`hover:bg-slate-800/40 transition-colors ${isCancelled ? 'bg-rose-950/10 opacity-80' : ''}`}>
                           <td className="py-3.5 px-4 font-mono font-bold text-white whitespace-nowrap">
                             <div className="flex flex-col">
                               <span className="text-[10px] text-brand-300 font-sans font-semibold uppercase">{docType}</span>
-                              <span className="text-xs">{invNumber}</span>
+                              <span className={`text-xs ${isCancelled ? 'line-through text-slate-400' : ''}`}>{invNumber}</span>
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
+                          <td className={`py-3.5 px-4 font-medium whitespace-nowrap ${isCancelled ? 'text-slate-400' : 'text-slate-200'}`}>{custName}</td>
                           <td className="py-3.5 px-4 font-mono text-slate-400 whitespace-nowrap">{custGst}</td>
                           <td className="py-3.5 px-4 text-slate-400 font-mono whitespace-nowrap">
                             <div>{inv.date}</div>
-                            {docType === 'Payment' ? (
+                            {docType === 'Payment' || docType === 'Receipt' ? (
                               <div className="text-[10px] text-cyan-400 font-bold">Via: {paymentMethod}</div>
                             ) : (
                               dueDateVal && <div className="text-[10px] text-slate-500">Due: {dueDateVal}</div>
                             )}
                           </td>
                           <td className="py-3.5 px-4 font-mono text-indigo-300 whitespace-nowrap">
-                            {docType === 'Payment' ? (
-                              <span className="text-[11px] text-slate-400">{paymentPurpose || 'Payment Entry'}</span>
+                            {docType === 'Payment' || docType === 'Receipt' ? (
+                              <span className="text-[11px] text-slate-400">{paymentPurpose || (docType === 'Receipt' ? 'Receipt Entry' : 'Payment Entry')}</span>
                             ) : (
                               `₹${totalTaxVal.toLocaleString('en-IN')}`
                             )}
                           </td>
-                          <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
+                          <td className={`py-3.5 px-4 font-mono font-bold whitespace-nowrap ${isCancelled ? 'line-through text-slate-500' : 'text-emerald-400'}`}>
+                            ₹{grandTotalVal.toLocaleString('en-IN')}
+                          </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
-                              inv.status === 'Paid'
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                : inv.status === 'Pending'
-                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                                  : inv.status === 'Cancelled'
-                                    ? 'bg-slate-800 text-slate-400 border-slate-700 line-through'
+                              isCancelled
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 line-through'
+                                : inv.status === 'Paid'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : inv.status === 'Pending'
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
                                     : 'bg-red-500/10 text-red-400 border-red-500/30'
                               }`}>
                               {inv.status}
@@ -1655,8 +1733,7 @@ export const UserDashboard = ({
                               {/* VIEW Button */}
                               <button
                                 onClick={() => {
-                                  generateInvoicePDF(inv, user);
-                                  addToast(`Viewing ${docType} details for ${invNumber}`, 'info', 'View Record');
+                                  setSelectedInvoice(inv);
                                 }}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-[11px] font-semibold transition-all cursor-pointer"
                                 title="View Record Details"
@@ -1682,7 +1759,8 @@ export const UserDashboard = ({
                                     inv.id?.startsWith('PUR') ? 'Purchase Invoice' :
                                     inv.id?.startsWith('EST') ? 'Estimate' :
                                     inv.id?.startsWith('DC') ? 'Delivery Challan' :
-                                    inv.id?.startsWith('PAY') ? 'Payment' : 'Sales Invoice'
+                                    inv.id?.startsWith('PAY') ? 'Payment' :
+                                    inv.id?.startsWith('REC') ? 'Receipt' : 'Sales Invoice'
                                   );
                                   onQuickCreateInvoice(inv, effectiveDocType);
                                 }}
@@ -1691,6 +1769,25 @@ export const UserDashboard = ({
                               >
                                 <Pencil className="w-3 h-3" /> Edit
                               </button>
+
+                              {/* CANCEL / RESTORE Button */}
+                              {isCancelled ? (
+                                <button
+                                  onClick={() => handleRestoreInvoice(inv)}
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 text-[11px] font-semibold transition-all cursor-pointer"
+                                  title="Restore Cancelled Invoice"
+                                >
+                                  <RefreshCw className="w-3 h-3" /> Restore
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleCancelInvoice(inv)}
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 text-[11px] font-semibold transition-all cursor-pointer"
+                                  title="Cancel / Void Invoice"
+                                >
+                                  <Ban className="w-3 h-3" /> Cancel
+                                </button>
+                              )}
 
                               <button
                                 onClick={() => handleDeleteInvoice(inv)}
@@ -2498,7 +2595,7 @@ export const UserDashboard = ({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Sheet 4: document issued ({docIssuedRows.length})
+                    Sheet 4: document issued ({docIssuedRows.reduce((sum, d) => sum + (d.cancelled || 0), 0)} Cancelled)
                   </button>
                 </div>
 
@@ -3261,6 +3358,26 @@ export const UserDashboard = ({
               </button>
             </div>
 
+            {/* Type Switcher Tabs (Product / Service) */}
+            <div className="flex items-center gap-2 p-1 bg-dark-900 rounded-2xl border border-slate-800 mb-4 w-fit">
+              <button
+                type="button"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-md shadow-emerald-600/30 cursor-pointer"
+              >
+                <Package className="w-3.5 h-3.5" /> Product / Goods
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProductModal(false);
+                  handleOpenNewService();
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white cursor-pointer transition-colors"
+              >
+                <Wrench className="w-3.5 h-3.5 text-cyan-400" /> Service
+              </button>
+            </div>
+
             <form onSubmit={handleRegisterProduct} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-200 mb-1">
@@ -3394,6 +3511,26 @@ export const UserDashboard = ({
               </div>
               <button onClick={() => setShowServiceModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Type Switcher Tabs (Product / Service) */}
+            <div className="flex items-center gap-2 p-1 bg-dark-900 rounded-2xl border border-slate-800 mb-4 w-fit">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowServiceModal(false);
+                  handleOpenNewProduct();
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white cursor-pointer transition-colors"
+              >
+                <Package className="w-3.5 h-3.5 text-emerald-400" /> Product / Goods
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-600 text-white shadow-md shadow-cyan-600/30 cursor-pointer"
+              >
+                <Wrench className="w-3.5 h-3.5" /> Service
               </button>
             </div>
 
@@ -3784,7 +3921,8 @@ export const UserDashboard = ({
                 invNum.startsWith('PUR') ? 'Purchase Invoice' :
                 invNum.startsWith('EST') ? 'Estimate' :
                 invNum.startsWith('DC') ? 'Delivery Challan' :
-                invNum.startsWith('PAY') ? 'Payment Voucher' : 'Tax Invoice'
+                invNum.startsWith('PAY') ? 'Payment Voucher' :
+                invNum.startsWith('REC') ? 'Receipt Voucher' : 'Tax Invoice'
               );
 
               let badgeColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
@@ -3799,8 +3937,11 @@ export const UserDashboard = ({
                 badgeColor = 'bg-sky-500/10 text-sky-400 border-sky-500/30';
                 displayTitle = 'DELIVERY CHALLAN';
               } else if (docType.toLowerCase().includes('payment') || invNum.startsWith('PAY')) {
-                badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+                badgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
                 displayTitle = 'PAYMENT VOUCHER';
+              } else if (docType.toLowerCase().includes('receipt') || invNum.startsWith('REC')) {
+                badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+                displayTitle = 'RECEIPT VOUCHER';
               }
 
               return (
@@ -3847,7 +3988,29 @@ export const UserDashboard = ({
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 mt-6">
+                  <div className="flex flex-wrap items-center justify-end gap-2 mt-6">
+                    {(selectedInvoice.status || '').toLowerCase() === 'cancelled' ? (
+                      <button
+                        onClick={() => {
+                          handleRestoreInvoice(selectedInvoice);
+                          setSelectedInvoice(null);
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/30 text-xs font-bold cursor-pointer transition-all"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" /> Restore Invoice
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          handleCancelInvoice(selectedInvoice);
+                          setSelectedInvoice(null);
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 text-xs font-bold cursor-pointer transition-all"
+                      >
+                        <Ban className="w-3.5 h-3.5" /> Cancel Invoice
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         generateInvoicePDF(selectedInvoice, user);
@@ -3866,17 +4029,35 @@ export const UserDashboard = ({
         </div>
       )}
 
-      {/* Global Glassmorphic Delete Confirmation Modal */}
+      {/* Global Glassmorphic Confirmation Modal */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
-          <div className="glass-card rounded-3xl p-6 max-w-md w-full border border-red-500/30 shadow-2xl animate-slide-up">
+          <div className={`glass-card rounded-3xl p-6 max-w-md w-full border shadow-2xl animate-slide-up ${
+            deleteModal.iconType === 'restore'
+              ? 'border-emerald-500/30'
+              : deleteModal.iconType === 'cancel'
+                ? 'border-rose-500/30'
+                : 'border-red-500/30'
+          }`}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400">
-                <AlertTriangle className="w-6 h-6 text-red-400" />
+              <div className={`p-3 rounded-2xl border ${
+                deleteModal.iconType === 'restore'
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  : deleteModal.iconType === 'cancel'
+                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                    : 'bg-red-500/10 border-red-500/20 text-red-400'
+              }`}>
+                {deleteModal.iconType === 'restore' ? (
+                  <RefreshCw className="w-6 h-6 text-emerald-400" />
+                ) : deleteModal.iconType === 'cancel' ? (
+                  <Ban className="w-6 h-6 text-rose-400" />
+                ) : (
+                  <AlertTriangle className="w-6 h-6 text-red-400" />
+                )}
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">{deleteModal.title || 'Confirm Deletion'}</h3>
-                <p className="text-xs text-slate-400 font-mono">This action is permanent</p>
+                <h3 className="text-lg font-bold text-white">{deleteModal.title || 'Confirm Action'}</h3>
+                <p className="text-xs text-slate-400 font-mono">{deleteModal.subtitle || 'This action is permanent'}</p>
               </div>
             </div>
 
@@ -3890,7 +4071,7 @@ export const UserDashboard = ({
                 onClick={() => setDeleteModal({ isOpen: false, title: '', message: '', onConfirm: null })}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all cursor-pointer"
               >
-                Cancel
+                {deleteModal.cancelText || 'Cancel'}
               </button>
               <button
                 type="button"
@@ -3901,13 +4082,15 @@ export const UserDashboard = ({
                     try {
                       action();
                     } catch (err) {
-                      console.error('Error executing delete action:', err);
+                      console.error('Error executing modal action:', err);
                     }
                   }
                 }}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+                className={`px-5 py-2 rounded-xl text-white text-xs font-bold transition-all cursor-pointer shadow-lg ${
+                  deleteModal.confirmColor || 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                }`}
               >
-                Delete Permanently
+                {deleteModal.confirmText || 'Delete Permanently'}
               </button>
             </div>
           </div>

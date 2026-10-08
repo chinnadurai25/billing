@@ -10,6 +10,7 @@ import customerRoutes from './routes/customers.js';
 import bankRoutes from './routes/bankAccounts.js';
 import productRoutes from './routes/products.js';
 import invoiceRoutes from './routes/invoices.js';
+import receiptRoutes from './routes/receipts.js';
 import adminRoutes from './routes/admin.js';
 import gstRoutes from './routes/gst.js';
 
@@ -48,6 +49,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/bank-accounts', bankRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/receipts', receiptRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/gst-lookup', gstRoutes);
 

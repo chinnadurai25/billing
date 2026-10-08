@@ -142,12 +142,12 @@ router.put('/:id', async (req, res) => {
           total_tax = COALESCE(?, total_tax),
           grand_total = COALESCE(?, grand_total),
           items = COALESCE(?, items)
-         WHERE id = ?`,
-        [docType, status, cName, cGst, date, dDate, subtotal, cgst, sgst, igst, tTax, gTotal, itemsJson, id]
+         WHERE id = ? OR invoice_number = ?`,
+        [docType, status, cName, cGst, date, dDate, subtotal, cgst, sgst, igst, tTax, gTotal, itemsJson, id, id]
       );
     }
 
-    const idx = fallbackStore.invoices.findIndex(i => i.id === id);
+    const idx = fallbackStore.invoices.findIndex(i => i.id === id || i.invoice_number === id || i.invoiceNumber === id);
     if (idx !== -1) {
       fallbackStore.invoices[idx] = {
         ...fallbackStore.invoices[idx],

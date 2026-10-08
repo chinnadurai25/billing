@@ -82,6 +82,12 @@ export const api = {
   updateInvoice: (id, invoiceData) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoiceData) }),
   deleteInvoice: (id) => request(`/invoices/${id}`, { method: 'DELETE' }),
 
+  // Receipts
+  getReceipts: (userId) => request(`/receipts${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
+  createReceipt: (receiptData) => request('/receipts', { method: 'POST', body: JSON.stringify(receiptData) }),
+  updateReceipt: (id, receiptData) => request(`/receipts/${id}`, { method: 'PUT', body: JSON.stringify(receiptData) }),
+  deleteReceipt: (id) => request(`/receipts/${id}`, { method: 'DELETE' }),
+
   // Bulk Sync to Database
   syncAll: (payload) => request('/sync-all', { method: 'POST', body: JSON.stringify(payload) }),
 

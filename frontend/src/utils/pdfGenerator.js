@@ -116,6 +116,9 @@ export const generateInvoicePDF = (invoice, user) => {
   } else if (rawDocType.includes('payment') || invNumber.startsWith('PAY')) {
     headerTitle = 'PAYMENT VOUCHER';
     partyLabel = 'PAID TO BENEFICIARY';
+  } else if (rawDocType.includes('receipt') || invNumber.startsWith('REC')) {
+    headerTitle = 'RECEIPT VOUCHER';
+    partyLabel = 'RECEIVED FROM CUSTOMER';
   } else {
     headerTitle = 'TAX INVOICE';
     partyLabel = 'BILLED TO CUSTOMER';

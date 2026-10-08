@@ -210,7 +210,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
       const regUsers = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
       const adminUsers = JSON.parse(localStorage.getItem('billson_admin_users') || '[]');
       const localMatch = regUsers.find(u => (u.email && u.email.trim().toLowerCase() === cleanEmail)) ||
-                         adminUsers.find(u => (u.email && u.email.trim().toLowerCase() === cleanEmail));
+        adminUsers.find(u => (u.email && u.email.trim().toLowerCase() === cleanEmail));
       if (localMatch) {
         return {
           exists: true,
@@ -864,7 +864,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   name="companyName"
                   value={formData.companyName}
                   onChange={handleChange}
-                  placeholder="e.g. Durai Tax Advisory & Financials Ltd"
+                  placeholder="Name of the Company"
                   className={`w-full px-4 py-2.5 rounded-xl glass-input text-xs ${errors.companyName ? 'border-red-500/80' : ''}`}
                 />
                 {errors.companyName && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.companyName}</p>}
@@ -921,7 +921,7 @@ export const UserRegister = ({ onRegisterSuccess, setCurrentView }) => {
                   value={formData.companyAddress}
                   onChange={handleChange}
                   rows="2"
-                  placeholder="Suite 402, Quantum Tech Tower, Inner Ring Road"
+                  placeholder="Address"
                   className={`w-full px-4 py-2 rounded-xl glass-input text-xs ${errors.companyAddress ? 'border-red-500/80' : ''}`}
                 />
                 {errors.companyAddress && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.companyAddress}</p>}

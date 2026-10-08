@@ -518,8 +518,33 @@ function AppContent() {
       } else {
         await api.createInvoice(invoiceWithUser);
       }
+
+      // If document is a Receipt, also synchronize to dedicated receipts table in MySQL
+      if (savedInvoice.documentType === 'Receipt' || savedInvoice.document_type === 'Receipt') {
+        const receiptPayload = {
+          id: savedInvoice.id,
+          userId: activeUserId,
+          receiptNumber: savedInvoice.invoiceNumber || savedInvoice.invoice_number,
+          customerName: savedInvoice.customerName || savedInvoice.customer_name,
+          customerGst: savedInvoice.customerGst || savedInvoice.customer_gst || 'N/A',
+          date: savedInvoice.date,
+          paymentMethod: savedInvoice.paymentMethod || 'Bank Transfer',
+          receivedFrom: savedInvoice.receivedFrom || savedInvoice.customerName || savedInvoice.customer_name,
+          purpose: savedInvoice.paymentPurpose || 'Payment Received',
+          amount: savedInvoice.grandTotal || savedInvoice.subtotal || 0,
+          status: savedInvoice.status || 'Completed',
+          items: savedInvoice.items || []
+        };
+        try {
+          if (exists) {
+            await api.updateReceipt(savedInvoice.id, receiptPayload);
+          } else {
+            await api.createReceipt(receiptPayload);
+          }
+        } catch (e) {}
+      }
     } catch (err) {
-      console.warn('Could not persist invoice to backend:', err);
+      console.warn('Could not persist invoice/receipt to backend:', err);
     }
   };
 

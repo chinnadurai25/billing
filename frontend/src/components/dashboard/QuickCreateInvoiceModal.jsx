@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  X, Plus, Trash2, Receipt, Calculator, CheckCircle2, 
+import {
+  X, Plus, Trash2, Receipt, Calculator, CheckCircle2,
   FileText, Building, ArrowRight, RefreshCw, Search, ChevronDown, Check, User, Package
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
@@ -9,6 +9,7 @@ import { useToast } from '../../context/ToastContext';
 export const generateNextInvoiceNumber = (invoices = [], user = null, documentType = 'Sales Invoice') => {
   let prefix = 'TP-2026-';
   if (documentType === 'Payment') prefix = 'PAY-2026-';
+  else if (documentType === 'Receipt') prefix = 'REC-2026-';
   else if (documentType === 'Purchase Invoice') prefix = 'PUR-2026-';
   else if (documentType === 'Estimate') prefix = 'EST-2026-';
   else if (documentType === 'Delivery Challan') prefix = 'DC-2026-';
@@ -23,11 +24,11 @@ export const generateNextInvoiceNumber = (invoices = [], user = null, documentTy
           prefix = parsed.invoicePrefix;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Filter invoices to only active user's invoices to determine next invoice number
-  const userInvoices = user?.id 
+  const userInvoices = user?.id
     ? invoices.filter(i => (i.userId && i.userId === user.id) || (i.user_id && i.user_id === user.id))
     : invoices;
 
@@ -119,7 +120,7 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
 
   return (
     <div className="relative" ref={triggerRef}>
-      <div 
+      <div
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-brand-500/50 transition-all"
       >
@@ -133,7 +134,7 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
       </div>
 
       {isOpen && createPortal(
-        <div 
+        <div
           ref={dropdownRef}
           style={{
             position: 'fixed',
@@ -165,9 +166,8 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
-                  selectedName === c.name ? 'bg-brand-600/30 text-white border border-brand-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                }`}
+                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${selectedName === c.name ? 'bg-brand-600/30 text-white border border-brand-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
               >
                 <div>
                   <div className="font-semibold text-slate-200">{c.name}</div>
@@ -264,7 +264,7 @@ const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankM
 
   return (
     <div className="relative" ref={triggerRef}>
-      <div 
+      <div
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-cyan-500/50 transition-all"
       >
@@ -278,7 +278,7 @@ const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankM
       </div>
 
       {isOpen && createPortal(
-        <div 
+        <div
           ref={dropdownRef}
           style={{
             position: 'fixed',
@@ -313,9 +313,8 @@ const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankM
                     setIsOpen(false);
                     setSearchTerm('');
                   }}
-                  className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
-                    isSelected ? 'bg-cyan-600/30 text-white border border-cyan-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                  }`}
+                  className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${isSelected ? 'bg-cyan-600/30 text-white border border-cyan-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
                 >
                   <div>
                     <div className="font-semibold text-slate-200">{b.bankName || b.bank_name}</div>
@@ -398,7 +397,7 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
 
   return (
     <div className="relative" ref={triggerRef}>
-      <div 
+      <div
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-indigo-500/50 transition-all"
       >
@@ -412,7 +411,7 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
       </div>
 
       {isOpen && createPortal(
-        <div 
+        <div
           ref={dropdownRef}
           style={{
             position: 'fixed',
@@ -450,9 +449,8 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
-                  selectedTitle === p.title ? 'bg-indigo-600/30 text-white border border-indigo-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                }`}
+                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${selectedTitle === p.title ? 'bg-indigo-600/30 text-white border border-indigo-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
               >
                 <div>
                   <div className="font-semibold text-slate-200">{p.title}</div>
@@ -489,7 +487,7 @@ export const checkIsServiceItem = (item, products = []) => {
   if (!item) return false;
   // 1. Direct type property check
   if (item.type === 'service' || item.itemType === 'service' || item.isService === true) return true;
-  
+
   // 2. Category / unit check
   const cat = String(item.category || '').toLowerCase();
   if (cat.includes('service') || cat.includes('consulting') || cat.includes('audit') || cat.includes('tariff')) return true;
@@ -503,8 +501,8 @@ export const checkIsServiceItem = (item, products = []) => {
 
   // 4. Match against product catalog if item has description or productId
   if (products && products.length > 0) {
-    const matched = products.find(p => 
-      (item.productId && p.id === item.productId) || 
+    const matched = products.find(p =>
+      (item.productId && p.id === item.productId) ||
       (p.title && item.description && p.title.toLowerCase().trim() === item.description.toLowerCase().trim())
     );
     if (matched) {
@@ -564,6 +562,14 @@ const getDocThemeConfig = (docType) => {
         badgeText: 'CYAN THEME • PAYMENT VOUCHER SCREEN',
         iconBg: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
         submitBtn: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-cyan-600/30'
+      };
+    case 'Receipt':
+      return {
+        cardBg: 'bg-gradient-to-br from-purple-950/90 via-dark-900/95 to-slate-950/70 border-purple-500/40 shadow-[0_0_60px_rgba(168,85,247,0.2)]',
+        badge: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+        badgeText: 'PURPLE THEME • RECEIPT VOUCHER SCREEN',
+        iconBg: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+        submitBtn: 'from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/30'
       };
     default:
       return {
@@ -648,17 +654,17 @@ export const checkIsSameState = (user, customer, customerGstOverride = null) => 
   return true;
 };
 
-export const QuickCreateInvoiceModal = ({ 
-  isOpen, 
-  onClose, 
-  customers = [], 
-  products = [], 
+export const QuickCreateInvoiceModal = ({
+  isOpen,
+  onClose,
+  customers = [],
+  products = [],
   bankAccounts = [],
   invoices = [],
   user = null,
   editingInvoice = null,
   documentType = 'Sales Invoice',
-  onSaveInvoice 
+  onSaveInvoice
 }) => {
   const { addToast } = useToast();
   const theme = getDocThemeConfig(documentType);
@@ -703,14 +709,17 @@ export const QuickCreateInvoiceModal = ({
         const isOtherState = (editingInvoice.igst || 0) > 0 || editingInvoice.taxType === 'interstate';
         setTaxType(isOtherState ? 'interstate' : 'intrastate');
 
-        if (documentType === 'Payment') {
-          setPaidBy('');
-          setPaidTo(editingInvoice.paidTo || editingInvoice.customerName || editingInvoice.customer_name || '');
+        if (documentType === 'Payment' || documentType === 'Receipt') {
+          const isRec = documentType === 'Receipt';
+          setPaidBy(isRec ? (editingInvoice.paidBy || editingInvoice.customerName || '') : '');
+          setPaidTo(isRec ? (editingInvoice.paidTo || user?.companyName || '') : (editingInvoice.paidTo || editingInvoice.customerName || editingInvoice.customer_name || ''));
+          setCustomerName(editingInvoice.customerName || editingInvoice.customer_name || editingInvoice.paidTo || '');
+          setCustomerGst(editingInvoice.customerGst || editingInvoice.customer_gst || '');
           setPaymentMethod(editingInvoice.paymentMethod || 'Bank Transfer (NEFT/RTGS)');
           setPaymentPurpose(editingInvoice.paymentPurpose || '');
           setPaymentAmount(editingInvoice.grandTotal || editingInvoice.grand_total || editingInvoice.subtotal || '');
         }
-        
+
         if (editingInvoice.items && Array.isArray(editingInvoice.items) && editingInvoice.items.length > 0) {
           setItems(editingInvoice.items.map(i => ({
             ...i,
@@ -732,7 +741,7 @@ export const QuickCreateInvoiceModal = ({
         setStatus('Pending');
         setInvoiceDate(new Date().toISOString().split('T')[0]);
 
-        if (documentType === 'Payment') {
+        if (documentType === 'Payment' || documentType === 'Receipt') {
           setPaidBy('');
           if (customers && customers.length > 0) {
             setPaidTo(customers[0].name);
@@ -919,17 +928,21 @@ export const QuickCreateInvoiceModal = ({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (documentType === 'Payment') {
+    if (documentType === 'Payment' || documentType === 'Receipt') {
+      const isReceipt = documentType === 'Receipt';
       const amt = parseFloat(paymentAmount) || 0;
       const finalInvNumber = invoiceNumber || generateNextInvoiceNumber(invoices, user, documentType);
+      const prefix = isReceipt ? 'REC' : 'PAY';
       const savedInvoice = {
-        id: editingInvoice ? editingInvoice.id : `PAY-${Date.now()}`,
+        id: editingInvoice ? editingInvoice.id : `${prefix}-${Date.now()}`,
         userId: user?.id || 'USR-901',
-        documentType: 'Payment',
+        documentType: documentType,
+        document_type: documentType,
         invoiceNumber: finalInvNumber,
-        customerName: paidTo || customerName || 'Party',
-        paidBy: paidBy,
-        paidTo: paidTo,
+        customerName: isReceipt ? (customerName || paidTo || 'Party') : (paidTo || customerName || 'Party'),
+        paidBy: isReceipt ? (customerName || paidTo || 'Party') : (user?.companyName || 'My Company'),
+        paidTo: isReceipt ? (user?.companyName || 'My Company') : (paidTo || customerName || 'Party'),
+        receivedFrom: isReceipt ? (customerName || paidTo || 'Party') : '',
         paymentMethod: paymentMethod,
         paymentPurpose: paymentPurpose,
         customerGst: customerGst || 'N/A',
@@ -943,7 +956,7 @@ export const QuickCreateInvoiceModal = ({
         status: 'Completed',
         items: [
           {
-            description: paymentPurpose || 'Payment Entry',
+            description: paymentPurpose || (isReceipt ? 'Receipt Entry' : 'Payment Entry'),
             hsnSac: 'N/A',
             quantity: 1,
             unitPrice: amt,
@@ -954,7 +967,7 @@ export const QuickCreateInvoiceModal = ({
       };
 
       onSaveInvoice(savedInvoice);
-      addToast(`Payment Receipt ${finalInvNumber} recorded successfully!`, 'success', 'Payment Entry Saved');
+      addToast(`${isReceipt ? 'Receipt Voucher' : 'Payment Receipt'} ${finalInvNumber} recorded successfully!`, 'success', `${isReceipt ? 'Receipt' : 'Payment'} Entry Saved`);
       onClose();
       return;
     }
@@ -1032,7 +1045,7 @@ export const QuickCreateInvoiceModal = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-dark-950/85 backdrop-blur-md overflow-y-auto">
       <div className={`glass-card rounded-3xl p-6 sm:p-10 max-w-5xl w-full border backdrop-blur-2xl transition-all duration-500 animate-slide-up my-6 max-h-[92vh] overflow-y-auto ${theme.cardBg}`}>
-        
+
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-6">
           <div className="flex items-center gap-3">
@@ -1049,13 +1062,15 @@ export const QuickCreateInvoiceModal = ({
                 {editingInvoice ? `Edit ${documentType}` : `Create New ${documentType}`}
               </h3>
               <p className="text-xs text-slate-300 font-mono">
-                {documentType === 'Payment' 
+                {documentType === 'Payment'
                   ? 'Record Payment receipt, payment method, payer/payee details & purpose'
-                  : (editingInvoice ? `Modify details for ${editingInvoice.invoiceNumber || editingInvoice.invoice_number}` : 'Auto GST CGST/SGST/IGST calculation module')}
+                  : documentType === 'Receipt'
+                    ? 'Record Receipt voucher, deposit bank/cash account, customer details & purpose'
+                    : (editingInvoice ? `Modify details for ${editingInvoice.invoiceNumber || editingInvoice.invoice_number}` : 'Auto GST CGST/SGST/IGST calculation module')}
               </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-700/50 transition-colors"
           >
@@ -1063,8 +1078,8 @@ export const QuickCreateInvoiceModal = ({
           </button>
         </div>
 
-        {documentType === 'Payment' ? (
-          /* PAYMENT ENTRY FORM */
+        {documentType === 'Payment' || documentType === 'Receipt' ? (
+          /* PAYMENT & RECEIPT ENTRY FORM */
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -1079,7 +1094,9 @@ export const QuickCreateInvoiceModal = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Method (Registered Bank Details) *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {documentType === 'Receipt' ? 'Deposit Into (Registered Bank / Cash Account) *' : 'Payment Method (Registered Bank Details) *'}
+                </label>
                 <SearchableBankSelect
                   bankAccounts={bankAccounts}
                   selectedMethod={paymentMethod}
@@ -1090,11 +1107,13 @@ export const QuickCreateInvoiceModal = ({
 
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Paid To (Registered Customer) *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {documentType === 'Receipt' ? 'Received From (Registered Customer) *' : 'Paid To (Registered Customer) *'}
+                </label>
                 <SearchableCustomerSelect
                   customers={customers}
-                  selectedName={paidTo}
-                  labelPlaceholder="Search & Select Registered Payee Customer..."
+                  selectedName={documentType === 'Receipt' ? customerName : paidTo}
+                  labelPlaceholder={documentType === 'Receipt' ? 'Search & Select Customer Payer...' : 'Search & Select Registered Payee Customer...'}
                   onSelectCustomer={(c) => {
                     setPaidTo(c.name);
                     setCustomerName(c.name);
@@ -1106,19 +1125,23 @@ export const QuickCreateInvoiceModal = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Purpose / Description *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {documentType === 'Receipt' ? 'Receipt Purpose / Description *' : 'Payment Purpose / Description *'}
+                </label>
                 <input
                   type="text"
                   value={paymentPurpose}
                   onChange={(e) => setPaymentPurpose(e.target.value)}
-                  placeholder="e.g. Monthly Tax Audit Fees / Office Rent / Vendor Settlement"
+                  placeholder={documentType === 'Receipt' ? 'Description' : 'Description'}
                   className="w-full px-4 py-2.5 rounded-xl glass-input text-xs text-white"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Amount Paid (₹) *</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {documentType === 'Receipt' ? 'Amount Received (₹) *' : 'Amount Paid (₹) *'}
+                </label>
                 <input
                   type="number"
                   value={paymentAmount}
@@ -1132,7 +1155,10 @@ export const QuickCreateInvoiceModal = ({
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-800">
               <div className="text-xs text-slate-400 font-mono">
-                Payment Document Ref: <span className="text-cyan-400 font-bold">{invoiceNumber}</span>
+                {documentType === 'Receipt' ? 'Receipt Document Ref: ' : 'Payment Document Ref: '}
+                <span className={documentType === 'Receipt' ? 'text-purple-400 font-bold' : 'text-cyan-400 font-bold'}>
+                  {invoiceNumber}
+                </span>
               </div>
               <div className="flex gap-3">
                 <button
@@ -1144,9 +1170,9 @@ export const QuickCreateInvoiceModal = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-600/30 cursor-pointer"
+                  className={`px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg cursor-pointer bg-gradient-to-r ${theme.submitBtn}`}
                 >
-                  Record Payment
+                  {documentType === 'Receipt' ? 'Record Receipt' : 'Record Payment'}
                 </button>
               </div>
             </div>
@@ -1154,12 +1180,12 @@ export const QuickCreateInvoiceModal = ({
         ) : (
           /* STANDARD TAX DOCUMENT INVOICE FORM */
           <form onSubmit={handleSubmit} className="space-y-6">
-            
+
             {/* Customer & State / Place of Supply Selection */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Select Customer Entity *</label>
-                <SearchableCustomerSelect 
+                <SearchableCustomerSelect
                   customers={customers}
                   selectedName={customerName}
                   onSelectCustomer={handleSelectCustomer}
@@ -1310,8 +1336,8 @@ export const QuickCreateInvoiceModal = ({
                           <td className="py-2 px-3 font-mono text-emerald-400 font-bold whitespace-nowrap">
                             <div>{itemTaxPercent}%</div>
                             <div className="text-[10px] text-slate-400 font-normal">
-                              {isIntrastate 
-                                ? `(SGST ${(itemTaxPercent / 2)}% + CGST ${(itemTaxPercent / 2)}%)` 
+                              {isIntrastate
+                                ? `(SGST ${(itemTaxPercent / 2)}% + CGST ${(itemTaxPercent / 2)}%)`
                                 : `(IGST ${itemTaxPercent}%)`}
                             </div>
                           </td>
@@ -1321,8 +1347,8 @@ export const QuickCreateInvoiceModal = ({
                           <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
                             <div>₹{rowGstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                             <div className="text-[10px] font-normal text-indigo-300">
-                              {isIntrastate 
-                                ? `₹${(rowGstAmount / 2).toFixed(2)} + ₹${(rowGstAmount / 2).toFixed(2)}` 
+                              {isIntrastate
+                                ? `₹${(rowGstAmount / 2).toFixed(2)} + ₹${(rowGstAmount / 2).toFixed(2)}`
                                 : `IGST ₹${rowGstAmount.toFixed(2)}`}
                             </div>
                           </td>

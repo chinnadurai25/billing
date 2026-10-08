@@ -57,6 +57,7 @@ export const fallbackStore = {
   ],
   productsServices: [],
   invoices: [],
+  receipts: [],
   adminUsers: [],
   activityLogs: []
 };
@@ -220,8 +221,27 @@ export const initDB = async () => {
       );
     `);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS receipts (
+        id VARCHAR(50) PRIMARY KEY,
+        user_id VARCHAR(100),
+        receipt_number VARCHAR(50) NOT NULL,
+        customer_name VARCHAR(200) NOT NULL,
+        customer_gst VARCHAR(15) DEFAULT '',
+        date DATE NOT NULL,
+        payment_method VARCHAR(150),
+        received_from VARCHAR(200),
+        purpose TEXT,
+        amount DECIMAL(15,2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'Completed',
+        items LONGTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY idx_user_receipt (user_id, receipt_number)
+      );
+    `);
+
     // Ensure user_id column exists in case tables were already created
-    const tablesToMigrate = ['customers', 'bank_accounts', 'products_services', 'invoices'];
+    const tablesToMigrate = ['customers', 'bank_accounts', 'products_services', 'invoices', 'receipts'];
     for (const tbl of tablesToMigrate) {
       try {
         await connection.query(`ALTER TABLE ${tbl} ADD COLUMN user_id VARCHAR(100);`);
