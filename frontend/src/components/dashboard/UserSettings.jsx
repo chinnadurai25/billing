@@ -399,19 +399,44 @@ export const UserSettings = ({
 
     setIsSaving(true);
     try {
-      const res = await api.changeUserPassword(user?.id || 'USR-901', {
+      const activeUserId = user?.id || (user?.email ? `USR-${btoa(user.email).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}` : 'USR-901');
+      const res = await api.changeUserPassword(activeUserId, {
         currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword
+        newPassword: passwordForm.newPassword,
+        email: user?.email || '',
+        username: user?.username || ''
       });
 
       if (res && res.success) {
-        addToast('Account password changed successfully!', 'success', 'Password Changed');
+        // Synchronize local browser user storage
+        try {
+          const regUsers = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+          const idx = regUsers.findIndex(u => (user?.id && u.id === user.id) || (user?.email && u.email?.toLowerCase() === user.email.toLowerCase()));
+          if (idx !== -1) {
+            regUsers[idx].password = passwordForm.newPassword;
+            localStorage.setItem('billson_registered_users', JSON.stringify(regUsers));
+          }
+        } catch (err) {}
+
+        addToast(res.message || 'Account password changed successfully!', 'success', 'Password Changed');
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else if (res && res.fallback) {
+        // Fallback / offline mode
+        try {
+          const regUsers = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
+          const idx = regUsers.findIndex(u => (user?.id && u.id === user.id) || (user?.email && u.email?.toLowerCase() === user.email.toLowerCase()));
+          if (idx !== -1) {
+            regUsers[idx].password = passwordForm.newPassword;
+            localStorage.setItem('billson_registered_users', JSON.stringify(regUsers));
+          }
+        } catch (err) {}
+        addToast('Account password updated in local storage! (Offline Mode)', 'success', 'Password Changed');
         setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       } else {
-        addToast(res?.message || 'Failed to change password', 'error');
+        addToast(res?.message || 'Failed to change password. Please verify current password.', 'error');
       }
     } catch (err) {
-      addToast('Error communicating with auth server', 'error');
+      addToast('Error communicating with authentication service', 'error');
     } finally {
       setIsSaving(false);
     }

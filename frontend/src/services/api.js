@@ -55,8 +55,10 @@ export const api = {
   checkEmail: (email) => request('/auth/check-email', { method: 'POST', body: JSON.stringify({ email }) }),
   sendOtp: (data) => request('/auth/send-otp', { method: 'POST', body: JSON.stringify(data) }),
   verifyOtp: (data) => request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(data) }),
-  updateUserProfile: (userId, profileData) => request(`/auth/profile/${userId}`, { method: 'PUT', body: JSON.stringify(profileData) }),
-  changeUserPassword: (userId, passwordData) => request(`/auth/change-password/${userId}`, { method: 'POST', body: JSON.stringify(passwordData) }),
+  changeUserPassword: (userId, passwordData) => request(`/auth/change-password/${userId}`, { 
+    method: 'POST', 
+    body: JSON.stringify({ userId, action: 'change-password', ...passwordData }) 
+  }),
 
   // 1. REGISTRATION ( CUSTOMER )
   getCustomers: (userId) => request(`/customers${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),
