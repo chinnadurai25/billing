@@ -1,11 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building2, User, Mail, Phone, MapPin, Shield, FileText, Landmark, 
   KeyRound, Bell, Download, Save, CheckCircle2, AlertCircle, Camera, Trash2, Plus, X, 
-  Globe, Percent, RefreshCw, Layers, ShieldCheck, Cpu, Sliders, ToggleLeft, ToggleRight
+  Globe, Percent, RefreshCw, Layers, ShieldCheck, Cpu, Sliders, ToggleLeft, ToggleRight,
+  Pencil, Edit3, Star, Check, Users, BookOpen, Search
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { api } from '../../services/api';
+
+export const DEFAULT_LEDGERS = [
+  {
+    id: 'LEDGER-DEBTORS',
+    name: 'SUNDRY DEBTORS',
+    label: 'SUNDRY DEBTORS (Customers)',
+    type: 'Customers / Debtors',
+    description: 'Receivables from trade clients, buyers and commercial accounts',
+    isDefault: true
+  },
+  {
+    id: 'LEDGER-CREDITORS',
+    name: 'SUNDRY CREDITORS',
+    label: 'SUNDRY CREDITORS (Suppliers)',
+    type: 'Suppliers / Creditors',
+    description: 'Payables to trade vendors, raw material suppliers and contractors',
+    isDefault: false
+  }
+];
 
 export const UserSettings = ({ 
   user, 
@@ -14,12 +34,214 @@ export const UserSettings = ({
   setBankAccounts,
   invoices = [],
   customers = [],
-  products = []
+  setCustomers,
+  products = [],
+  initialTab = 'profile',
+  ledgersList: externalLedgers,
+  setLedgersList: setExternalLedgers
 }) => {
   const { addToast } = useToast();
-  const [activeSettingsTab, setActiveSettingsTab] = useState('profile');
+  const [activeSettingsTab, setActiveSettingsTab] = useState(initialTab || 'profile');
   const [isSaving, setIsSaving] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSettingsTab(initialTab);
+    }
+  }, [initialTab]);
+
+  // Ledgers Directory State
+  const [ledgers, setLedgers] = useState(() => {
+    if (externalLedgers && Array.isArray(externalLedgers) && externalLedgers.length > 0) {
+      return externalLedgers;
+    }
+    try {
+      const saved = localStorage.getItem(`billson_custom_ledgers_${user?.id}`) || localStorage.getItem('billson_custom_ledgers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_LEDGERS;
+  });
+
+  useEffect(() => {
+    if (externalLedgers && Array.isArray(externalLedgers) && externalLedgers.length > 0) {
+      setLedgers(externalLedgers);
+    }
+  }, [externalLedgers]);
+
+  // Modal & form states for Add / Edit Ledger
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [editingLedger, setEditingLedger] = useState(null);
+  const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
+  const [selectedLedgerTypeFilter, setSelectedLedgerTypeFilter] = useState('all');
+  const [ledgerForm, setLedgerForm] = useState({
+    name: '',
+    label: '',
+    type: 'Customers / Debtors',
+    description: '',
+    isDefault: false
+  });
+
+  const persistLedgers = (updated) => {
+    setLedgers(updated);
+    if (setExternalLedgers) setExternalLedgers(updated);
+    try {
+      if (user?.id) {
+        localStorage.setItem(`billson_custom_ledgers_${user.id}`, JSON.stringify(updated));
+      }
+      localStorage.setItem('billson_custom_ledgers', JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  const handleOpenAddLedger = () => {
+    setEditingLedger(null);
+    setLedgerForm({
+      name: '',
+      label: '',
+      type: 'Customers / Debtors',
+      description: '',
+      isDefault: false
+    });
+    setShowLedgerModal(true);
+  };
+
+  const handleOpenEditLedger = (ledger) => {
+    setEditingLedger(ledger);
+    setLedgerForm({
+      name: ledger.name || '',
+      label: ledger.label || '',
+      type: ledger.type || 'Customers / Debtors',
+      description: ledger.description || '',
+      isDefault: !!ledger.isDefault
+    });
+    setShowLedgerModal(true);
+  };
+
+  const handleSaveLedger = (e) => {
+    if (e) e.preventDefault();
+    const rawName = ledgerForm.name.trim();
+    if (!rawName) {
+      addToast('Please enter a Ledger Name / Code (e.g. SUNDRY DEBTORS)', 'error');
+      return;
+    }
+    const cleanName = rawName.toUpperCase();
+    const cleanLabel = ledgerForm.label.trim() || cleanName;
+
+    // Check duplicate name
+    const isDuplicate = ledgers.some(l => 
+      l.name.toUpperCase() === cleanName && (!editingLedger || l.id !== editingLedger.id)
+    );
+    if (isDuplicate) {
+      addToast(`A ledger with name "${cleanName}" already exists!`, 'warning');
+      return;
+    }
+
+    let updatedList;
+    if (editingLedger) {
+      const oldName = editingLedger.name;
+      const isRenamed = oldName !== cleanName;
+
+      updatedList = ledgers.map(l => {
+        if (l.id === editingLedger.id) {
+          return {
+            ...l,
+            name: cleanName,
+            label: cleanLabel,
+            type: ledgerForm.type || 'Other Accounts',
+            description: ledgerForm.description.trim(),
+            isDefault: ledgerForm.isDefault
+          };
+        }
+        return ledgerForm.isDefault ? { ...l, isDefault: false } : l;
+      });
+
+      // If user changed the ledger name, automatically migrate linked customer records
+      if (isRenamed && setCustomers && customers && customers.length > 0) {
+        const affectedCount = customers.filter(c => c.ledger === oldName).length;
+        if (affectedCount > 0) {
+          const updatedCustomers = customers.map(c => 
+            c.ledger === oldName ? { ...c, ledger: cleanName } : c
+          );
+          setCustomers(updatedCustomers);
+          try {
+            if (user?.id) localStorage.setItem(`billson_customers_${user.id}`, JSON.stringify(updatedCustomers));
+            localStorage.setItem('billson_customers_global', JSON.stringify(updatedCustomers));
+          } catch (err) {}
+          addToast(`Renamed ledger "${oldName}" ➜ "${cleanName}" and updated ${affectedCount} customer(s)!`, 'info');
+        }
+      }
+
+      addToast(`Ledger "${cleanName}" updated successfully!`, 'success', 'Ledger Master Updated');
+    } else {
+      const newLedger = {
+        id: `LEDGER-${Date.now()}`,
+        name: cleanName,
+        label: cleanLabel,
+        type: ledgerForm.type || 'Customers / Debtors',
+        description: ledgerForm.description.trim(),
+        isDefault: ledgerForm.isDefault || ledgers.length === 0
+      };
+
+      updatedList = ledgerForm.isDefault 
+        ? [...ledgers.map(l => ({ ...l, isDefault: false })), newLedger]
+        : [...ledgers, newLedger];
+
+      addToast(`New Ledger "${cleanName}" created successfully!`, 'success', 'Ledger Master Added');
+    }
+
+    persistLedgers(updatedList);
+    setShowLedgerModal(false);
+  };
+
+  const handleDeleteLedger = (ledgerToDelete) => {
+    if (ledgers.length <= 1) {
+      addToast('At least one Ledger must remain active in the system.', 'warning');
+      return;
+    }
+
+    const linkedCusts = customers.filter(c => c.ledger === ledgerToDelete.name);
+    const remaining = ledgers.filter(l => l.id !== ledgerToDelete.id);
+    
+    let updatedList = remaining;
+    if (ledgerToDelete.isDefault) {
+      updatedList = remaining.map((l, idx) => idx === 0 ? { ...l, isDefault: true } : l);
+    }
+    const fallbackLedgerName = updatedList.find(l => l.isDefault)?.name || updatedList[0]?.name || 'SUNDRY DEBTORS';
+
+    if (linkedCusts.length > 0 && setCustomers) {
+      const updatedCustomers = customers.map(c => 
+        c.ledger === ledgerToDelete.name ? { ...c, ledger: fallbackLedgerName } : c
+      );
+      setCustomers(updatedCustomers);
+      try {
+        if (user?.id) localStorage.setItem(`billson_customers_${user.id}`, JSON.stringify(updatedCustomers));
+        localStorage.setItem('billson_customers_global', JSON.stringify(updatedCustomers));
+      } catch (err) {}
+      addToast(`Reassigned ${linkedCusts.length} customer(s) to "${fallbackLedgerName}".`, 'info');
+    }
+
+    persistLedgers(updatedList);
+    addToast(`Ledger "${ledgerToDelete.name}" deleted.`, 'info', 'Ledger Removed');
+  };
+
+  const handleSetDefaultLedger = (ledgerId) => {
+    const target = ledgers.find(l => l.id === ledgerId);
+    if (!target) return;
+    const updated = ledgers.map(l => ({
+      ...l,
+      isDefault: l.id === ledgerId
+    }));
+    persistLedgers(updated);
+    addToast(`"${target.name}" is now the default ledger for new customers.`, 'success');
+  };
+
+  const handleResetDefaultLedgers = () => {
+    persistLedgers(DEFAULT_LEDGERS);
+    addToast('Restored standard Debtors & Creditors ledgers.', 'success', 'Defaults Restored');
+  };
 
   // Manual Bank Account Modal & Registration State
   const [showAddBankModal, setShowAddBankModal] = useState(false);
@@ -635,7 +857,8 @@ export const UserSettings = ({
         invoices,
         customers,
         bankAccounts,
-        products
+        products,
+        ledgers
       };
       const jsonStr = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -654,6 +877,7 @@ export const UserSettings = ({
   const navTabs = [
     { id: 'profile', label: 'Company Profile', icon: Building2 },
     { id: 'billing', label: 'Billing Preferences', icon: FileText },
+    { id: 'ledgers', label: 'Ledger Masters', icon: Layers },
     { id: 'gst', label: 'GST Governance', icon: ShieldCheck },
     { id: 'security', label: 'Security & Password', icon: KeyRound },
     { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -1022,6 +1246,25 @@ export const UserSettings = ({
                     </div>
                   </div>
 
+                  {/* Quick Ledger Masters Management Shortcut */}
+                  <div className="sm:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 via-dark-900 to-indigo-950/30 border border-indigo-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-indigo-400" /> Account Ledger Masters ({ledgers.length} Configured)
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Default party ledger: <span className="text-emerald-400 font-bold">{ledgers.find(l => l.isDefault)?.name || ledgers[0]?.name || 'SUNDRY DEBTORS'}</span>. Add, edit, or customize customer registration ledgers.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSettingsTab('ledgers')}
+                      className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/30 transition-all cursor-pointer whitespace-nowrap"
+                    >
+                      <Sliders className="w-3.5 h-3.5" /> Manage Ledgers Tab
+                    </button>
+                  </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-slate-400 font-semibold">Default Payout Bank Account</label>
@@ -1092,6 +1335,269 @@ export const UserSettings = ({
                 </div>
 
               </form>
+            </div>
+          )}
+
+          {/* TAB: ACCOUNT LEDGER MASTERS */}
+          {activeSettingsTab === 'ledgers' && (
+            <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-6">
+              
+              {/* Top Title & Actions */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                <div>
+                  <h3 className="text-lg font-bold text-white font-serif flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-indigo-400" /> Account Ledger Masters Directory
+                  </h3>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">
+                    Configure customer & supplier party ledgers, add custom accounts, and customize options in customer registration dropdowns
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetDefaultLedgers}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300 transition-all cursor-pointer"
+                    title="Reset to default SUNDRY DEBTORS and SUNDRY CREDITORS"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-slate-400" /> Reset Defaults
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddLedger}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Add New Ledger
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono font-semibold">Active Ledgers</span>
+                    <div className="text-xl font-bold text-white font-mono mt-0.5">{(Array.isArray(ledgers) ? ledgers : []).length} Accounts</div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono font-semibold">Default Registration</span>
+                    <div className="text-xs font-bold text-emerald-400 font-mono mt-1 truncate max-w-[150px]">
+                      {(Array.isArray(ledgers) ? ledgers : []).find(l => l?.isDefault)?.name || (Array.isArray(ledgers) ? ledgers : [])[0]?.name || 'N/A'}
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono font-semibold">Assigned Customers</span>
+                    <div className="text-xl font-bold text-indigo-300 font-mono mt-0.5">{(Array.isArray(customers) ? customers : []).length} Entities</div>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
+                    <Users className="w-5 h-5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-dark-900/70 p-3 rounded-2xl border border-slate-800">
+                <div className="relative flex-1 w-full">
+                  <Search className="w-4 h-4 absolute left-3.5 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={ledgerSearchQuery}
+                    onChange={(e) => setLedgerSearchQuery(e.target.value)}
+                    placeholder="Search ledgers by name, label, group or description..."
+                    className="w-full pl-9 pr-8 py-2 rounded-xl glass-input text-xs"
+                  />
+                  {ledgerSearchQuery && (
+                    <button
+                      onClick={() => setLedgerSearchQuery('')}
+                      className="absolute right-3 top-2 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+                  {['all', 'Customers / Debtors', 'Suppliers / Creditors', 'Expenses', 'Other'].map(cat => {
+                    const isSelected = selectedLedgerTypeFilter === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedLedgerTypeFilter(cat)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white font-bold'
+                            : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {cat === 'all' ? 'All Types' : cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Ledgers Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(() => {
+                  const safeLedgers = Array.isArray(ledgers) ? ledgers : [];
+                  const safeCustomers = Array.isArray(customers) ? customers : [];
+
+                  const filtered = safeLedgers.filter(l => {
+                    if (!l) return false;
+                    const q = (ledgerSearchQuery || '').toLowerCase().trim();
+                    const matchQ = !q || 
+                      (l.name || '').toLowerCase().includes(q) ||
+                      (l.label || '').toLowerCase().includes(q) ||
+                      (l.type || '').toLowerCase().includes(q) ||
+                      (l.description || '').toLowerCase().includes(q);
+                    
+                    const matchType = selectedLedgerTypeFilter === 'all' || 
+                      (selectedLedgerTypeFilter === 'Expenses' && (l.type || '').toLowerCase().includes('expense')) ||
+                      (selectedLedgerTypeFilter === 'Other' && !['Customers / Debtors', 'Suppliers / Creditors'].includes(l.type) && !(l.type || '').toLowerCase().includes('expense')) ||
+                      l.type === selectedLedgerTypeFilter;
+
+                    return matchQ && matchType;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="md:col-span-2 p-8 text-center rounded-2xl bg-dark-900/40 border border-slate-800/80">
+                        <Layers className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                        <p className="text-sm text-slate-300 font-semibold">No Ledgers Matched</p>
+                        <p className="text-xs text-slate-500 mt-1">Try adjusting your search query or click "Add New Ledger"</p>
+                      </div>
+                    );
+                  }
+
+                  return filtered.map(l => {
+                    const linkedCustCount = safeCustomers.filter(c => c && c.ledger === l.name).length;
+                    const isCreditor = (l.name || '').includes('CREDITOR') || (l.type || '').includes('Supplier');
+                    const isDebtor = (l.name || '').includes('DEBTOR') || (l.type || '').includes('Customer');
+                    const isExpense = (l.type || '').toLowerCase().includes('expense');
+
+                    const badgeColor = isDebtor 
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : isCreditor 
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                        : isExpense
+                          ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                          : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
+
+                    return (
+                      <div
+                        key={l.id || l.name}
+                        className={`p-5 rounded-2xl bg-dark-900/90 border transition-all flex flex-col justify-between gap-4 ${
+                          l.isDefault 
+                            ? 'border-emerald-500/40 shadow-lg shadow-emerald-500/5' 
+                            : 'border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          {/* Top Row: Type Badge + Default Badge */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${badgeColor}`}>
+                              {l.type || 'General Ledger'}
+                            </span>
+
+                            {l.isDefault && (
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                                <Check className="w-3 h-3 stroke-[3]" /> DEFAULT
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Ledger Name & Label */}
+                          <div>
+                            <div className="text-base font-bold text-white font-mono tracking-wide flex items-center gap-2">
+                              {l.name}
+                            </div>
+                            <div className="text-xs text-indigo-300 font-semibold mt-0.5">
+                              {l.label || l.name}
+                            </div>
+                            {l.description && (
+                              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed font-sans">
+                                {l.description}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Customer count indicator */}
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono">
+                            <span className="text-slate-400 flex items-center gap-1.5">
+                              <Users className="w-3.5 h-3.5 text-slate-500" /> Assigned Records:
+                            </span>
+                            <span className={`font-bold ${linkedCustCount > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                              {linkedCustCount} Customer{linkedCustCount !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bottom Action Buttons */}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 gap-2">
+                          <div className="flex items-center gap-1.5">
+                            {!l.isDefault && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetDefaultLedger(l.id)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Set as default ledger for new customers"
+                              >
+                                <Star className="w-3 h-3" /> Make Default
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditLedger(l)}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              title="Edit Ledger Details"
+                            >
+                              <Edit3 className="w-3 h-3" /> Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteLedger(l)}
+                              disabled={ledgers.length <= 1}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 text-xs transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="Delete Ledger"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Information Help Card */}
+              <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-300 space-y-1">
+                  <p className="font-semibold text-white">How Ledgers Work in BillSon:</p>
+                  <p className="text-[11px] text-slate-400">
+                    Whenever you register or edit a customer or party in the Customer Ledger Directory, the "Ledger *" dropdown will list the options configured here. Renaming a ledger automatically updates all linked customer profiles.
+                  </p>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -1570,6 +2076,127 @@ export const UserSettings = ({
                   Save & Set as Default Bank
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD / EDIT LEDGER MODAL */}
+      {showLedgerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="glass-card w-full max-w-lg rounded-3xl p-6 sm:p-7 border border-slate-700 bg-dark-900 shadow-2xl relative animate-scale-up space-y-5">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-base font-bold text-white font-serif flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-indigo-400" />
+                  {editingLedger ? 'Edit Account Ledger Master' : 'Create New Ledger Master'}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {editingLedger ? `Updating master config for ${editingLedger.name}` : 'Add a new ledger option for party & customer accounts'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLedgerModal(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLedger} className="space-y-4 text-xs font-mono">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Ledger Name / Code <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={ledgerForm.name}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, name: e.target.value })}
+                  placeholder="e.g. SUNDRY DEBTORS, BRANCH / DIVISIONS, DIRECT EXPENSES"
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs font-bold text-white uppercase placeholder:normal-case placeholder:font-normal"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">This uppercase identifier is stored with customer records (e.g. SUNDRY DEBTORS)</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Display Label <span className="text-slate-500 font-normal">(Shown in Dropdown)</span>
+                </label>
+                <input
+                  type="text"
+                  value={ledgerForm.label}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, label: e.target.value })}
+                  placeholder="e.g. SUNDRY DEBTORS (Customers), BRANCH / DIVISIONS (Inter-Office)"
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Leave empty to use the Ledger Name as display label</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Ledger Group / Category
+                </label>
+                <select
+                  value={ledgerForm.type}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, type: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 text-white font-semibold"
+                >
+                  <option value="Customers / Debtors">Customers / Debtors (Receivables)</option>
+                  <option value="Suppliers / Creditors">Suppliers / Creditors (Payables)</option>
+                  <option value="Direct Expenses">Direct Expenses</option>
+                  <option value="Indirect Expenses">Indirect Expenses</option>
+                  <option value="Branch / Divisions">Branch / Divisions</option>
+                  <option value="Capital Account">Capital Account</option>
+                  <option value="Bank / Cash Accounts">Bank / Cash Accounts</option>
+                  <option value="Other Accounts">Other Accounts</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Description / Usage Note
+                </label>
+                <textarea
+                  rows={2}
+                  value={ledgerForm.description}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, description: e.target.value })}
+                  placeholder="e.g. Trade receivables for corporate retail & wholesale clients..."
+                  className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-dark-950 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-white block">Default for New Registrations</span>
+                  <span className="text-[10px] text-slate-400">Pre-select this ledger when registering new parties</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={ledgerForm.isDefault}
+                  onChange={(e) => setLedgerForm({ ...ledgerForm, isDefault: e.target.checked })}
+                  className="w-4 h-4 rounded text-brand-500 accent-brand-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowLedgerModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+                >
+                  <Save className="w-4 h-4" /> {editingLedger ? 'Update Ledger Master' : 'Save Ledger Master'}
+                </button>
+              </div>
+
             </form>
           </div>
         </div>

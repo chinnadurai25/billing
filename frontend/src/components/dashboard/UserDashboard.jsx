@@ -4,7 +4,7 @@ import {
   CreditCard, TrendingUp, Clock, CheckCircle2, AlertCircle,
   Plus, Search, Filter, Download, ArrowUpRight, ChevronRight, Eye, ShieldCheck,
   Building, Landmark, Package, Wrench, Ban, X, Check, Pencil, Trash2, Edit3, AlertTriangle,
-  Calculator, Truck, RefreshCw, XCircle, FileCheck
+  Calculator, Truck, RefreshCw, XCircle, FileCheck, Sliders, Layers
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell,
@@ -80,10 +80,31 @@ export const UserDashboard = ({
   const [selectedBankDetail, setSelectedBankDetail] = useState(null);
   const [selectedServiceDetail, setSelectedServiceDetail] = useState(null);
 
+  // Dynamic Ledgers Directory State
+  const [ledgersList, setLedgersList] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`billson_custom_ledgers_${user?.id}`) || localStorage.getItem('billson_custom_ledgers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [
+      { id: 'LEDGER-DEBTORS', name: 'SUNDRY DEBTORS', label: 'SUNDRY DEBTORS (Customers)', type: 'Customers / Debtors', description: 'Receivables from trade clients and direct buyers', isDefault: true },
+      { id: 'LEDGER-CREDITORS', name: 'SUNDRY CREDITORS', label: 'SUNDRY CREDITORS (Suppliers)', type: 'Suppliers / Creditors', description: 'Payables to trade vendors, raw material suppliers and contractors', isDefault: false }
+    ];
+  });
+  const [settingsSubTab, setSettingsSubTab] = useState('profile');
+
+  const getDefaultLedgerName = () => {
+    const defaultObj = ledgersList.find(l => l.isDefault) || ledgersList[0];
+    return defaultObj?.name || 'SUNDRY DEBTORS';
+  };
+
   // 1. REGISTRATION ( CUSTOMER ) Form State
   const [custForm, setCustForm] = useState({
     name: '',
-    ledger: 'SUNDRY DEBTORS', // SUNDRY CREDITORS / SUNDRY DEBTORS
+    ledger: (ledgersList.find(l => l.isDefault)?.name) || 'SUNDRY DEBTORS',
     address: '',
     gstNo: '',
     pan: '',
@@ -183,7 +204,7 @@ export const UserDashboard = ({
     const finalData = { ...fallbackDecoded, ...(d || {}) };
 
     const fetchedName = (typeof finalData.name === 'string' && finalData.name.trim()) ? finalData.name.trim() : (finalData.companyName || finalData.legalName || finalData.tradeName || 'GST Registered Enterprise');
-    const fetchedLedger = (typeof finalData.ledger === 'string' && finalData.ledger.trim()) ? finalData.ledger.trim() : 'SUNDRY DEBTORS';
+    const fetchedLedger = (typeof finalData.ledger === 'string' && finalData.ledger.trim()) ? finalData.ledger.trim() : getDefaultLedgerName();
     const fetchedPan = (typeof finalData.pan === 'string' && finalData.pan.trim()) ? finalData.pan.trim() : (finalData.panNumber || targetGst.substring(2, 12));
     const fetchedMobile = (typeof finalData.mobile === 'string' && finalData.mobile.trim()) ? finalData.mobile.trim() : '';
     const fetchedEmail = (typeof finalData.email === 'string' && finalData.email.trim()) ? finalData.email.trim() : '';
@@ -264,7 +285,7 @@ export const UserDashboard = ({
     setHasCustGst('Yes');
     setCustForm({
       name: '',
-      ledger: 'SUNDRY DEBTORS',
+      ledger: getDefaultLedgerName(),
       address: '',
       gstNo: '',
       pan: '',
@@ -291,7 +312,7 @@ export const UserDashboard = ({
     setHasCustGst(existingGst && existingGst !== 'URP' && existingGst !== 'N/A' ? 'Yes' : 'No');
     setCustForm({
       name: customer.name || '',
-      ledger: customer.ledger || 'SUNDRY DEBTORS',
+      ledger: customer.ledger || getDefaultLedgerName(),
       address: customer.address || '',
       gstNo: customer.gstNumber || customer.gst_number || '',
       pan: customer.panNumber || customer.pan_number || '',
@@ -506,7 +527,7 @@ export const UserDashboard = ({
 
     setShowCustomerModal(false);
     setEditingCustomer(null);
-    setCustForm({ name: '', ledger: 'SUNDRY DEBTORS', address: '', gstNo: '', pan: '', mobile: '', email: '', city: '', state: '' });
+    setCustForm({ name: '', ledger: getDefaultLedgerName(), address: '', gstNo: '', pan: '', mobile: '', email: '', city: '', state: '' });
     setIncludeBankReg(false);
     setCustBankForm({ bankType: 'Bank Account', accountName: '', accountNumber: '', bankName: '', ifscCode: '', balance: '0' });
   };
@@ -2950,7 +2971,11 @@ export const UserDashboard = ({
           setBankAccounts={setBankAccounts}
           invoices={invoices}
           customers={customers}
+          setCustomers={setCustomers}
           products={products}
+          initialTab={settingsSubTab}
+          ledgersList={ledgersList}
+          setLedgersList={setLedgersList}
         />
       )}
 
@@ -3032,14 +3057,34 @@ export const UserDashboard = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">Ledger *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-200">Ledger *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCustomerModal(false);
+                        setSettingsSubTab('ledgers');
+                        setActiveTab('settings');
+                      }}
+                      className="text-[10px] text-brand-300 hover:text-white font-bold flex items-center gap-1 bg-brand-500/10 hover:bg-brand-500/20 px-2 py-0.5 rounded border border-brand-500/30 cursor-pointer transition-all"
+                      title="Add, Edit, and Manage Ledgers in Settings"
+                    >
+                      <Sliders className="w-3 h-3 text-brand-400" /> Manage in Settings
+                    </button>
+                  </div>
                   <select
                     value={custForm.ledger}
                     onChange={(e) => setCustForm({ ...custForm, ledger: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
+                    className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold text-white"
                   >
-                    <option value="SUNDRY DEBTORS">SUNDRY DEBTORS (Customers)</option>
-                    <option value="SUNDRY CREDITORS">SUNDRY CREDITORS (Suppliers)</option>
+                    {!ledgersList.some(l => l.name === custForm.ledger) && custForm.ledger && (
+                      <option value={custForm.ledger}>{custForm.ledger}</option>
+                    )}
+                    {ledgersList.map((l) => (
+                      <option key={l.id || l.name} value={l.name}>
+                        {l.label || l.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

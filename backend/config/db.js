@@ -153,7 +153,7 @@ export const initDB = async () => {
         id VARCHAR(50) PRIMARY KEY,
         user_id VARCHAR(100),
         name VARCHAR(200) NOT NULL,
-        ledger ENUM('SUNDRY DEBTORS', 'SUNDRY CREDITORS') DEFAULT 'SUNDRY DEBTORS',
+        ledger VARCHAR(100) DEFAULT 'SUNDRY DEBTORS',
         address TEXT,
         gst_number VARCHAR(15) DEFAULT '',
         pan_number VARCHAR(10),
@@ -255,6 +255,7 @@ export const initDB = async () => {
       await connection.query(`ALTER TABLE customers MODIFY COLUMN gst_number VARCHAR(15) DEFAULT '';`);
       await connection.query(`ALTER TABLE customers MODIFY COLUMN city VARCHAR(100) DEFAULT '';`);
       await connection.query(`ALTER TABLE customers MODIFY COLUMN state VARCHAR(100) DEFAULT '';`);
+      await connection.query(`ALTER TABLE customers MODIFY COLUMN ledger VARCHAR(100) DEFAULT 'SUNDRY DEBTORS';`);
     } catch (e) {
       // Column modification completed or ignored
     }
