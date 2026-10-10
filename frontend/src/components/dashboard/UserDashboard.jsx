@@ -375,7 +375,7 @@ export const UserDashboard = ({
           } else {
             localStorage.setItem('billson_customers_global', JSON.stringify(updated));
           }
-        } catch (e) {}
+        } catch (e) { }
         return updated;
       });
 
@@ -419,7 +419,7 @@ export const UserDashboard = ({
               } else {
                 localStorage.setItem('billson_customers_global', JSON.stringify(updated));
               }
-            } catch (e) {}
+            } catch (e) { }
             return updated;
           });
         }
@@ -462,7 +462,7 @@ export const UserDashboard = ({
           } else {
             localStorage.setItem('billson_bank_accounts', JSON.stringify(updated));
           }
-        } catch (e) {}
+        } catch (e) { }
         return updated;
       });
 
@@ -520,7 +520,7 @@ export const UserDashboard = ({
         setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
         try {
           await api.deleteCustomer(customer.id);
-        } catch (e) {}
+        } catch (e) { }
         addToast(`Customer "${customer.name}" deleted successfully.`, 'info', 'Customer Deleted');
       }
     });
@@ -625,7 +625,7 @@ export const UserDashboard = ({
           if (user?.id) {
             localStorage.setItem(`billson_bank_accounts_${user.id}`, JSON.stringify(updated));
           }
-        } catch (e) {}
+        } catch (e) { }
         return updated;
       });
       try {
@@ -646,7 +646,7 @@ export const UserDashboard = ({
             const updated = prev.map((b) => b.id === bankId ? { ...b, id: res.bankAccount.id } : b);
             try {
               localStorage.setItem('billson_bank_accounts', JSON.stringify(updated));
-            } catch (e) {}
+            } catch (e) { }
             return updated;
           });
         }
@@ -671,7 +671,7 @@ export const UserDashboard = ({
         setBankAccounts((prev) => prev.filter((b) => b.id !== bank.id));
         try {
           await api.deleteBankAccount(bank.id);
-        } catch (e) {}
+        } catch (e) { }
         addToast(`Account "${bank.accountName}" deleted successfully.`, 'info', 'Account Deleted');
       }
     });
@@ -908,7 +908,7 @@ export const UserDashboard = ({
         setProducts((prev) => prev.filter((p) => p.id !== item.id));
         try {
           await api.deleteProduct(item.id);
-        } catch (e) {}
+        } catch (e) { }
         addToast(`Item "${item.title}" deleted successfully.`, 'info', 'Item Deleted');
       }
     });
@@ -921,7 +921,7 @@ export const UserDashboard = ({
     try {
       const activeId = user?.id || 'USR-901';
       localStorage.setItem(`billson_invoices_${activeId}`, JSON.stringify(newInvoices));
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleDeleteInvoice = (inv) => {
@@ -938,7 +938,7 @@ export const UserDashboard = ({
         });
         try {
           await api.deleteInvoice(targetId);
-        } catch (e) {}
+        } catch (e) { }
         addToast(`Invoice ${inv.invoiceNumber || inv.invoice_number || targetId} deleted successfully.`, 'info', 'Invoice Deleted');
       }
     });
@@ -979,7 +979,7 @@ export const UserDashboard = ({
         });
         try {
           await api.updateInvoice(targetId, { status: 'Cancelled' });
-        } catch (e) {}
+        } catch (e) { }
         addToast(`Invoice ${invNum} has been cancelled & recorded in Tax Report.`, 'info', 'Invoice Cancelled');
       }
     });
@@ -1010,7 +1010,7 @@ export const UserDashboard = ({
         });
         try {
           await api.updateInvoice(targetId, { status: 'Pending' });
-        } catch (e) {}
+        } catch (e) { }
         addToast(`Invoice ${invNum} restored to Pending status.`, 'success', 'Invoice Restored');
       }
     });
@@ -1136,7 +1136,7 @@ export const UserDashboard = ({
       {/* Quick Action Document Banner */}
       <div className="glass-card rounded-3xl p-6 sm:p-8 border border-indigo-500/20 bg-gradient-to-r from-brand-900/40 via-dark-900 to-indigo-950/40 relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-          
+
           {/* Document Creation Buttons (Replacing Welcome Text area) */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* 1. Sales Invoice Button */}
@@ -1194,7 +1194,7 @@ export const UserDashboard = ({
               onClick={handleOpenNewCustomer}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
             >
-              <Users className="w-3.5 h-3.5 text-indigo-400" /> + Customer
+              <Users className="w-3.5 h-3.5 text-indigo-400" /> + Ledger
             </button>
             <button
               onClick={handleOpenNewBank}
@@ -1391,8 +1391,7 @@ export const UserDashboard = ({
                           <td className="py-3 px-3 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
                           <td className="py-3 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
-                              inv.status === 'Paid'
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${inv.status === 'Paid'
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                                 : inv.status === 'Pending'
                                   ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
@@ -1519,14 +1518,14 @@ export const UserDashboard = ({
                 {docSubTab === 'Payment'
                   ? 'Payment Vouchers, Cash/Bank Received & Paid Out Ledger Directory'
                   : docSubTab === 'Sales Invoice'
-                  ? 'Official Sales Tax Invoices & Customer Billing Directory'
-                  : docSubTab === 'Purchase Invoice'
-                  ? 'Vendor Purchases, Goods Received & Bills Directory'
-                  : docSubTab === 'Estimate'
-                  ? 'Quotations, Proforma Bills & Price Estimates Directory'
-                  : docSubTab === 'Delivery Challan'
-                  ? 'Goods Delivery Notes & Dispatch Challans Directory'
-                  : 'Complete Master Directory for all Sales, Purchases, Estimates, Delivery Challans & Payments'}
+                    ? 'Official Sales Tax Invoices & Customer Billing Directory'
+                    : docSubTab === 'Purchase Invoice'
+                      ? 'Vendor Purchases, Goods Received & Bills Directory'
+                      : docSubTab === 'Estimate'
+                        ? 'Quotations, Proforma Bills & Price Estimates Directory'
+                        : docSubTab === 'Delivery Challan'
+                          ? 'Goods Delivery Notes & Dispatch Challans Directory'
+                          : 'Complete Master Directory for all Sales, Purchases, Estimates, Delivery Challans & Payments'}
               </p>
             </div>
 
@@ -1549,8 +1548,8 @@ export const UserDashboard = ({
               { id: 'Payment', label: 'Payments', color: 'from-cyan-500 to-blue-600' },
               { id: 'Receipt', label: 'Receipts', color: 'from-purple-500 to-indigo-600' },
             ].map((tab) => {
-              const count = tab.id === 'All' 
-                ? invoices.length 
+              const count = tab.id === 'All'
+                ? invoices.length
                 : invoices.filter((i) => (i.documentType || 'Sales Invoice') === tab.id).length;
               const isActive = docSubTab === tab.id;
 
@@ -1558,16 +1557,14 @@ export const UserDashboard = ({
                 <button
                   key={tab.id}
                   onClick={() => setDocSubTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${
-                    isActive
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${isActive
                       ? `bg-gradient-to-r ${tab.color} text-white shadow-lg shadow-indigo-500/20`
                       : 'bg-dark-800/80 hover:bg-dark-700 text-slate-400 hover:text-white border border-slate-800'
-                  }`}
+                    }`}
                 >
                   <span>{tab.label}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
-                  }`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}>
                     {count}
                   </span>
                 </button>
@@ -1716,8 +1713,7 @@ export const UserDashboard = ({
                             ₹{grandTotalVal.toLocaleString('en-IN')}
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
-                              isCancelled
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${isCancelled
                                 ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 line-through'
                                 : inv.status === 'Paid'
                                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
@@ -1751,16 +1747,16 @@ export const UserDashboard = ({
                               >
                                 <Download className="w-3 h-3" /> PDF
                               </button>
-                              
+
                               {/* EDIT Button */}
                               <button
                                 onClick={() => {
                                   const effectiveDocType = inv.documentType || inv.document_type || docType || (
                                     inv.id?.startsWith('PUR') ? 'Purchase Invoice' :
-                                    inv.id?.startsWith('EST') ? 'Estimate' :
-                                    inv.id?.startsWith('DC') ? 'Delivery Challan' :
-                                    inv.id?.startsWith('PAY') ? 'Payment' :
-                                    inv.id?.startsWith('REC') ? 'Receipt' : 'Sales Invoice'
+                                      inv.id?.startsWith('EST') ? 'Estimate' :
+                                        inv.id?.startsWith('DC') ? 'Delivery Challan' :
+                                          inv.id?.startsWith('PAY') ? 'Payment' :
+                                            inv.id?.startsWith('REC') ? 'Receipt' : 'Sales Invoice'
                                   );
                                   onQuickCreateInvoice(inv, effectiveDocType);
                                 }}
@@ -1830,7 +1826,7 @@ export const UserDashboard = ({
         <div className="space-y-6 animate-slide-up">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( CUSTOMER )</h2>
+              <h2 className="text-xl font-bold text-white font-serif">REGISTRATION ( Ledger )</h2>
               <p className="text-xs text-slate-400 font-mono">Customer Ledger (Sundry Debtors / Sundry Creditors) Directory</p>
             </div>
             <button
@@ -2442,7 +2438,15 @@ export const UserDashboard = ({
 
         const periodLabel = getMonthYearLabel(gstrSelectedMonthYear);
 
-        const { b2bRows, b2cRows, hsnSummaryRows, docIssuedRows, filteredInvoices } = processGSTRData(
+        const { 
+          b2bRows, 
+          b2cRows, 
+          hsnSummaryRows, 
+          hsnSummaryWithGstRows = [], 
+          hsnSummaryWithoutGstRows = [], 
+          docIssuedRows, 
+          filteredInvoices 
+        } = processGSTRData(
           invoices,
           customers,
           user?.state || 'Tamil Nadu',
@@ -2472,6 +2476,22 @@ export const UserDashboard = ({
           sgst: acc.sgst + r.sgst
         }), { qty: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0 });
 
+        const hsnWithGstTotals = hsnSummaryWithGstRows.reduce((acc, r) => ({
+          qty: acc.qty + r.totalQty,
+          taxable: acc.taxable + r.taxableValue,
+          igst: acc.igst + r.igst,
+          cgst: acc.cgst + r.cgst,
+          sgst: acc.sgst + r.sgst
+        }), { qty: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0 });
+
+        const hsnWithoutGstTotals = hsnSummaryWithoutGstRows.reduce((acc, r) => ({
+          qty: acc.qty + r.totalQty,
+          taxable: acc.taxable + r.taxableValue,
+          igst: acc.igst + r.igst,
+          cgst: acc.cgst + r.cgst,
+          sgst: acc.sgst + r.sgst
+        }), { qty: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0 });
+
         const handleDownloadExcel = () => {
           downloadGSTRExcelReport({
             companyName,
@@ -2479,9 +2499,11 @@ export const UserDashboard = ({
             b2bRows,
             b2cRows,
             hsnSummaryRows,
+            hsnSummaryWithGstRows,
+            hsnSummaryWithoutGstRows,
             docIssuedRows
           });
-          addToast(`GSTR-1 Excel report (.xlsx) downloaded with 'b2b', 'b2c', 'HSN summary' and 'document issued' sheets for ${periodLabel}!`, 'success', 'Excel Generated');
+          addToast(`GSTR-1 Excel report (.xlsx) downloaded with 'b2b', 'b2c', 'HSN summary (With GST)', 'HSN summary (Without GST)', 'HSN summary' and 'document issued' sheets for ${periodLabel}!`, 'success', 'Excel Generated');
         };
 
         return (
@@ -2495,7 +2517,7 @@ export const UserDashboard = ({
                     GSTR-1 Tax Return Excel Report Generator
                   </h2>
                   <p className="text-xs text-slate-400 font-mono mt-1">
-                    Select month to view, preview B2B (Sheet 1), B2C (Sheet 2) & HSN Summary (Sheet 3), and download multi-sheet Excel file (.xlsx).
+                    Select month to view, preview B2B (Sheet 1), B2C (Sheet 2) & HSN Summary (With & Without GST), and download multi-sheet Excel file (.xlsx).
                   </p>
                 </div>
 
@@ -2529,7 +2551,7 @@ export const UserDashboard = ({
               </div>
 
               {/* Summary Metrics */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
                 <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
                   <p className="text-xs text-slate-400 font-medium">Period Selected</p>
                   <h4 className="text-sm font-bold text-emerald-400 font-mono mt-1">{periodLabel}</h4>
@@ -2546,9 +2568,14 @@ export const UserDashboard = ({
                   <p className="text-[10px] text-amber-400/80 mt-1">{b2cRows.length} State/Rate Tax Summaries</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                  <p className="text-xs text-slate-400 font-medium">HSN Summary (Sheet 3)</p>
-                  <h4 className="text-xl font-bold text-cyan-300 font-mono mt-1">₹{hsnTotals.taxable.toLocaleString('en-IN')}</h4>
-                  <p className="text-[10px] text-cyan-400 mt-1">{hsnSummaryRows.length} Product & Service Categories</p>
+                  <p className="text-xs text-slate-400 font-medium">HSN (With GST - B2B)</p>
+                  <h4 className="text-xl font-bold text-teal-300 font-mono mt-1">₹{hsnWithGstTotals.taxable.toLocaleString('en-IN')}</h4>
+                  <p className="text-[10px] text-teal-400 mt-1">{hsnSummaryWithGstRows.length} Categories (Registered)</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
+                  <p className="text-xs text-slate-400 font-medium">HSN (Without GST - B2C)</p>
+                  <h4 className="text-xl font-bold text-cyan-300 font-mono mt-1">₹{hsnWithoutGstTotals.taxable.toLocaleString('en-IN')}</h4>
+                  <p className="text-[10px] text-cyan-400 mt-1">{hsnSummaryWithoutGstRows.length} Categories (Unregistered)</p>
                 </div>
               </div>
             </div>
@@ -2559,43 +2586,57 @@ export const UserDashboard = ({
                 <div className="flex items-center gap-2 bg-dark-900 p-1.5 rounded-2xl border border-slate-800 w-fit flex-wrap">
                   <button
                     onClick={() => setGstrReportSubTab('b2b')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      gstrReportSubTab === 'b2b'
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${gstrReportSubTab === 'b2b'
                         ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                      }`}
                   >
-                    Sheet 1: b2b (With GST Number) ({b2bRows.length})
+                    Sheet 1: b2b (With GST) ({b2bRows.length})
                   </button>
                   <button
                     onClick={() => setGstrReportSubTab('b2c')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      gstrReportSubTab === 'b2c'
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${gstrReportSubTab === 'b2c'
                         ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                      }`}
                   >
-                    Sheet 2: b2c (Without GST Number) ({b2cRows.length})
+                    Sheet 2: b2c (Without GST) ({b2cRows.length})
+                  </button>
+                  <button
+                    onClick={() => setGstrReportSubTab('hsn_with_gst')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${gstrReportSubTab === 'hsn_with_gst'
+                        ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                  >
+                    Sheet 3: HSN (With GST) ({hsnSummaryWithGstRows.length})
+                  </button>
+                  <button
+                    onClick={() => setGstrReportSubTab('hsn_without_gst')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${gstrReportSubTab === 'hsn_without_gst'
+                        ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                  >
+                    Sheet 4: HSN (Without GST) ({hsnSummaryWithoutGstRows.length})
                   </button>
                   <button
                     onClick={() => setGstrReportSubTab('hsn')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      gstrReportSubTab === 'hsn'
-                        ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${gstrReportSubTab === 'hsn' || gstrReportSubTab === 'hsn_all'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                      }`}
                   >
-                    Sheet 3: HSN summary ({hsnSummaryRows.length})
+                    Sheet 5: HSN (Total All) ({hsnSummaryRows.length})
                   </button>
                   <button
                     onClick={() => setGstrReportSubTab('doc')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      gstrReportSubTab === 'doc'
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${gstrReportSubTab === 'doc'
                         ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                         : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                      }`}
                   >
-                    Sheet 4: document issued ({docIssuedRows.reduce((sum, d) => sum + (d.cancelled || 0), 0)} Cancelled)
+                    Sheet 6: document issued ({docIssuedRows.reduce((sum, d) => sum + (d.cancelled || 0), 0)} Cancelled)
                   </button>
                 </div>
 
@@ -2610,7 +2651,7 @@ export const UserDashboard = ({
               {gstrReportSubTab === 'b2b' && (
                 <div className="space-y-3">
                   <div className="text-center py-2 bg-dark-950/80 border border-slate-800 rounded-xl text-xs font-bold font-mono tracking-wide text-emerald-300">
-                    {companyName.toUpperCase()} {periodLabel}
+                    {companyName.toUpperCase()} {periodLabel} — B2B (WITH GST)
                   </div>
 
                   <div className="overflow-x-auto rounded-2xl border border-slate-800">
@@ -2676,7 +2717,7 @@ export const UserDashboard = ({
               {gstrReportSubTab === 'b2c' && (
                 <div className="space-y-3">
                   <div className="text-center py-2 bg-dark-950/80 border border-slate-800 rounded-xl text-xs font-bold font-mono tracking-wide text-amber-300">
-                    {companyName.toUpperCase()} {periodLabel}
+                    {companyName.toUpperCase()} {periodLabel} — B2C (WITHOUT GST)
                   </div>
 
                   <div className="overflow-x-auto rounded-2xl border border-slate-800">
@@ -2736,69 +2777,122 @@ export const UserDashboard = ({
                 </div>
               )}
 
-              {/* SHEET 3: HSN SUMMARY TABLE PREVIEW */}
-              {gstrReportSubTab === 'hsn' && (
-                <div className="space-y-3">
-                  <div className="text-center py-2 bg-dark-950/80 border border-slate-800 rounded-xl text-xs font-bold font-mono tracking-wide text-cyan-300">
-                    {companyName.toUpperCase()} {periodLabel} — PRODUCT & SERVICE HSN SUMMARY
-                  </div>
+              {/* SHEET 3/4/5: HSN SUMMARY TABLE PREVIEW (WITH GST, WITHOUT GST & ALL) */}
+              {(gstrReportSubTab === 'hsn' || gstrReportSubTab === 'hsn_with_gst' || gstrReportSubTab === 'hsn_without_gst' || gstrReportSubTab === 'hsn_all') && (() => {
+                const isWithGst = gstrReportSubTab === 'hsn_with_gst';
+                const isWithoutGst = gstrReportSubTab === 'hsn_without_gst';
+                const isAll = gstrReportSubTab === 'hsn' || gstrReportSubTab === 'hsn_all';
 
-                  <div className="overflow-x-auto rounded-2xl border border-slate-800">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-dark-900 text-slate-300 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
-                        <tr>
-                          <th className="py-3 px-3">Service & product name</th>
-                          <th className="py-3 px-3">HSN</th>
-                          <th className="py-3 px-3">Unit of Measurement</th>
-                          <th className="py-3 px-3 text-right">Total Qty</th>
-                          <th className="py-3 px-3 text-center">Tax Rate</th>
-                          <th className="py-3 px-3 text-right">Total Taxable Value</th>
-                          <th className="py-3 px-3 text-right">IGST</th>
-                          <th className="py-3 px-3 text-right">CGST</th>
-                          <th className="py-3 px-3 text-right">SGST</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
-                        {hsnSummaryRows.length > 0 ? (
-                          hsnSummaryRows.map((r, i) => (
-                            <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-                              <td className="py-2.5 px-3 font-sans font-medium text-white">{r.productName}</td>
-                              <td className="py-2.5 px-3 font-bold text-cyan-400">{r.hsn}</td>
-                              <td className="py-2.5 px-3 font-sans text-slate-400">{r.uom}</td>
-                              <td className="py-2.5 px-3 text-right text-emerald-300">{r.totalQty}</td>
-                              <td className="py-2.5 px-3 text-center font-bold text-cyan-300">{r.taxRate}</td>
-                              <td className="py-2.5 px-3 text-right font-bold text-white">₹{r.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                              <td className="py-2.5 px-3 text-right text-purple-300">₹{r.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                              <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                const curRows = isWithGst ? hsnSummaryWithGstRows : isWithoutGst ? hsnSummaryWithoutGstRows : hsnSummaryRows;
+                const curTotals = isWithGst ? hsnWithGstTotals : isWithoutGst ? hsnWithoutGstTotals : hsnTotals;
+                const curTitle = isWithGst 
+                  ? `${companyName.toUpperCase()} ${periodLabel} — HSN SUMMARY (WITH GST - B2B REGISTERED)`
+                  : isWithoutGst
+                    ? `${companyName.toUpperCase()} ${periodLabel} — HSN SUMMARY (WITHOUT GST - B2C UNREGISTERED)`
+                    : `${companyName.toUpperCase()} ${periodLabel} — PRODUCT & SERVICE HSN SUMMARY (TOTAL ALL)`;
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-2 bg-dark-950/80 border border-slate-800 rounded-2xl">
+                      <div className="text-xs font-bold font-mono tracking-wide text-cyan-300 px-2">
+                        {curTitle}
+                      </div>
+
+                      {/* Filter Switcher Pill Controls */}
+                      <div className="flex items-center gap-1.5 p-1 bg-dark-900 rounded-xl border border-slate-800 text-xs flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setGstrReportSubTab('hsn_with_gst')}
+                          className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            isWithGst
+                              ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/30'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          With GST ({hsnSummaryWithGstRows.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGstrReportSubTab('hsn_without_gst')}
+                          className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            isWithoutGst
+                              ? 'bg-cyan-600 text-white shadow-sm shadow-cyan-600/30'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Without GST ({hsnSummaryWithoutGstRows.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGstrReportSubTab('hsn')}
+                          className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            isAll
+                              ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          All Combined ({hsnSummaryRows.length})
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-dark-900 text-slate-300 font-semibold border-b border-slate-800 uppercase tracking-wider text-[11px]">
+                          <tr>
+                            <th className="py-3 px-3">Service & product name</th>
+                            <th className="py-3 px-3">HSN</th>
+                            <th className="py-3 px-3">Unit of Measurement</th>
+                            <th className="py-3 px-3 text-right">Total Qty</th>
+                            <th className="py-3 px-3 text-center">Tax Rate</th>
+                            <th className="py-3 px-3 text-right">Total Taxable Value</th>
+                            <th className="py-3 px-3 text-right">IGST</th>
+                            <th className="py-3 px-3 text-right">CGST</th>
+                            <th className="py-3 px-3 text-right">SGST</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+                          {curRows.length > 0 ? (
+                            curRows.map((r, i) => (
+                              <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                                <td className="py-2.5 px-3 font-sans font-medium text-white">{r.productName}</td>
+                                <td className="py-2.5 px-3 font-bold text-cyan-400">{r.hsn}</td>
+                                <td className="py-2.5 px-3 font-sans text-slate-400">{r.uom}</td>
+                                <td className="py-2.5 px-3 text-right text-emerald-300">{r.totalQty}</td>
+                                <td className="py-2.5 px-3 text-center font-bold text-cyan-300">{r.taxRate}</td>
+                                <td className="py-2.5 px-3 text-right font-bold text-white">₹{r.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td className="py-2.5 px-3 text-right text-purple-300">₹{r.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td className="py-2.5 px-3 text-right text-indigo-300">₹{r.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="9" className="text-center py-8 text-slate-500 font-sans">
+                                No product & service line items found for {periodLabel} ({isWithGst ? 'With GST' : isWithoutGst ? 'Without GST' : 'All'}).
+                              </td>
                             </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan="9" className="text-center py-8 text-slate-500 font-sans">
-                              No product & service line items found for {periodLabel}.
-                            </td>
-                          </tr>
+                          )}
+                        </tbody>
+                        {curRows.length > 0 && (
+                          <tfoot className="bg-dark-900/90 font-mono text-xs font-bold border-t border-slate-700 text-white">
+                            <tr>
+                              <td className="py-3 px-3 text-cyan-400">TOTAL</td>
+                              <td colSpan="2" className="py-3 px-3 text-slate-400 font-sans text-[11px]">( will come total details to validate individual )</td>
+                              <td className="py-3 px-3 text-right text-emerald-300">{Math.round(curTotals.qty * 100) / 100}</td>
+                              <td className="py-3 px-3"></td>
+                              <td className="py-3 px-3 text-right text-white">₹{curTotals.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 px-3 text-right text-purple-300">₹{curTotals.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 px-3 text-right text-indigo-300">₹{curTotals.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 px-3 text-right text-indigo-300">₹{curTotals.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          </tfoot>
                         )}
-                      </tbody>
-                      {hsnSummaryRows.length > 0 && (
-                        <tfoot className="bg-dark-900/90 font-mono text-xs font-bold border-t border-slate-700 text-white">
-                          <tr>
-                            <td className="py-3 px-3 text-cyan-400">TOTAL</td>
-                            <td colSpan="2" className="py-3 px-3 text-slate-400 font-sans text-[11px]">( will come total details to validate individual )</td>
-                            <td className="py-3 px-3 text-right text-emerald-300">{Math.round(hsnTotals.qty * 100) / 100}</td>
-                            <td className="py-3 px-3"></td>
-                            <td className="py-3 px-3 text-right text-white">₹{hsnTotals.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            <td className="py-3 px-3 text-right text-purple-300">₹{hsnTotals.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            <td className="py-3 px-3 text-right text-indigo-300">₹{hsnTotals.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            <td className="py-3 px-3 text-right text-indigo-300">₹{hsnTotals.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                          </tr>
-                        </tfoot>
-                      )}
-                    </table>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* SHEET 4: DOCUMENT ISSUED TABLE PREVIEW */}
               {gstrReportSubTab === 'doc' && (
@@ -2867,7 +2961,7 @@ export const UserDashboard = ({
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
               <div>
                 <h3 className="text-lg font-bold text-white font-serif">
-                  {editingCustomer ? 'EDIT REGISTRATION ( CUSTOMER )' : 'REGISTRATION ( CUSTOMER )'}
+                  {editingCustomer ? 'EDIT REGISTRATION ( Ledger )' : 'REGISTRATION ( Ledger )'}
                 </h3>
                 <p className="text-xs text-slate-400 font-mono">
                   {editingCustomer ? `Update ledger details for ${editingCustomer.id}` : 'Create new customer ledger account'}
@@ -2911,11 +3005,10 @@ export const UserDashboard = ({
                     onClick={() => {
                       setHasCustGst('Yes');
                     }}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer ${
-                      hasCustGst === 'Yes'
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer ${hasCustGst === 'Yes'
                         ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
                         : 'bg-dark-800 text-slate-400 border-slate-700 hover:text-white'
-                    }`}
+                      }`}
                   >
                     <CheckCircle2 className={`w-3.5 h-3.5 ${hasCustGst === 'Yes' ? 'text-white' : 'text-slate-500'}`} />
                     YES (Registered)
@@ -2926,11 +3019,10 @@ export const UserDashboard = ({
                       setHasCustGst('No');
                       setCustForm(prev => ({ ...prev, gstNo: '' }));
                     }}
-                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer ${
-                      hasCustGst === 'No'
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer ${hasCustGst === 'No'
                         ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-500 shadow-md shadow-rose-500/20'
                         : 'bg-dark-800 text-slate-400 border-slate-700 hover:text-white'
-                    }`}
+                      }`}
                   >
                     <XCircle className={`w-3.5 h-3.5 ${hasCustGst === 'No' ? 'text-white' : 'text-slate-500'}`} />
                     NO (Unregistered / Exempt)
@@ -3358,26 +3450,6 @@ export const UserDashboard = ({
               </button>
             </div>
 
-            {/* Type Switcher Tabs (Product / Service) */}
-            <div className="flex items-center gap-2 p-1 bg-dark-900 rounded-2xl border border-slate-800 mb-4 w-fit">
-              <button
-                type="button"
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-md shadow-emerald-600/30 cursor-pointer"
-              >
-                <Package className="w-3.5 h-3.5" /> Product / Goods
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowProductModal(false);
-                  handleOpenNewService();
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white cursor-pointer transition-colors"
-              >
-                <Wrench className="w-3.5 h-3.5 text-cyan-400" /> Service
-              </button>
-            </div>
-
             <form onSubmit={handleRegisterProduct} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-200 mb-1">
@@ -3461,7 +3533,7 @@ export const UserDashboard = ({
                           const parsed = JSON.parse(saved);
                           if (Array.isArray(parsed) && parsed.length > 0) rates = parsed;
                         }
-                      } catch (e) {}
+                      } catch (e) { }
                       const currentStr = String(productForm.taxPercent || '18');
                       if (currentStr && !rates.includes(currentStr)) {
                         rates = [...rates, currentStr].sort((a, b) => parseFloat(a) - parseFloat(b));
@@ -3511,26 +3583,6 @@ export const UserDashboard = ({
               </div>
               <button onClick={() => setShowServiceModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Type Switcher Tabs (Product / Service) */}
-            <div className="flex items-center gap-2 p-1 bg-dark-900 rounded-2xl border border-slate-800 mb-4 w-fit">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowServiceModal(false);
-                  handleOpenNewProduct();
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white cursor-pointer transition-colors"
-              >
-                <Package className="w-3.5 h-3.5 text-emerald-400" /> Product / Goods
-              </button>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-600 text-white shadow-md shadow-cyan-600/30 cursor-pointer"
-              >
-                <Wrench className="w-3.5 h-3.5" /> Service
               </button>
             </div>
 
@@ -3587,7 +3639,7 @@ export const UserDashboard = ({
                           const parsed = JSON.parse(saved);
                           if (Array.isArray(parsed) && parsed.length > 0) rates = parsed;
                         }
-                      } catch (e) {}
+                      } catch (e) { }
                       const currentStr = String(serviceForm.taxPercent || '18');
                       if (currentStr && !rates.includes(currentStr)) {
                         rates = [...rates, currentStr].sort((a, b) => parseFloat(a) - parseFloat(b));
@@ -3919,10 +3971,10 @@ export const UserDashboard = ({
               const invNum = selectedInvoice.invoiceNumber || selectedInvoice.invoice_number || '';
               const docType = selectedInvoice.documentType || selectedInvoice.document_type || (
                 invNum.startsWith('PUR') ? 'Purchase Invoice' :
-                invNum.startsWith('EST') ? 'Estimate' :
-                invNum.startsWith('DC') ? 'Delivery Challan' :
-                invNum.startsWith('PAY') ? 'Payment Voucher' :
-                invNum.startsWith('REC') ? 'Receipt Voucher' : 'Tax Invoice'
+                  invNum.startsWith('EST') ? 'Estimate' :
+                    invNum.startsWith('DC') ? 'Delivery Challan' :
+                      invNum.startsWith('PAY') ? 'Payment Voucher' :
+                        invNum.startsWith('REC') ? 'Receipt Voucher' : 'Tax Invoice'
               );
 
               let badgeColor = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
@@ -4032,21 +4084,19 @@ export const UserDashboard = ({
       {/* Global Glassmorphic Confirmation Modal */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
-          <div className={`glass-card rounded-3xl p-6 max-w-md w-full border shadow-2xl animate-slide-up ${
-            deleteModal.iconType === 'restore'
+          <div className={`glass-card rounded-3xl p-6 max-w-md w-full border shadow-2xl animate-slide-up ${deleteModal.iconType === 'restore'
               ? 'border-emerald-500/30'
               : deleteModal.iconType === 'cancel'
                 ? 'border-rose-500/30'
                 : 'border-red-500/30'
-          }`}>
+            }`}>
             <div className="flex items-center gap-3 mb-4">
-              <div className={`p-3 rounded-2xl border ${
-                deleteModal.iconType === 'restore'
+              <div className={`p-3 rounded-2xl border ${deleteModal.iconType === 'restore'
                   ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                   : deleteModal.iconType === 'cancel'
                     ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
                     : 'bg-red-500/10 border-red-500/20 text-red-400'
-              }`}>
+                }`}>
                 {deleteModal.iconType === 'restore' ? (
                   <RefreshCw className="w-6 h-6 text-emerald-400" />
                 ) : deleteModal.iconType === 'cancel' ? (
@@ -4086,9 +4136,8 @@ export const UserDashboard = ({
                     }
                   }
                 }}
-                className={`px-5 py-2 rounded-xl text-white text-xs font-bold transition-all cursor-pointer shadow-lg ${
-                  deleteModal.confirmColor || 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
-                }`}
+                className={`px-5 py-2 rounded-xl text-white text-xs font-bold transition-all cursor-pointer shadow-lg ${deleteModal.confirmColor || 'bg-red-600 hover:bg-red-500 shadow-red-600/30'
+                  }`}
               >
                 {deleteModal.confirmText || 'Delete Permanently'}
               </button>

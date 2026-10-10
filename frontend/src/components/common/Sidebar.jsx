@@ -1,14 +1,14 @@
 import React from 'react';
-import { 
-  LayoutDashboard, FileText, Users, ShoppingBag, CreditCard, 
+import {
+  LayoutDashboard, FileText, Users, ShoppingBag, CreditCard,
   PieChart, ShieldCheck, Building2, Activity, Settings, X, PlusCircle,
   TrendingUp, Sparkles, HelpCircle, FileCheck, Package, Wrench
 } from 'lucide-react';
 
-export const Sidebar = ({ 
+export const Sidebar = ({
   mode = 'user', // 'user' or 'admin'
-  activeTab, 
-  setActiveTab, 
+  activeTab,
+  setActiveTab,
   onQuickCreateInvoice,
   isMobileOpen,
   closeMobileSidebar,
@@ -17,7 +17,7 @@ export const Sidebar = ({
   const userNavItems = [
     { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'invoices', label: 'Invoice Hub', icon: FileText, badge: invoicesCount !== undefined ? String(invoicesCount) : undefined },
-    { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'customers', label: 'Ledgers', icon: Users },
     { id: 'products', label: 'Products (Goods)', icon: Package },
     { id: 'services', label: 'Services Catalog', icon: Wrench },
     { id: 'payments', label: 'Payments', icon: CreditCard },
@@ -96,28 +96,25 @@ export const Sidebar = ({
                   setActiveTab(item.id);
                   if (closeMobileSidebar) closeMobileSidebar();
                 }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 ${
-                  isActive
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 ${isActive
                     ? mode === 'admin'
                       ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-300 border border-amber-500/40 font-semibold'
                       : 'bg-gradient-to-r from-brand-600/20 to-indigo-600/10 text-indigo-300 border border-brand-500/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 border border-transparent'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${
-                    isActive 
+                  <Icon className={`w-4 h-4 ${isActive
                       ? mode === 'admin' ? 'text-amber-400' : 'text-indigo-400'
                       : 'text-slate-400'
-                  }`} />
+                    }`} />
                   <span>{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
-                    mode === 'admin'
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${mode === 'admin'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                       : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                  }`}>
+                    }`}>
                     {item.badge}
                   </span>
                 )}
@@ -142,7 +139,7 @@ export const Sidebar = ({
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           {/* Backdrop */}
-          <div 
+          <div
             onClick={closeMobileSidebar}
             className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity"
           />

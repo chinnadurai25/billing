@@ -96,6 +96,8 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
   const b2bRows = [];
   const b2cRows = [];
   const hsnMap = new Map();
+  const hsnWithGstMap = new Map();
+  const hsnWithoutGstMap = new Map();
 
   // Cancelled invoices are strictly excluded from taxable turnover (B2B, B2C, HSN),
   // but are accounted for under Document Issued (Table 13 Cancelled column).
@@ -234,25 +236,37 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
         }
 
         const mapKey = `${name}___${hsn}___${uom}___${itemTaxRateStr}`;
-        if (hsnMap.has(mapKey)) {
-          const existing = hsnMap.get(mapKey);
-          existing.totalQty += qty;
-          existing.taxableValue += itemTaxableVal;
-          existing.igst += itemIgst;
-          existing.cgst += itemCgst;
-          existing.sgst += itemSgst;
+        const addRecordToMap = (targetMap) => {
+          if (targetMap.has(mapKey)) {
+            const existing = targetMap.get(mapKey);
+            existing.totalQty += qty;
+            existing.taxableValue += itemTaxableVal;
+            existing.igst += itemIgst;
+            existing.cgst += itemCgst;
+            existing.sgst += itemSgst;
+          } else {
+            targetMap.set(mapKey, {
+              productName: name,
+              hsn: hsn,
+              uom: uom,
+              totalQty: qty,
+              taxRate: itemTaxRateStr,
+              taxableValue: itemTaxableVal,
+              igst: itemIgst,
+              cgst: itemCgst,
+              sgst: itemSgst
+            });
+          }
+        };
+
+        // Add to combined HSN summary
+        addRecordToMap(hsnMap);
+
+        // Add to With GST (B2B) or Without GST (B2C) based on customer GST status
+        if (isB2B) {
+          addRecordToMap(hsnWithGstMap);
         } else {
-          hsnMap.set(mapKey, {
-            productName: name,
-            hsn: hsn,
-            uom: uom,
-            totalQty: qty,
-            taxRate: itemTaxRateStr,
-            taxableValue: itemTaxableVal,
-            igst: itemIgst,
-            cgst: itemCgst,
-            sgst: itemSgst
-          });
+          addRecordToMap(hsnWithoutGstMap);
         }
       }
     });
@@ -302,7 +316,7 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
     });
   });
 
-  const hsnSummaryRows = Array.from(hsnMap.values()).map((r, idx) => ({
+  const formatHsnRows = (sourceMap) => Array.from(sourceMap.values()).map((r, idx) => ({
     slNo: idx + 1,
     productName: r.productName,
     hsn: r.hsn,
@@ -314,6 +328,10 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
     cgst: Math.round(r.cgst * 100) / 100,
     sgst: Math.round(r.sgst * 100) / 100
   }));
+
+  const hsnSummaryRows = formatHsnRows(hsnMap);
+  const hsnSummaryWithGstRows = formatHsnRows(hsnWithGstMap);
+  const hsnSummaryWithoutGstRows = formatHsnRows(hsnWithoutGstMap);
 
   // Process Document Issued details (GSTR-1 Table 13)
   const salesInvoices = filteredInvoices.filter((inv) => {
@@ -380,7 +398,15 @@ export const processGSTRData = (invoices = [], customers = [], userState = 'Tami
     getDocStats(deliveryChallans, 'delevery chellan', 'for Job work')
   ];
 
-  return { b2bRows, b2cRows, hsnSummaryRows, docIssuedRows, filteredInvoices };
+  return { 
+    b2bRows, 
+    b2cRows, 
+    hsnSummaryRows, 
+    hsnSummaryWithGstRows, 
+    hsnSummaryWithoutGstRows, 
+    docIssuedRows, 
+    filteredInvoices 
+  };
 };
 
 export const downloadGSTRExcelReport = ({ 
@@ -389,6 +415,8 @@ export const downloadGSTRExcelReport = ({
   b2bRows = [], 
   b2cRows = [],
   hsnSummaryRows = [],
+  hsnSummaryWithGstRows = [],
+  hsnSummaryWithoutGstRows = [],
   docIssuedRows = []
 }) => {
   const wb = XLSX.utils.book_new();
@@ -554,7 +582,7 @@ export const downloadGSTRExcelReport = ({
   XLSX.utils.book_append_sheet(wb, wsB2C, 'b2c');
 
   // -------------------------------------------------------------
-  // 3. Build HSN Summary Sheet (Sheet Name: "HSN summary")
+  // 3. Build HSN Summary Sheets (With GST, Without GST, and Total)
   // -------------------------------------------------------------
   const hsnHeader = [
     'Service & product name',
@@ -568,65 +596,78 @@ export const downloadGSTRExcelReport = ({
     'SGST'
   ];
 
-  let hsnTotalQty = 0;
-  let hsnTotalTaxable = 0;
-  let hsnTotalIGST = 0;
-  let hsnTotalCGST = 0;
-  let hsnTotalSGST = 0;
+  const buildHsnWorksheet = (subtitle, rows) => {
+    let hsnTotalQty = 0;
+    let hsnTotalTaxable = 0;
+    let hsnTotalIGST = 0;
+    let hsnTotalCGST = 0;
+    let hsnTotalSGST = 0;
 
-  const hsnDataRows = hsnSummaryRows.map((r) => {
-    hsnTotalQty += r.totalQty;
-    hsnTotalTaxable += r.taxableValue;
-    hsnTotalIGST += r.igst;
-    hsnTotalCGST += r.cgst;
-    hsnTotalSGST += r.sgst;
+    const hsnDataRows = (rows || []).map((r) => {
+      hsnTotalQty += r.totalQty || 0;
+      hsnTotalTaxable += r.taxableValue || 0;
+      hsnTotalIGST += r.igst || 0;
+      hsnTotalCGST += r.cgst || 0;
+      hsnTotalSGST += r.sgst || 0;
 
-    return [
-      r.productName,
-      r.hsn,
-      r.uom,
-      r.totalQty,
-      r.taxRate,
-      r.taxableValue,
-      r.igst,
-      r.cgst,
-      r.sgst
+      return [
+        r.productName,
+        r.hsn,
+        r.uom,
+        r.totalQty,
+        r.taxRate,
+        r.taxableValue,
+        r.igst,
+        r.cgst,
+        r.sgst
+      ];
+    });
+
+    const hsnTotalsRow = [
+      'TOTAL',
+      '( will come total details to validate individual )',
+      '',
+      Math.round(hsnTotalQty * 100) / 100,
+      '',
+      Math.round(hsnTotalTaxable * 100) / 100,
+      Math.round(hsnTotalIGST * 100) / 100,
+      Math.round(hsnTotalCGST * 100) / 100,
+      Math.round(hsnTotalSGST * 100) / 100
     ];
-  });
 
-  const hsnTotalsRow = [
-    'TOTAL',
-    '( will come total details to validate individual )',
-    '',
-    Math.round(hsnTotalQty * 100) / 100,
-    '',
-    Math.round(hsnTotalTaxable * 100) / 100,
-    Math.round(hsnTotalIGST * 100) / 100,
-    Math.round(hsnTotalCGST * 100) / 100,
-    Math.round(hsnTotalSGST * 100) / 100
-  ];
+    const hsnSheetAOA = [
+      [`${titleText} — ${subtitle}`],
+      hsnHeader,
+      ...hsnDataRows,
+      ...(hsnDataRows.length > 0 ? [hsnTotalsRow] : [])
+    ];
 
-  const hsnSheetAOA = [
-    [titleText],
-    hsnHeader,
-    ...hsnDataRows,
-    ...(hsnDataRows.length > 0 ? [hsnTotalsRow] : [])
-  ];
+    const ws = XLSX.utils.aoa_to_sheet(hsnSheetAOA);
+    ws['!cols'] = [
+      { wch: 32 }, // Service & product name
+      { wch: 14 }, // HSN
+      { wch: 22 }, // Unit of Measurement
+      { wch: 14 }, // Total Qty
+      { wch: 12 }, // Tax Rate
+      { wch: 18 }, // Total Taxable Value
+      { wch: 14 }, // IGST
+      { wch: 14 }, // CGST
+      { wch: 14 }  // SGST
+    ];
+    return ws;
+  };
 
-  const wsHSN = XLSX.utils.aoa_to_sheet(hsnSheetAOA);
-  wsHSN['!cols'] = [
-    { wch: 32 }, // Service & product name
-    { wch: 14 }, // HSN
-    { wch: 22 }, // Unit of Measurement
-    { wch: 14 }, // Total Qty
-    { wch: 12 }, // Tax Rate
-    { wch: 18 }, // Total Taxable Value
-    { wch: 14 }, // IGST
-    { wch: 14 }, // CGST
-    { wch: 14 }  // SGST
-  ];
+  // Sheet 3: HSN summary (With GST)
+  const wsHSNWithGst = buildHsnWorksheet('HSN SUMMARY (WITH GST - B2B)', hsnSummaryWithGstRows);
+  XLSX.utils.book_append_sheet(wb, wsHSNWithGst, 'HSN summary (With GST)');
 
-  XLSX.utils.book_append_sheet(wb, wsHSN, 'HSN summary');
+  // Sheet 4: HSN summary (Without GST)
+  const wsHSNWithoutGst = buildHsnWorksheet('HSN SUMMARY (WITHOUT GST - B2C)', hsnSummaryWithoutGstRows);
+  XLSX.utils.book_append_sheet(wb, wsHSNWithoutGst, 'HSN summary (Without GST)');
+
+  // Sheet 5: HSN summary (Total/All)
+  const wsHSNTotal = buildHsnWorksheet('PRODUCT & SERVICE HSN SUMMARY (TOTAL)', hsnSummaryRows);
+  XLSX.utils.book_append_sheet(wb, wsHSNTotal, 'HSN summary');
 
   // -------------------------------------------------------------
   // 4. Build Document Issued Sheet (Sheet Name: "document issued")
