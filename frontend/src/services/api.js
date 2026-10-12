@@ -59,6 +59,14 @@ export const api = {
     method: 'POST', 
     body: JSON.stringify({ userId, action: 'change-password', ...passwordData }) 
   }),
+  updateUserProfile: (userId, profileData) => request(`/auth/profile/${encodeURIComponent(userId)}`, { 
+    method: 'PUT', 
+    body: JSON.stringify(profileData) 
+  }),
+  updateProfile: (userId, profileData) => request(`/auth/profile/${encodeURIComponent(userId)}`, { 
+    method: 'PUT', 
+    body: JSON.stringify(profileData) 
+  }),
 
   // 1. REGISTRATION ( CUSTOMER )
   getCustomers: (userId) => request(`/customers${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),

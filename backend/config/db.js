@@ -148,6 +148,18 @@ export const initDB = async () => {
       // Column already exists, ignore
     }
 
+    try {
+      await connection.query(`ALTER TABLE users MODIFY COLUMN constitution VARCHAR(100) DEFAULT 'Private Limited';`);
+    } catch (e) {
+      // Ignore
+    }
+
+    try {
+      await connection.query(`ALTER TABLE users MODIFY COLUMN registration_type VARCHAR(100) DEFAULT 'Regular';`);
+    } catch (e) {
+      // Ignore
+    }
+
     await connection.query(`
       CREATE TABLE IF NOT EXISTS customers (
         id VARCHAR(50) PRIMARY KEY,

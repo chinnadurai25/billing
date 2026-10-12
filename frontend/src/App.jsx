@@ -460,6 +460,7 @@ function AppContent() {
         companyAddress: loggedInUser.companyAddress || loggedInUser.company_address || '',
         state: loggedInUser.state || 'Tamil Nadu',
         constitution: loggedInUser.constitution || 'Private Limited',
+        registrationType: loggedInUser.registrationType || loggedInUser.registration_type || 'Regular',
         status: loggedInUser.status || 'Active',
         companyLogo: userLogo || null
       };

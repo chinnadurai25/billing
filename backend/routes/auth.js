@@ -270,6 +270,7 @@ router.post('/login', async (req, res) => {
         gstNumber: foundUser.gst_number || foundUser.gstNumber,
         panNumber: foundUser.pan_number || foundUser.panNumber,
         constitution: foundUser.constitution,
+        registrationType: foundUser.registration_type || foundUser.registrationType || 'Regular',
         username: foundUser.username,
         status: foundUser.status || 'Active',
         companyLogo: foundUser.company_logo || foundUser.companyLogo || null
@@ -291,52 +292,133 @@ router.post('/admin/login', async (req, res) => {
   res.status(401).json({ success: false, message: 'Invalid Admin Credentials' });
 });
 
-// 4. Update User Profile Settings
-router.put('/profile/:id', async (req, res) => {
+// 4. Update User Profile Settings (Supports PUT & POST, with /:id or ID in payload)
+router.all(['/profile/:id', '/profile', '/update-profile/:id', '/update-profile'], async (req, res) => {
   try {
-    const userId = req.params.id;
+    const targetUserId = req.params.id || req.body?.id || req.body?.userId;
     const {
       fullName, email, contactNumber, companyName, constitution,
       companyAddress, state, gstNumber, registrationType, panNumber, companyLogo
     } = req.body;
 
+    const lookupEmail = (req.body?.originalEmail || email || '').trim();
+    const lookupEmailLower = lookupEmail.toLowerCase();
+
+    let freshUser = null;
+
     if (isConnected()) {
       const db = getDB();
-      await db.query(
-        `UPDATE users SET 
-          full_name = ?, email = ?, contact_number = ?, company_name = ?, constitution = ?, 
-          company_address = ?, state = ?, gst_number = ?, registration_type = ?, pan_number = ?, company_logo = ?
-         WHERE id = ?`,
-        [fullName, email, contactNumber, companyName, constitution || 'Private Limited', companyAddress, state, gstNumber, registrationType || 'Regular', panNumber, companyLogo || null, userId]
+
+      // Retrieve existing record to preserve non-empty data if incoming fields are undefined/null
+      const [existingRows] = await db.query(
+        'SELECT * FROM users WHERE id = ? OR email = ? OR LOWER(email) = ? OR username = ? LIMIT 1',
+        [targetUserId, lookupEmail, lookupEmailLower, targetUserId]
       );
-    } else {
-      const idx = fallbackStore.users.findIndex(u => u.id === userId);
-      if (idx !== -1) {
-        fallbackStore.users[idx] = {
-          ...fallbackStore.users[idx],
-          fullName, email, contactNumber, companyName, constitution,
-          companyAddress, state, gstNumber, registrationType, panNumber, companyLogo
-        };
+
+      const existing = existingRows[0] || {};
+      const finalFullName = (fullName ?? existing.full_name ?? existing.fullName ?? 'Business User').toString().trim();
+      const finalEmail = (email ?? existing.email ?? lookupEmail).toString().trim();
+      const finalContact = (contactNumber ?? existing.contact_number ?? existing.contactNumber ?? '').toString().trim();
+      const finalCompany = (companyName ?? existing.company_name ?? existing.companyName ?? 'My Enterprise').toString().trim();
+      const finalConstitution = (constitution ?? existing.constitution ?? 'Private Limited').toString().trim();
+      const finalAddress = (companyAddress ?? existing.company_address ?? existing.companyAddress ?? '').toString().trim();
+      const finalState = (state ?? existing.state ?? 'Tamil Nadu').toString().trim();
+      const finalGst = (gstNumber ?? existing.gst_number ?? existing.gstNumber ?? 'URP').toString().trim();
+      const finalRegType = (registrationType ?? existing.registration_type ?? existing.registrationType ?? 'Regular').toString().trim();
+      const finalPan = (panNumber ?? existing.pan_number ?? existing.panNumber ?? 'N/A').toString().trim();
+      const finalLogo = companyLogo !== undefined ? companyLogo : (existing.company_logo || existing.companyLogo || null);
+      const actualId = existing.id || targetUserId || `USR-${Date.now()}`;
+
+      if (existingRows.length > 0) {
+        await db.query(
+          `UPDATE users SET 
+            full_name = ?, email = ?, contact_number = ?, company_name = ?, constitution = ?, 
+            company_address = ?, state = ?, gst_number = ?, registration_type = ?, pan_number = ?, company_logo = ?
+           WHERE id = ? OR email = ? OR LOWER(email) = ? OR username = ?`,
+          [
+            finalFullName, finalEmail, finalContact, finalCompany, finalConstitution,
+            finalAddress, finalState, finalGst, finalRegType, finalPan, finalLogo,
+            actualId, lookupEmail, lookupEmailLower, actualId
+          ]
+        );
+      } else {
+        const defaultHash = await bcrypt.hash('password123', 10);
+        await db.query(
+          `INSERT INTO users (id, full_name, email, contact_number, company_name, constitution, company_address, state, gst_number, registration_type, pan_number, username, password_hash, company_logo, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')`,
+          [
+            actualId, finalFullName, finalEmail, finalContact, finalCompany, finalConstitution,
+            finalAddress, finalState, finalGst, finalRegType, finalPan, finalEmail || actualId,
+            defaultHash, finalLogo
+          ]
+        );
       }
+
+      const [refreshedRows] = await db.query(
+        'SELECT * FROM users WHERE id = ? OR email = ? OR LOWER(email) = ? LIMIT 1',
+        [actualId, finalEmail, finalEmail.toLowerCase()]
+      );
+      if (refreshedRows.length > 0) {
+        freshUser = refreshedRows[0];
+      }
+    }
+
+    // Synchronize fallbackStore memory store as well
+    const fIdx = fallbackStore.users.findIndex(u => 
+      (targetUserId && u.id === targetUserId) || 
+      (lookupEmail && u.email && u.email.toLowerCase() === lookupEmailLower) ||
+      (email && u.email && u.email.toLowerCase() === (email || '').toLowerCase())
+    );
+
+    const mergedUser = {
+      id: freshUser?.id || targetUserId || (fIdx !== -1 ? fallbackStore.users[fIdx].id : `USR-${Date.now()}`),
+      fullName: freshUser?.full_name || fullName || (fIdx !== -1 ? fallbackStore.users[fIdx].fullName : 'Business User'),
+      email: freshUser?.email || email || lookupEmail,
+      contactNumber: freshUser?.contact_number || contactNumber || '',
+      companyName: freshUser?.company_name || companyName || 'My Enterprise',
+      constitution: freshUser?.constitution || constitution || 'Private Limited',
+      companyAddress: freshUser?.company_address || companyAddress || '',
+      state: freshUser?.state || state || 'Tamil Nadu',
+      gstNumber: freshUser?.gst_number || gstNumber || 'URP',
+      registrationType: freshUser?.registration_type || registrationType || 'Regular',
+      panNumber: freshUser?.pan_number || panNumber || 'N/A',
+      username: freshUser?.username || email || lookupEmail,
+      status: freshUser?.status || (fIdx !== -1 ? fallbackStore.users[fIdx].status : 'Active'),
+      companyLogo: (freshUser?.company_logo !== undefined ? freshUser.company_logo : companyLogo) || null
+    };
+
+    if (fIdx !== -1) {
+      fallbackStore.users[fIdx] = {
+        ...fallbackStore.users[fIdx],
+        ...mergedUser,
+        full_name: mergedUser.fullName,
+        company_name: mergedUser.companyName,
+        company_address: mergedUser.companyAddress,
+        gst_number: mergedUser.gstNumber,
+        pan_number: mergedUser.panNumber,
+        contact_number: mergedUser.contactNumber,
+        registration_type: mergedUser.registrationType,
+        company_logo: mergedUser.companyLogo
+      };
+    } else {
+      fallbackStore.users.push({
+        ...mergedUser,
+        full_name: mergedUser.fullName,
+        company_name: mergedUser.companyName,
+        company_address: mergedUser.companyAddress,
+        gst_number: mergedUser.gstNumber,
+        pan_number: mergedUser.panNumber,
+        contact_number: mergedUser.contactNumber,
+        registration_type: mergedUser.registrationType,
+        company_logo: mergedUser.companyLogo,
+        passwordHash: await bcrypt.hash('password123', 10)
+      });
     }
 
     res.json({
       success: true,
       message: 'User Business Profile updated successfully',
-      user: {
-        id: userId,
-        fullName,
-        email,
-        contactNumber,
-        companyName,
-        constitution,
-        companyAddress,
-        state,
-        gstNumber,
-        registrationType,
-        panNumber,
-        companyLogo: companyLogo || null
-      }
+      user: mergedUser
     });
   } catch (error) {
     console.error('Update Profile Error:', error);

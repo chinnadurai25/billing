@@ -352,6 +352,26 @@ export const UserSettings = ({
     companyLogo: user?.companyLogo || user?.company_logo || null
   });
 
+  // Keep profile form in sync when user prop changes or re-renders
+  useEffect(() => {
+    if (user) {
+      setProfileForm(prev => ({
+        ...prev,
+        fullName: user.fullName || user.full_name || prev.fullName || '',
+        email: user.email || prev.email || '',
+        contactNumber: user.contactNumber || user.contact_number || prev.contactNumber || '',
+        companyName: user.companyName || user.company_name || prev.companyName || '',
+        constitution: user.constitution || prev.constitution || 'Private Limited',
+        companyAddress: user.companyAddress || user.company_address || prev.companyAddress || '',
+        state: user.state || prev.state || 'Tamil Nadu',
+        gstNumber: user.gstNumber || user.gst_number || prev.gstNumber || '',
+        registrationType: user.registrationType || user.registration_type || prev.registrationType || 'Regular',
+        panNumber: user.panNumber || user.pan_number || prev.panNumber || '',
+        companyLogo: user.companyLogo || user.company_logo || prev.companyLogo || null
+      }));
+    }
+  }, [user]);
+
   // 2. Billing & Invoice Preferences State
   const [billingPrefs, setBillingPrefs] = useState(() => {
     try {
@@ -514,45 +534,58 @@ export const UserSettings = ({
 
     setIsSaving(true);
     try {
-      const updatedUser = {
-        ...user,
-        fullName: profileForm.fullName,
-        email: profileForm.email,
-        contactNumber: profileForm.contactNumber,
-        companyName: profileForm.companyName,
-        constitution: profileForm.constitution,
-        companyAddress: profileForm.companyAddress,
-        state: profileForm.state,
-        gstNumber: profileForm.gstNumber,
-        registrationType: profileForm.registrationType,
-        panNumber: profileForm.panNumber,
-        companyLogo: profileForm.companyLogo || null
+      const activeUserId = user?.id || (user?.email ? `USR-${btoa(user.email).replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}` : 'USR-901');
+      const payload = {
+        ...profileForm,
+        id: activeUserId,
+        userId: activeUserId,
+        originalEmail: user?.email || profileForm.email
       };
 
-      // Persist to backend if available
-      if (user?.id) {
-        try {
-          await api.updateUserProfile(user.id, profileForm);
-        } catch (apiErr) {
-          console.warn('Backend update notice:', apiErr);
+      // Persist to backend database
+      let serverUser = null;
+      try {
+        const res = await api.updateUserProfile(activeUserId, payload);
+        if (res && res.success && res.user) {
+          serverUser = res.user;
+        } else if (res && !res.success && !res.fallback) {
+          console.warn('Backend update notice:', res?.message);
         }
+      } catch (apiErr) {
+        console.warn('Backend update notice:', apiErr);
       }
+
+      const updatedUser = {
+        ...user,
+        ...(serverUser || {}),
+        fullName: profileForm.fullName.trim(),
+        email: (profileForm.email || user?.email || '').trim(),
+        contactNumber: profileForm.contactNumber.trim(),
+        companyName: profileForm.companyName.trim(),
+        constitution: profileForm.constitution || 'Private Limited',
+        companyAddress: profileForm.companyAddress.trim(),
+        state: profileForm.state || 'Tamil Nadu',
+        gstNumber: profileForm.gstNumber.trim().toUpperCase(),
+        registrationType: profileForm.registrationType || 'Regular',
+        panNumber: profileForm.panNumber.trim().toUpperCase(),
+        companyLogo: profileForm.companyLogo || null
+      };
 
       // Update local storage and app state with persistent logo key & registered users update
       try {
         localStorage.setItem('billson_active_user', JSON.stringify(updatedUser));
         
         if (profileForm.companyLogo) {
-          if (user?.id) localStorage.setItem(`billson_user_logo_${user.id}`, profileForm.companyLogo);
+          if (updatedUser.id) localStorage.setItem(`billson_user_logo_${updatedUser.id}`, profileForm.companyLogo);
           if (profileForm.email) localStorage.setItem(`billson_user_logo_${profileForm.email.toLowerCase()}`, profileForm.companyLogo);
         } else {
-          if (user?.id) localStorage.removeItem(`billson_user_logo_${user.id}`);
+          if (updatedUser.id) localStorage.removeItem(`billson_user_logo_${updatedUser.id}`);
           if (profileForm.email) localStorage.removeItem(`billson_user_logo_${profileForm.email.toLowerCase()}`);
         }
 
         const registered = JSON.parse(localStorage.getItem('billson_registered_users') || '[]');
         const userEmail = (profileForm.email || user?.email || '').toLowerCase();
-        const userId = user?.id;
+        const userId = updatedUser.id || user?.id;
         const foundIdx = registered.findIndex(u => (userId && u.id === userId) || (userEmail && u.email && u.email.toLowerCase() === userEmail));
         if (foundIdx !== -1) {
           registered[foundIdx] = { ...registered[foundIdx], ...updatedUser };
