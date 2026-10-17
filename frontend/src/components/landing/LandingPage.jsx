@@ -1,122 +1,120 @@
 import React from 'react';
 import { 
   Receipt, ShieldCheck, ArrowRight, CheckCircle2, TrendingUp, 
-  Sparkles, FileText, Lock, Users, Zap, Layers, BarChart3, ChevronRight
+  Sparkles, FileText, Lock, Users, Zap, Layers, BarChart3, ChevronRight, Building2, Check
 } from 'lucide-react';
 
 export const LandingPage = ({ setCurrentView }) => {
   return (
-    <div className="relative min-h-[calc(100vh-4rem)] bg-dark-950 text-slate-100 overflow-hidden bg-grid-pattern">
+    <div className="relative min-h-[calc(100vh-4rem)] bg-[#f8fafc] text-slate-900 overflow-hidden bg-grid-pattern">
       
-      {/* Ambient Floating Gradient Orbs */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-500/15 rounded-full blur-[140px] pointer-events-none animate-pulse-glow" />
-      <div className="absolute top-10 left-10 w-96 h-96 bg-brand-accent/15 rounded-full blur-[120px] pointer-events-none animate-float-slow" />
-      <div className="absolute bottom-10 right-10 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[150px] pointer-events-none animate-float-medium" />
+      {/* Subtle Ambient Glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-100/60 rounded-full blur-[140px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-24 relative z-10">
         
         {/* Top Floating Badge */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card border border-brand-500/30 text-slate-200 text-xs font-medium shadow-lg hover:border-brand-500/60 transition-all cursor-default">
-            <Sparkles className="w-4 h-4 text-brand-accent animate-spin-slow" />
-            <span>Next-Gen Tax SaaS Platform for Indian & International Businesses</span>
-            <span className="bg-brand-500/20 text-brand-300 px-2 py-0.5 rounded-full text-[10px] font-mono border border-brand-500/40">v2.4 GST Compliant</span>
+        <div className="flex justify-center mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-blue-200 text-slate-800 text-xs font-semibold shadow-xs">
+            <Sparkles className="w-4 h-4 text-blue-700" />
+            <span>Official GST Billing & Tax SaaS Platform</span>
+            <span className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold">GST Compliant</span>
           </div>
         </div>
 
         {/* Main Hero Copy */}
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-white font-serif leading-[1.15] mb-6">
+          <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-slate-900 font-serif leading-[1.18] mb-6">
             Intelligent Tax Billing & <br className="hidden sm:inline" />
-            <span className="gradient-text-indigo">SaaS Financial Governance</span>
+            <span className="text-[#1b4b8a]">Enterprise Financial Portal</span>
           </h1>
 
-          <p className="text-base sm:text-xl text-slate-300 max-w-2xl mx-auto font-light leading-relaxed mb-10">
-            Streamline customer billing, automated GST calculation (CGST/SGST/IGST), GSTR-1 filings, and real-time enterprise tax audit trails with unmatched elegance.
+          <p className="text-base sm:text-lg text-slate-700 max-w-2xl mx-auto font-medium leading-relaxed mb-10">
+            Streamline customer billing, automated GST calculation (CGST/SGST/IGST), GSTR-1 filings, and real-time enterprise tax audit trails with high accuracy.
           </p>
 
           {/* Action CTAs */}
           <div className="flex flex-wrap items-center justify-center gap-4 mb-16">
             <button
               onClick={() => setCurrentView('user-register')}
-              className="flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-accent hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/50 transition-all duration-300 transform hover:-translate-y-1"
+              className="flex items-center gap-2 px-7 py-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-sm shadow-md shadow-blue-700/25 transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
             >
               Get Started Free <ArrowRight className="w-4 h-4" />
             </button>
 
             <button
               onClick={() => setCurrentView('user-login')}
-              className="flex items-center gap-2 px-6 py-3.5 rounded-2xl glass-card hover:bg-slate-800/80 border border-slate-700 text-slate-200 font-semibold text-sm transition-all duration-300 transform hover:-translate-y-0.5"
+              className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold text-sm shadow-xs transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
             >
-              <Users className="w-4 h-4 text-indigo-400" /> User Portal Login
+              <Users className="w-4 h-4 text-blue-700" /> User Portal Login
             </button>
           </div>
         </div>
 
         {/* Interactive Preview Mockup Card */}
-        <div className="relative max-w-5xl mx-auto rounded-3xl p-1 bg-gradient-to-b from-indigo-500/30 via-slate-800/40 to-transparent shadow-2xl">
-          <div className="glass-card rounded-[22px] p-6 sm:p-8 overflow-hidden relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+        <div className="relative max-w-5xl mx-auto rounded-2xl p-1 bg-gradient-to-b from-blue-200/50 via-slate-200 to-transparent shadow-xl">
+          <div className="bg-white rounded-xl p-6 sm:p-8 border border-slate-200 overflow-hidden relative shadow-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                <div className="w-3 h-3 rounded-full bg-amber-500/80" />
-                <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-                <span className="text-xs text-slate-400 font-mono ml-2">app.billson.io/dashboard</span>
+                <div className="w-3 h-3 rounded-full bg-red-400" />
+                <div className="w-3 h-3 rounded-full bg-amber-400" />
+                <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                <span className="text-xs text-slate-600 font-mono ml-2 font-semibold">app.billson.io/dashboard</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/30 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live GST Sync
+                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-mono font-bold border border-emerald-200 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span> Live GST Sync Active
                 </span>
               </div>
             </div>
 
             {/* Mock Dashboard Hero Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                <p className="text-xs text-slate-400 font-medium">Monthly Billed Revenue</p>
-                <h3 className="text-2xl font-bold font-mono text-white mt-1">₹10,50,000</h3>
-                <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1 mt-1">
-                  <TrendingUp className="w-3 h-3" /> +18.4% vs last month
+              <div className="p-5 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-xs text-slate-600 font-bold">Monthly Billed Revenue</p>
+                <h3 className="text-2xl font-bold font-mono text-slate-900 mt-1">₹10,50,000</h3>
+                <span className="text-[11px] text-emerald-700 font-bold font-mono flex items-center gap-1 mt-1">
+                  <TrendingUp className="w-3.5 h-3.5" /> +18.4% vs last month
                 </span>
               </div>
-              <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                <p className="text-xs text-slate-400 font-medium">Total GST Tax Collected</p>
-                <h3 className="text-2xl font-bold font-mono text-indigo-300 mt-1">₹1,89,000</h3>
-                <span className="text-[11px] text-slate-400 font-mono mt-1 block">CGST 9% + SGST 9%</span>
+              <div className="p-5 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-xs text-slate-600 font-bold">Total GST Tax Collected</p>
+                <h3 className="text-2xl font-bold font-mono text-blue-900 mt-1">₹1,89,000</h3>
+                <span className="text-[11px] text-slate-600 font-bold font-mono mt-1 block">CGST 9% + SGST 9%</span>
               </div>
-              <div className="p-4 rounded-2xl bg-dark-900/80 border border-slate-800">
-                <p className="text-xs text-slate-400 font-medium">Tax Invoices Generated</p>
-                <h3 className="text-2xl font-bold font-mono text-white mt-1">84 Invoices</h3>
-                <span className="text-[11px] text-emerald-400 font-mono mt-1 block">100% Tax Compliant</span>
+              <div className="p-5 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-xs text-slate-600 font-bold">Tax Invoices Generated</p>
+                <h3 className="text-2xl font-bold font-mono text-slate-900 mt-1">84 Invoices</h3>
+                <span className="text-[11px] text-emerald-700 font-bold font-mono mt-1 block">100% Tax Compliant</span>
               </div>
             </div>
 
             {/* Graphic Floating Elements */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex items-center justify-between">
+              <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200">
                     <Receipt className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-semibold text-white">Acme Global Solutions</h4>
-                    <p className="text-[10px] text-slate-400 font-mono">INV-2026-089 • GSTIN 29AABCA...</p>
+                    <h4 className="text-xs font-bold text-slate-900">Acme Global Solutions</h4>
+                    <p className="text-[11px] text-slate-600 font-mono">INV-2026-089 • GSTIN 29AABCA...</p>
                   </div>
                 </div>
-                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">₹59,000 Paid</span>
+                <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">₹59,000 Paid</span>
               </div>
 
-              <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex items-center justify-between">
+              <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-semibold text-white">Admin Security Access</h4>
-                    <p className="text-[10px] text-slate-400 font-mono">256-bit SSL Audit Active</p>
+                    <h4 className="text-xs font-bold text-slate-900">Enterprise Security Access</h4>
+                    <p className="text-[11px] text-slate-600 font-mono">256-bit SSL Audit Active</p>
                   </div>
                 </div>
-                <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">Gold Portal</span>
+                <span className="text-xs font-mono font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">Verified</span>
               </div>
             </div>
 
@@ -124,33 +122,33 @@ export const LandingPage = ({ setCurrentView }) => {
         </div>
 
         {/* Feature Highlights Grid */}
-        <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl glass-card glass-card-hover">
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mb-4">
+        <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-6 rounded-xl bg-white border border-slate-200 shadow-xs hover:border-blue-300 transition-all">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center mb-4">
               <FileText className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Automated GST Invoicing</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <h3 className="text-base font-bold text-slate-900 mb-2">Automated GST Invoicing</h3>
+            <p className="text-xs font-medium text-slate-600 leading-relaxed">
               Instant tax calculation for intrastate (CGST+SGST) and interstate (IGST) invoices with customizable line items and HSN/SAC lookups.
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl glass-card glass-card-hover">
-            <div className="w-12 h-12 rounded-xl bg-brand-accent/10 text-brand-accent border border-brand-accent/20 flex items-center justify-center mb-4">
+          <div className="p-6 rounded-xl bg-white border border-slate-200 shadow-xs hover:border-blue-300 transition-all">
+            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center mb-4">
               <Layers className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Multi-Company Architecture</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <h3 className="text-base font-bold text-slate-900 mb-2">Multi-Company Architecture</h3>
+            <p className="text-xs font-medium text-slate-600 leading-relaxed">
               Manage multiple company entities, distinct GSTIN numbers, state addresses, and tax certificates under one unified account.
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl glass-card-gold glass-card-gold-hover">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center mb-4">
+          <div className="p-6 rounded-xl bg-white border border-slate-200 shadow-xs hover:border-amber-300 transition-all">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center mb-4">
               <Lock className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-amber-200 mb-2">Dedicated Admin Console</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <h3 className="text-base font-bold text-slate-900 mb-2">Dedicated Admin Console</h3>
+            <p className="text-xs font-medium text-slate-600 leading-relaxed">
               Powerful admin interface for managing system users, tracking nationwide tax collections, user plan limits, and immutable audit logs.
             </p>
           </div>

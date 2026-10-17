@@ -603,7 +603,7 @@ function AppContent() {
   }, [userData, handleLogout, setCurrentView]);
 
   return (
-    <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col selection:bg-brand-500 selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col selection:bg-blue-700 selection:text-white">
       
       {/* Top Main Navigation Header */}
       <Header 
@@ -629,7 +629,7 @@ function AppContent() {
               closeMobileSidebar={() => setIsMobileSidebarOpen(false)}
               invoicesCount={invoices.length}
             />
-            <main className="flex-1 min-w-0 bg-dark-950 overflow-y-auto">
+            <main className="flex-1 min-w-0 bg-[#f8fafc] overflow-y-auto">
               <UserDashboard 
                 activeTab={userActiveTab}
                 setActiveTab={setUserActiveTab}
@@ -661,7 +661,7 @@ function AppContent() {
               isMobileOpen={isMobileSidebarOpen}
               closeMobileSidebar={() => setIsMobileSidebarOpen(false)}
             />
-            <main className="flex-1 min-w-0 bg-dark-950 overflow-y-auto">
+            <main className="flex-1 min-w-0 bg-[#f8fafc] overflow-y-auto">
               <AdminDashboard 
                 activeTab={adminActiveTab}
                 setActiveTab={setAdminActiveTab}

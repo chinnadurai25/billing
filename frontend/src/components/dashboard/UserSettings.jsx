@@ -920,21 +920,21 @@ export const UserSettings = ({
   return (
     <div className="space-y-6 animate-slide-up">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-dark-900 via-indigo-950/60 to-dark-900 p-6 rounded-3xl border border-indigo-500/20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/20 text-brand-300 font-mono font-bold border border-brand-500/30">
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-bold border border-blue-200">
               ACCOUNT & SYSTEM SETTINGS
             </span>
           </div>
-          <h2 className="text-2xl font-bold text-white font-serif">Manage App Settings & Details</h2>
-          <p className="text-xs text-slate-300 font-mono mt-0.5">Edit company details, tax rules, invoice defaults, security, and export data</p>
+          <h2 className="text-2xl font-bold text-slate-900 font-serif">Manage App Settings & Details</h2>
+          <p className="text-xs text-slate-600 font-sans mt-0.5">Edit company details, tax rules, invoice defaults, security, and export data</p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => handleExportAllData('json')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-white transition-all cursor-pointer shadow-xs"
           >
             <Download className="w-4 h-4 text-emerald-400" /> Export Backup
           </button>
@@ -945,8 +945,8 @@ export const UserSettings = ({
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
         {/* Left Sub-Tab Navigation */}
-        <div className="glass-card rounded-3xl p-4 border border-slate-800 h-fit space-y-1">
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 py-2 font-mono">
+        <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs h-fit space-y-1">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 py-2 font-mono">
             Settings Category
           </p>
           {navTabs.map(tab => {
@@ -956,13 +956,13 @@ export const UserSettings = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveSettingsTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? 'bg-gradient-to-r from-brand-600/30 to-indigo-600/20 text-indigo-300 border border-brand-500/40 font-bold shadow-md shadow-indigo-600/10'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 border border-transparent'
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
                 <span>{tab.label}</span>
               </button>
             );
@@ -974,30 +974,30 @@ export const UserSettings = ({
           
           {/* TAB 1: BUSINESS & COMPANY PROFILE */}
           {activeSettingsTab === 'profile' && (
-            <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-6">
-              <div className="pb-4 border-b border-slate-800">
-                <h3 className="text-lg font-bold text-white font-serif flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-indigo-400" /> Company Business Profile
+            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+              <div className="pb-4 border-b border-slate-200">
+                <h3 className="text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-blue-600" /> Company Business Profile
                 </h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">Edit official business details that appear on printed GST invoices</p>
+                <p className="text-xs text-slate-500 font-sans mt-0.5">Edit official business details that appear on printed GST invoices</p>
               </div>
 
               <form onSubmit={handleSaveProfile} className="space-y-6">
                 
                 {/* Logo Upload Section */}
-                <div className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex flex-col sm:flex-row items-center gap-5">
-                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-slate-950 border border-slate-700 flex items-center justify-center shrink-0">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center gap-5">
+                  <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-white border border-slate-300 flex items-center justify-center shrink-0">
                     {profileForm.companyLogo && !logoErr ? (
                       <img src={profileForm.companyLogo} alt="Company Logo" onError={() => setLogoErr(true)} className="w-full h-full object-contain p-2" />
                     ) : (
-                      <Building2 className="w-10 h-10 text-slate-600" />
+                      <Building2 className="w-10 h-10 text-slate-400" />
                     )}
                   </div>
                   <div className="space-y-2 text-center sm:text-left flex-1">
-                    <h4 className="text-xs font-bold text-white">Company Brand Logo</h4>
-                    <p className="text-[11px] text-slate-400">PNG, JPG or WebP (Max 2MB). Printed at top header of tax invoices.</p>
+                    <h4 className="text-xs font-bold text-slate-900">Company Brand Logo</h4>
+                    <p className="text-[11px] text-slate-500">PNG, JPG or WebP (Max 2MB). Printed at top header of tax invoices.</p>
                     <div className="flex flex-wrap gap-2 justify-center sm:justify-start pt-1">
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer transition-all">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer transition-all shadow-xs">
                         <Camera className="w-3.5 h-3.5" /> Upload Logo
                         <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                       </label>
@@ -1005,7 +1005,7 @@ export const UserSettings = ({
                         <button
                           type="button"
                           onClick={() => setProfileForm(prev => ({ ...prev, companyLogo: null }))}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 text-xs font-semibold transition-all cursor-pointer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-semibold transition-all cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Remove
                         </button>

@@ -311,18 +311,18 @@ export const AdminDashboard = ({
     <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
       
       {/* Super Admin Welcome Banner */}
-      <div className="glass-card-gold rounded-3xl p-6 sm:p-8 border border-amber-500/30 bg-gradient-to-r from-amber-950/40 via-dark-900 to-amber-950/20 relative overflow-hidden">
+      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-xs relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono font-bold flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> SUPER ADMIN SYSTEM PORTAL
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-700" /> SUPER ADMIN SYSTEM PORTAL
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white font-serif">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 font-serif">
               Platform Administration & Governance
             </h1>
-            <p className="text-xs sm:text-sm text-amber-200/80 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
               Supervising {totalRegisteredUsers} enterprise tenants, GST compliance feeds, and system audit logs.
             </p>
           </div>
@@ -330,7 +330,7 @@ export const AdminDashboard = ({
           <div className="flex items-center gap-3">
             <button
               onClick={() => addToast('Full platform security audit log exported to CSV', 'success')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition-all cursor-pointer"
             >
               <Activity className="w-4 h-4" /> Download Audit Trail
             </button>
@@ -345,39 +345,39 @@ export const AdminDashboard = ({
           {/* 3 Platform Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <div className="p-5 rounded-2xl glass-card-gold border border-amber-500/30">
+            <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-amber-200/80 font-medium">Registered SaaS Users</span>
-                <Users className="w-5 h-5 text-amber-400" />
+                <span className="text-xs text-slate-600 font-bold">Registered SaaS Users</span>
+                <Users className="w-5 h-5 text-blue-700" />
               </div>
-              <h3 className="text-2xl font-bold font-mono text-white">{totalRegisteredUsers}</h3>
-              <p className="text-xs text-amber-400/80 font-mono mt-1">Live MySQL DB Synchronized</p>
+              <h3 className="text-2xl font-bold font-mono text-slate-900">{totalRegisteredUsers}</h3>
+              <p className="text-xs text-slate-500 font-mono font-medium mt-1">Live MySQL DB Synchronized</p>
             </div>
 
-            <div className="p-5 rounded-2xl glass-card-gold border border-amber-500/30">
+            <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-amber-200/80 font-medium">Active Enterprise Companies</span>
-                <Building2 className="w-5 h-5 text-emerald-400" />
+                <span className="text-xs text-slate-600 font-bold">Active Enterprise Companies</span>
+                <Building2 className="w-5 h-5 text-emerald-600" />
               </div>
-              <h3 className="text-2xl font-bold font-mono text-emerald-400">{activeCompanies}</h3>
-              <p className="text-xs text-emerald-500/80 font-mono mt-1">100% Verified Legal Entities</p>
+              <h3 className="text-2xl font-bold font-mono text-emerald-800">{activeCompanies}</h3>
+              <p className="text-xs text-emerald-700 font-mono font-medium mt-1">100% Verified Legal Entities</p>
             </div>
 
             <div 
               onClick={() => setShowAdminInvoicesModal(true)}
-              className="p-5 rounded-2xl glass-card-gold border border-indigo-500/50 bg-indigo-950/20 hover:bg-indigo-900/30 cursor-pointer transition-all duration-300 transform hover:-translate-y-1 shadow-lg hover:shadow-indigo-500/20 group"
+              className="p-5 rounded-xl bg-white border border-blue-200 hover:border-blue-400 hover:bg-blue-50/40 cursor-pointer transition-all duration-200 shadow-xs group"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-indigo-300 font-bold group-hover:text-white transition-colors">Total Platform Invoices</span>
-                <FileText className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span className="text-xs text-blue-800 font-bold group-hover:text-blue-900 transition-colors">Total Platform Invoices</span>
+                <FileText className="w-5 h-5 text-blue-700 group-hover:scale-105 transition-transform" />
               </div>
               <div className="flex items-baseline justify-between">
-                <h3 className="text-2xl font-bold font-mono text-white">{invoices.length || totalGlobalInvoices}</h3>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold flex items-center gap-1 group-hover:bg-indigo-500 group-hover:text-white transition-all">
-                  Click to View & Download All Invoices →
+                <h3 className="text-2xl font-bold font-mono text-slate-900">{invoices.length || totalGlobalInvoices}</h3>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-bold flex items-center gap-1 group-hover:bg-blue-700 group-hover:text-white transition-all">
+                  View All &rarr;
                 </span>
               </div>
-              <p className="text-xs text-indigo-400 font-mono mt-2">Click to inspect and download all customer GST invoices</p>
+              <p className="text-xs text-slate-600 font-medium mt-2">Click to inspect and download all customer GST invoices</p>
             </div>
 
           </div>

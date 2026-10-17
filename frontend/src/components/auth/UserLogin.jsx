@@ -225,28 +225,27 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 py-12 bg-dark-950 relative overflow-hidden bg-grid-pattern">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 py-12 bg-[#f8fafc] relative overflow-hidden bg-grid-pattern">
       
-      {/* Background Orbs */}
-      <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-brand-500/10 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-brand-accent/10 rounded-full blur-[140px] pointer-events-none" />
+      {/* Background Soft Glow */}
+      <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-blue-100/50 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="w-full max-w-5xl glass-card rounded-3xl overflow-hidden border border-slate-800 shadow-2xl grid grid-cols-1 lg:grid-cols-12 relative z-10">
+      <div className="w-full max-w-5xl bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xl grid grid-cols-1 lg:grid-cols-12 relative z-10">
         
         {/* Left Side: Testimonials & SaaS Benefits */}
-        <div className="lg:col-span-5 p-8 sm:p-10 bg-gradient-to-br from-brand-900/60 via-dark-900 to-dark-950 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col justify-between relative overflow-hidden">
+        <div className="lg:col-span-5 p-8 sm:p-10 bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col justify-between relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-6">
-              <span className="w-8 h-8 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm border border-brand-500/30">
+              <span className="w-8 h-8 rounded-lg bg-blue-700 text-white flex items-center justify-center font-bold text-xs shadow-xs font-mono">
                 BS
               </span>
-              <span className="font-serif font-bold text-lg text-white">BillSon SaaS</span>
+              <span className="font-serif font-bold text-lg text-slate-900">BillSon SaaS</span>
             </div>
 
-            <h3 className="text-xl font-bold text-white mb-3">
+            <h3 className="text-xl font-bold text-slate-900 mb-3 leading-snug">
               Streamline Tax Filing & Customer Invoices in Seconds
             </h3>
-            <p className="text-xs text-slate-300 leading-relaxed mb-6">
+            <p className="text-xs text-slate-600 font-medium leading-relaxed mb-6">
               Empower your enterprise with real-time GST computation, GSTR compliance audit tools, and multi-currency billing.
             </p>
 
@@ -257,8 +256,8 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
                 "GSTR-1 & GSTR-3B quarterly tax export format",
                 "Client directory with GSTIN auto-lookup"
               ].map((feat, i) => (
-                <div key={i} className="flex items-center gap-2.5 text-xs text-slate-200">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div key={i} className="flex items-center gap-2.5 text-xs text-slate-800 font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>{feat}</span>
                 </div>
               ))}
@@ -266,32 +265,32 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
           </div>
 
           {/* SaaS Compliance Badge */}
-          <div className="p-4 rounded-2xl glass-card border border-indigo-500/20 bg-indigo-950/20 relative z-10">
+          <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs relative z-10">
             <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
-              <span className="text-xs font-bold text-white">GST Portal Sync Ready</span>
+              <Sparkles className="w-4 h-4 text-blue-700" />
+              <span className="text-xs font-bold text-slate-900">GST Portal Sync Ready</span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
+            <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
               256-bit encrypted authentication & SHA-256 digital audit trail logging.
             </p>
           </div>
         </div>
 
         {/* Right Side: Clean Login Form */}
-        <div className="lg:col-span-7 p-8 sm:p-12 flex flex-col justify-center">
+        <div className="lg:col-span-7 p-8 sm:p-12 bg-white flex flex-col justify-center">
           <div className="max-w-md mx-auto w-full">
             
             <div className="mb-6">
-              <span className="text-[10px] font-mono font-semibold uppercase px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <span className="text-[10px] font-mono font-bold uppercase px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200">
                 User / Client Portal
               </span>
-              <h2 className="text-2xl font-bold text-white font-serif mt-2">Welcome Back</h2>
-              <p className="text-xs text-slate-400 mt-1">Sign in to manage your tax invoices and customer records.</p>
+              <h2 className="text-2xl font-bold text-slate-900 font-serif mt-2">Welcome Back</h2>
+              <p className="text-xs text-slate-600 font-medium mt-1">Sign in to manage your tax invoices and customer records.</p>
             </div>
 
             {error && (
-              <div className="mb-4 p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-center gap-2 font-medium">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
@@ -299,34 +298,34 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
             <form onSubmit={handleLogin} className="space-y-4">
               
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Registered Email Address</label>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Registered Email Address</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs font-mono placeholder:text-slate-500"
+                    placeholder="name@company.com"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 font-medium focus:border-blue-600 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Password</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="password"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl glass-input text-xs placeholder:text-slate-500"
+                    placeholder="Enter password"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 font-medium focus:border-blue-600 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-white"
+                    className="absolute right-3 top-3 text-slate-500 hover:text-slate-800 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -334,19 +333,19 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
               </div>
 
               <div className="flex items-center justify-between text-xs pt-1">
-                <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                <label className="flex items-center gap-2 text-slate-700 font-medium cursor-pointer">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-slate-300 text-blue-700 focus:ring-blue-600"
                   />
                   <span>Remember me</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(true)}
-                  className="text-indigo-400 hover:text-indigo-300 hover:underline"
+                  className="text-blue-700 hover:text-blue-900 font-bold hover:underline cursor-pointer"
                 >
                   Forgot Password?
                 </button>
@@ -355,7 +354,7 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-md shadow-blue-700/20 transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -372,22 +371,22 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
 
             </form>
 
-            <div className="mt-6 text-center text-xs text-slate-400">
+            <div className="mt-6 text-center text-xs text-slate-600 font-medium">
               Don't have an account yet?{' '}
               <button
                 onClick={() => setCurrentView('user-register')}
-                className="text-indigo-400 font-semibold hover:underline"
+                className="text-blue-700 font-bold hover:underline cursor-pointer"
               >
                 Register Company Free
               </button>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500">
+            <div className="mt-4 pt-4 border-t border-slate-200 text-center text-xs text-slate-600">
               Platform Super Administrator?{' '}
               <button
                 type="button"
                 onClick={() => setCurrentView('admin-login')}
-                className="text-amber-400 font-semibold hover:underline"
+                className="text-amber-700 font-bold hover:underline cursor-pointer"
               >
                 Sign in to Admin Console &rarr;
               </button>
@@ -400,29 +399,29 @@ export const UserLogin = ({ onLoginSuccess, setCurrentView }) => {
 
       {/* Forgot Password Modal */}
       {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-md">
-          <div className="glass-card rounded-2xl p-6 max-w-sm w-full border border-slate-700 shadow-2xl animate-slide-up">
-            <h3 className="text-base font-bold text-white mb-2">Reset Password</h3>
-            <p className="text-xs text-slate-300 mb-4">Enter your registered email address to receive password reset instructions.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full border border-slate-200 shadow-2xl animate-slide-up">
+            <h3 className="text-base font-bold text-slate-900 mb-2">Reset Password</h3>
+            <p className="text-xs text-slate-600 mb-4 font-medium">Enter your registered email address to receive password reset instructions.</p>
             <form onSubmit={handleForgotPassword} className="space-y-4">
               <input
                 type="email"
                 value={forgotEmail}
                 onChange={(e) => setForgotEmail(e.target.value)}
                 placeholder="your.email@company.com"
-                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 font-medium focus:border-blue-600 focus:outline-none"
               />
               <div className="flex items-center gap-2 justify-end">
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold"
+                  className="px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold cursor-pointer"
                 >
                   Send Reset Link
                 </button>

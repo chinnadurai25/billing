@@ -7,10 +7,12 @@ import {
 import { useToast } from '../../context/ToastContext';
 
 export const generateNextInvoiceNumber = (invoices = [], user = null, documentType = 'Sales Invoice') => {
+  // Turn off auto sequence for Purchase Invoice (vendor bill number is entered manually)
+  if (documentType === 'Purchase Invoice') return '';
+
   let prefix = 'TP-2026-';
   if (documentType === 'Payment') prefix = 'PAY-2026-';
   else if (documentType === 'Receipt') prefix = 'REC-2026-';
-  else if (documentType === 'Purchase Invoice') prefix = 'PUR-2026-';
   else if (documentType === 'Estimate') prefix = 'EST-2026-';
   else if (documentType === 'Delivery Challan') prefix = 'DC-2026-';
 
@@ -737,7 +739,7 @@ export const QuickCreateInvoiceModal = ({
           }]);
         }
       } else {
-        setInvoiceNumber(generateNextInvoiceNumber(invoices, user, documentType));
+        setInvoiceNumber(documentType === 'Purchase Invoice' ? '' : generateNextInvoiceNumber(invoices, user, documentType));
         setStatus('Pending');
         setInvoiceDate(new Date().toISOString().split('T')[0]);
 
@@ -985,7 +987,14 @@ export const QuickCreateInvoiceModal = ({
       return;
     }
 
-    const finalInvNumber = invoiceNumber || generateNextInvoiceNumber(invoices, user, documentType);
+    if (documentType === 'Purchase Invoice' && (!invoiceNumber || !invoiceNumber.trim())) {
+      addToast('Please enter the Vendor Bill / Invoice Number', 'warning');
+      return;
+    }
+
+    const finalInvNumber = invoiceNumber && invoiceNumber.trim()
+      ? invoiceNumber.trim()
+      : (documentType === 'Purchase Invoice' ? '' : generateNextInvoiceNumber(invoices, user, documentType));
 
     const processedItems = items.map((item) => {
       const isServ = checkIsServiceItem(item, products);
@@ -1043,25 +1052,25 @@ export const QuickCreateInvoiceModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-dark-950/85 backdrop-blur-md overflow-y-auto">
-      <div className={`glass-card rounded-3xl p-6 sm:p-10 max-w-5xl w-full border backdrop-blur-2xl transition-all duration-500 animate-slide-up my-6 max-h-[92vh] overflow-y-auto ${theme.cardBg}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white rounded-2xl p-6 sm:p-10 max-w-5xl w-full border border-slate-200 shadow-2xl transition-all duration-300 animate-slide-up my-6 max-h-[92vh] overflow-y-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-6">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl border ${theme.iconBg}`}>
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold border uppercase tracking-wider ${theme.badge}`}>
-                  {theme.badgeText}
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold border border-blue-200 bg-blue-50 text-blue-800 uppercase tracking-wider">
+                  {documentType}
                 </span>
               </div>
-              <h3 className="text-xl font-bold text-white font-serif">
+              <h3 className="text-xl font-bold text-slate-900 font-serif">
                 {editingInvoice ? `Edit ${documentType}` : `Create New ${documentType}`}
               </h3>
-              <p className="text-xs text-slate-300 font-mono">
+              <p className="text-xs text-slate-600 font-mono">
                 {documentType === 'Payment'
                   ? 'Record Payment receipt, payment method, payer/payee details & purpose'
                   : documentType === 'Receipt'
@@ -1072,7 +1081,7 @@ export const QuickCreateInvoiceModal = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-700/50 transition-colors"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1208,31 +1217,44 @@ export const QuickCreateInvoiceModal = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-indigo-300">{documentType} Number (Auto Sequential)</label>
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceNumber(generateNextInvoiceNumber(invoices, user, documentType))}
-                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-mono flex items-center gap-1 cursor-pointer"
-                    title="Auto-calculate next sequential document number"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Auto Sequence
-                  </button>
+                  <label className="block text-xs font-semibold text-slate-800">
+                    {documentType === 'Purchase Invoice'
+                      ? 'Vendor Bill / Invoice Number *'
+                      : `${documentType} Number (Auto Sequential)`}
+                  </label>
+                  {documentType !== 'Purchase Invoice' && (
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceNumber(generateNextInvoiceNumber(invoices, user, documentType))}
+                      className="text-[10px] text-blue-600 hover:text-blue-700 font-mono flex items-center gap-1 cursor-pointer font-semibold"
+                      title="Auto-calculate next sequential document number"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Auto Sequence
+                    </button>
+                  )}
                 </div>
                 <input
                   type="text"
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono font-bold text-indigo-300 border-indigo-500/40 bg-indigo-950/20"
+                  placeholder={documentType === 'Purchase Invoice' ? 'Enter Vendor Bill / Invoice Number (e.g. BILL-9821)' : 'INV-2026-001'}
+                  required={documentType === 'Purchase Invoice'}
+                  className="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono font-bold text-slate-900 border-slate-300 bg-white"
                 />
+                {documentType === 'Purchase Invoice' && (
+                  <p className="text-[10px] text-slate-500 mt-1 font-sans">
+                    Manual Entry: Enter the original invoice/bill number provided by your vendor or supplier
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Document Date</label>
+                <label className="block text-xs font-semibold text-slate-800 mb-1">Document Date</label>
                 <input
                   type="date"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono text-white"
+                  className="w-full px-3 py-2 rounded-xl glass-input text-xs font-mono text-slate-900 border-slate-300 bg-white"
                 />
               </div>
             </div>

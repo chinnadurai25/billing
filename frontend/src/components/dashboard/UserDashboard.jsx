@@ -18,6 +18,7 @@ import { UserSettings } from './UserSettings';
 import SearchableDropdown from '../common/SearchableDropdown';
 import { INDIAN_STATES, INDIA_STATES_CITIES, GST_STATE_CODES } from '../../data/indiaData';
 import { decodeGstinDetails } from '../../utils/gstDecoder';
+import { GstPortalHub } from './GstPortalHub';
 
 export const UserDashboard = ({
   activeTab,
@@ -1155,15 +1156,15 @@ export const UserDashboard = ({
     <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
 
       {/* Quick Action Document Banner */}
-      <div className="glass-card rounded-3xl p-6 sm:p-8 border border-indigo-500/20 bg-gradient-to-r from-brand-900/40 via-dark-900 to-indigo-950/40 relative overflow-hidden">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
 
-          {/* Document Creation Buttons (Replacing Welcome Text area) */}
+          {/* Document Creation Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* 1. Sales Invoice Button */}
             <button
               onClick={() => onQuickCreateInvoice(null, 'Sales Invoice')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-emerald-400/30"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shadow-md shadow-blue-700/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <FileText className="w-4 h-4 text-white" /> + Sales Invoice
             </button>
@@ -1171,7 +1172,7 @@ export const UserDashboard = ({
             {/* 2. Purchase Invoice Button */}
             <button
               onClick={() => onQuickCreateInvoice(null, 'Purchase Invoice')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-blue-400/30"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-md shadow-slate-800/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <ShoppingBag className="w-4 h-4 text-white" /> + Purchase Invoice
             </button>
@@ -1179,7 +1180,7 @@ export const UserDashboard = ({
             {/* 3. Estimate Button */}
             <button
               onClick={() => onQuickCreateInvoice(null, 'Estimate')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-purple-400/30"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md shadow-purple-700/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <Calculator className="w-4 h-4 text-white" /> + Estimate
             </button>
@@ -1187,7 +1188,7 @@ export const UserDashboard = ({
             {/* 4. Delivery Challan Button */}
             <button
               onClick={() => onQuickCreateInvoice(null, 'Delivery Challan')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-lg shadow-amber-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-amber-400/30"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <Truck className="w-4 h-4 text-white" /> + Delivery Challan
             </button>
@@ -1195,7 +1196,7 @@ export const UserDashboard = ({
             {/* 5. Payment Button */}
             <button
               onClick={() => onQuickCreateInvoice(null, 'Payment')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-cyan-400/30"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs shadow-md shadow-teal-700/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <CreditCard className="w-4 h-4 text-white" /> + Payment
             </button>
@@ -1203,37 +1204,37 @@ export const UserDashboard = ({
             {/* 6. Receipt Button */}
             <button
               onClick={() => onQuickCreateInvoice(null, 'Receipt')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer border border-purple-400/30"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs shadow-md shadow-indigo-700/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
               <FileCheck className="w-4 h-4 text-white" /> + Receipt
             </button>
           </div>
 
           {/* Quick Registration Master Buttons */}
-          <div className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-800 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-200 shrink-0">
             <button
               onClick={handleOpenNewCustomer}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 shadow-xs transition-all cursor-pointer"
             >
-              <Users className="w-3.5 h-3.5 text-indigo-400" /> + Ledger
+              <Users className="w-3.5 h-3.5 text-blue-700" /> + Ledger
             </button>
             <button
               onClick={handleOpenNewBank}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 shadow-xs transition-all cursor-pointer"
             >
-              <Landmark className="w-3.5 h-3.5 text-amber-400" /> + Bank / Cash
+              <Landmark className="w-3.5 h-3.5 text-amber-600" /> + Bank / Cash
             </button>
             <button
               onClick={handleOpenNewProduct}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 shadow-xs transition-all cursor-pointer"
             >
-              <Package className="w-3.5 h-3.5 text-emerald-400" /> + Product
+              <Package className="w-3.5 h-3.5 text-emerald-600" /> + Product
             </button>
             <button
               onClick={handleOpenNewService}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 shadow-xs transition-all cursor-pointer"
             >
-              <Wrench className="w-3.5 h-3.5 text-cyan-400" /> + Service
+              <Wrench className="w-3.5 h-3.5 text-sky-600" /> + Service
             </button>
           </div>
 
@@ -1246,64 +1247,67 @@ export const UserDashboard = ({
 
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-medium">Total Billed Revenue</p>
-                <h3 className="text-2xl font-bold font-mono text-white mt-1">₹{totalSales.toLocaleString('en-IN')}</h3>
-                <p className="text-[11px] text-emerald-400 font-mono mt-1">↑ 14.2% from last month</p>
+                <p className="text-xs text-slate-600 font-bold">Total Billed Revenue</p>
+                <h3 className="text-2xl font-bold font-mono text-slate-900 mt-1">₹{totalSales.toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-emerald-700 font-semibold font-mono mt-1">↑ 14.2% from last month</p>
               </div>
-              <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700">
                 <DollarSign className="w-6 h-6" />
               </div>
             </div>
 
-            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-medium">Tax Collected (GST)</p>
-                <h3 className="text-2xl font-bold font-mono text-indigo-300 mt-1">₹{totalTax.toLocaleString('en-IN')}</h3>
-                <p className="text-[11px] text-indigo-400 font-mono mt-1">18% Compliant ITC</p>
+                <p className="text-xs text-slate-600 font-bold">Tax Collected (GST)</p>
+                <h3 className="text-2xl font-bold font-mono text-blue-900 mt-1">₹{totalTax.toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-blue-700 font-semibold font-mono mt-1">18% Compliant ITC</p>
               </div>
-              <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700">
                 <Receipt className="w-6 h-6" />
               </div>
             </div>
 
-            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-medium">Settled / Paid</p>
-                <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">₹{paidAmount.toLocaleString('en-IN')}</h3>
-                <p className="text-[11px] text-emerald-400 font-mono mt-1">{paidInvoices.length} invoices cleared</p>
+                <p className="text-xs text-slate-600 font-bold">Settled / Paid</p>
+                <h3 className="text-2xl font-bold font-mono text-emerald-800 mt-1">₹{paidAmount.toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-emerald-700 font-semibold font-mono mt-1">{paidInvoices.length} invoices cleared</p>
               </div>
-              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
             </div>
 
-            <div className="glass-card p-5 rounded-2xl border border-slate-800 flex items-center justify-between">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-medium">Outstanding Due</p>
-                <h3 className="text-2xl font-bold font-mono text-amber-300 mt-1">₹{(pendingAmount + outstandingAmount).toLocaleString('en-IN')}</h3>
-                <p className="text-[11px] text-amber-400 font-mono mt-1">{pendingInvoices.length + overdueInvoices.length} pending invoices</p>
+                <p className="text-xs text-slate-600 font-bold">Outstanding Due</p>
+                <h3 className="text-2xl font-bold font-mono text-amber-900 mt-1">₹{(pendingAmount + outstandingAmount).toLocaleString('en-IN')}</h3>
+                <p className="text-[11px] text-amber-700 font-semibold font-mono mt-1">{pendingInvoices.length + overdueInvoices.length} pending invoices</p>
               </div>
-              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700">
                 <Clock className="w-6 h-6" />
               </div>
             </div>
           </div>
 
+          {/* OFFICIAL GST PORTAL LIVE BULLETIN & COMPLIANCE DESK (EXACT CLIENT SAMPLE IMAGE REPLICA) */}
+          <GstPortalHub />
+
           {/* Graphical Analytics Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {/* Revenue Trend Area Chart */}
-            <div className="glass-card rounded-3xl p-6 border border-slate-800 lg:col-span-2 space-y-4">
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-white font-serif">Revenue & GST Trend (2026)</h3>
-                  <p className="text-xs text-slate-400 font-mono">Monthly turnover with verified GST returns</p>
+                  <h3 className="text-base font-bold text-slate-900 font-serif">Revenue & GST Trend (2026)</h3>
+                  <p className="text-xs text-slate-600 font-mono">Monthly turnover with verified GST returns</p>
                 </div>
-                <div className="flex items-center gap-4 text-xs font-mono">
-                  <span className="flex items-center gap-1 text-brand-400"><div className="w-2 h-2 rounded-full bg-brand-500"></div> Revenue</span>
-                  <span className="flex items-center gap-1 text-indigo-400"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> GST</span>
+                <div className="flex items-center gap-4 text-xs font-mono font-semibold">
+                  <span className="flex items-center gap-1.5 text-blue-700"><div className="w-2.5 h-2.5 rounded-full bg-blue-700"></div> Revenue</span>
+                  <span className="flex items-center gap-1.5 text-indigo-600"><div className="w-2.5 h-2.5 rounded-full bg-indigo-500"></div> GST</span>
                 </div>
               </div>
               <div className="h-64 w-full">
@@ -1311,33 +1315,33 @@ export const UserDashboard = ({
                   <AreaChart data={monthlyRevenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0.02} />
                       </linearGradient>
                       <linearGradient id="colorTax" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="month" stroke="#475569" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#475569" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }}
+                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a', borderRadius: '12px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                       formatter={(v) => [`₹${v.toLocaleString('en-IN')}`, '']}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
-                    <Area type="monotone" dataKey="tax" stroke="#818cf8" strokeWidth={2} fillOpacity={1} fill="url(#colorTax)" />
+                    <Area type="monotone" dataKey="revenue" stroke="#1d4ed8" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRev)" />
+                    <Area type="monotone" dataKey="tax" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorTax)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* GST Split Doughnut Chart */}
-            <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs space-y-4">
               <div>
-                <h3 className="text-base font-bold text-white font-serif">GST Tax Distribution</h3>
-                <p className="text-xs text-slate-400 font-mono">Output tax split by CGST, SGST & IGST</p>
+                <h3 className="text-base font-bold text-slate-900 font-serif">GST Tax Distribution</h3>
+                <p className="text-xs text-slate-600 font-mono">Output tax split by CGST, SGST & IGST</p>
               </div>
               <div className="h-52 w-full flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1355,14 +1359,14 @@ export const UserDashboard = ({
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }} />
+                    <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a', borderRadius: '12px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
                   </RePieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center">
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200 text-center">
                 {taxBreakdownData.map((item) => (
                   <div key={item.name} className="space-y-1">
-                    <p className="text-[10px] text-slate-400 font-mono">{item.name.split(' ')[0]}</p>
+                    <p className="text-[10px] text-slate-600 font-mono font-semibold">{item.name.split(' ')[0]}</p>
                     <p className="text-xs font-bold font-mono" style={{ color: item.color }}>{item.value}%</p>
                   </div>
                 ))}
@@ -1375,15 +1379,15 @@ export const UserDashboard = ({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {/* Recent Invoices Activity log (Left 2 cols) */}
-            <div className="glass-card rounded-3xl p-6 border border-slate-800 lg:col-span-2 space-y-4">
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-white font-serif">Recent Invoice Transactions</h3>
-                  <p className="text-xs text-slate-400 font-mono">Latest GST tax invoices generated</p>
+                  <h3 className="text-base font-bold text-slate-900 font-serif">Recent Invoice Transactions</h3>
+                  <p className="text-xs text-slate-600 font-mono">Latest GST tax invoices generated</p>
                 </div>
                 <button
                   onClick={() => setActiveTab('invoices')}
-                  className="flex items-center gap-1 text-xs text-indigo-400 hover:text-white font-semibold cursor-pointer transition-colors"
+                  className="flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 font-bold cursor-pointer transition-colors"
                 >
                   View All Invoices <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -1392,7 +1396,7 @@ export const UserDashboard = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 font-mono whitespace-nowrap">
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-700 font-bold whitespace-nowrap">
                       <th className="py-2.5 px-3">Invoice #</th>
                       <th className="py-2.5 px-3">Customer</th>
                       <th className="py-2.5 px-3">Grand Total</th>
@@ -1400,25 +1404,25 @@ export const UserDashboard = ({
                       <th className="py-2.5 px-3 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-slate-100">
                     {invoices.slice(0, 4).map((inv) => {
                       const invNumber = inv.invoiceNumber || inv.invoice_number;
                       const custName = inv.customerName || inv.customer_name;
                       const grandTotalVal = inv.grandTotal || inv.grand_total || 0;
 
                       return (
-                        <tr key={inv.id} className="hover:bg-slate-800/30 transition-colors">
-                          <td className="py-3 px-3 font-mono font-bold text-white whitespace-nowrap">{invNumber}</td>
-                          <td className="py-3 px-3 font-medium text-slate-200 whitespace-nowrap">{custName}</td>
-                          <td className="py-3 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
+                        <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">{invNumber}</td>
+                          <td className="py-3 px-3 font-semibold text-slate-800 whitespace-nowrap">{custName}</td>
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">₹{grandTotalVal.toLocaleString('en-IN')}</td>
                           <td className="py-3 px-3 whitespace-nowrap">
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${inv.status === 'Paid'
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                 : inv.status === 'Pending'
-                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
                                   : (inv.status || '').toLowerCase() === 'cancelled'
-                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 line-through'
-                                    : 'bg-red-500/10 text-red-400 border-red-500/30'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-300 line-through'
+                                    : 'bg-red-50 text-red-700 border-red-300'
                               }`}>
                               {inv.status}
                             </span>
@@ -1429,7 +1433,7 @@ export const UserDashboard = ({
                                 generateInvoicePDF(inv, user);
                                 addToast(`Downloading Tax Invoice ${inv.invoiceNumber || inv.invoice_number}...`, 'success');
                               }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all text-xs font-semibold cursor-pointer border border-indigo-500/30"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 transition-all text-xs font-bold cursor-pointer border border-blue-200"
                               title="Download PDF"
                             >
                               <Download className="w-3.5 h-3.5" /> Download
@@ -1444,73 +1448,73 @@ export const UserDashboard = ({
             </div>
 
             {/* Quick Master Directory Summary (Right 1 col) */}
-            <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
-              <h3 className="text-base font-bold text-white font-serif">Quick Directory Shortcuts</h3>
-              <p className="text-xs text-slate-400 font-mono">Overview of registered master records</p>
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <h3 className="text-base font-bold text-slate-900 font-serif">Quick Directory Shortcuts</h3>
+              <p className="text-xs text-slate-600 font-mono">Overview of registered master records</p>
 
               <div className="space-y-3 pt-1">
                 <div
                   onClick={() => setActiveTab('customers')}
-                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-indigo-500/40 cursor-pointer transition-all group"
+                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between hover:border-blue-400 hover:bg-blue-50/40 cursor-pointer transition-all group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400">
-                      <Users className="w-5 h-5" />
+                    <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
+                      <Users className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">Customers Directory</h4>
-                      <p className="text-xs text-slate-400 font-mono">{customers.length} Registered Debtors</p>
+                      <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-900 transition-colors">Customers Directory</h4>
+                      <p className="text-[11px] text-slate-600 font-mono font-medium">{customers.length} Registered Debtors</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-700 transition-colors" />
                 </div>
 
                 <div
                   onClick={() => setActiveTab('payments')}
-                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-amber-500/40 cursor-pointer transition-all group"
+                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between hover:border-amber-400 hover:bg-amber-50/40 cursor-pointer transition-all group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
-                      <Landmark className="w-5 h-5" />
+                    <div className="p-2 rounded-lg bg-amber-100 text-amber-700">
+                      <Landmark className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">Bank / Cash Accounts</h4>
-                      <p className="text-xs text-slate-400 font-mono">{bankAccounts.length} Active Accounts</p>
+                      <h4 className="text-xs font-bold text-slate-900 group-hover:text-amber-900 transition-colors">Bank / Cash Accounts</h4>
+                      <p className="text-[11px] text-slate-600 font-mono font-medium">{bankAccounts.length} Active Accounts</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-700 transition-colors" />
                 </div>
 
                 <div
                   onClick={() => setActiveTab('products')}
-                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-emerald-500/40 cursor-pointer transition-all group"
+                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between hover:border-emerald-400 hover:bg-emerald-50/40 cursor-pointer transition-all group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
-                      <Package className="w-5 h-5" />
+                    <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+                      <Package className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">Products (Goods)</h4>
-                      <p className="text-xs text-slate-400 font-mono">{onlyProducts.length} Goods Registered</p>
+                      <h4 className="text-xs font-bold text-slate-900 group-hover:text-emerald-900 transition-colors">Products (Goods)</h4>
+                      <p className="text-[11px] text-slate-600 font-mono font-medium">{onlyProducts.length} Goods Registered</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 transition-colors" />
                 </div>
 
                 <div
                   onClick={() => setActiveTab('services')}
-                  className="p-4 rounded-2xl bg-dark-900 border border-slate-800 flex items-center justify-between hover:border-cyan-500/40 cursor-pointer transition-all group"
+                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between hover:border-sky-400 hover:bg-sky-50/40 cursor-pointer transition-all group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400">
-                      <Wrench className="w-5 h-5" />
+                    <div className="p-2 rounded-lg bg-sky-100 text-sky-700">
+                      <Wrench className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">Services Catalog</h4>
-                      <p className="text-xs text-slate-400 font-mono">{onlyServices.length} Services Registered</p>
+                      <h4 className="text-xs font-bold text-slate-900 group-hover:text-sky-900 transition-colors">Services Catalog</h4>
+                      <p className="text-[11px] text-slate-600 font-mono font-medium">{onlyServices.length} Services Registered</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-sky-700 transition-colors" />
                 </div>
               </div>
             </div>
@@ -3240,12 +3244,12 @@ export const UserDashboard = ({
                 </div>
 
                 {includeBankReg && (
-                  <div className="mt-3 p-4 rounded-2xl bg-slate-900/50 border border-slate-700/60 space-y-3">
+                  <div className="mt-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold font-mono text-emerald-400 uppercase tracking-wider">
+                      <span className="text-[11px] font-bold font-mono text-emerald-700 uppercase tracking-wider">
                         New Bank / Cash Account Registration
                       </span>
-                      <span className="text-[10px] text-slate-400">Will be saved to Bank / Cash Master</span>
+                      <span className="text-[10px] text-slate-500">Will be saved to Bank / Cash Master</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
