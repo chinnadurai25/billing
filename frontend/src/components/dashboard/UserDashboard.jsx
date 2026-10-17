@@ -18,7 +18,6 @@ import { UserSettings } from './UserSettings';
 import SearchableDropdown from '../common/SearchableDropdown';
 import { INDIAN_STATES, INDIA_STATES_CITIES, GST_STATE_CODES } from '../../data/indiaData';
 import { decodeGstinDetails } from '../../utils/gstDecoder';
-import { GstPortalHub } from './GstPortalHub';
 
 export const UserDashboard = ({
   activeTab,
@@ -1291,9 +1290,6 @@ export const UserDashboard = ({
               </div>
             </div>
           </div>
-
-          {/* OFFICIAL GST PORTAL LIVE BULLETIN & COMPLIANCE DESK (EXACT CLIENT SAMPLE IMAGE REPLICA) */}
-          <GstPortalHub />
 
           {/* Graphical Analytics Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
