@@ -111,28 +111,37 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
   const filtered = customers.filter(c => {
     const q = searchTerm.toLowerCase().trim();
     if (!q) return true;
+    const name = c.name || c.customerName || c.customer_name || '';
+    const gst = c.gstNumber || c.gst_number || '';
+    const city = c.city || '';
     return (
-      (c.name || '').toLowerCase().includes(q) ||
-      (c.gstNumber || c.gst_number || '').toLowerCase().includes(q) ||
-      (c.city || '').toLowerCase().includes(q)
+      name.toLowerCase().includes(q) ||
+      gst.toLowerCase().includes(q) ||
+      city.toLowerCase().includes(q)
     );
   });
 
-  const selectedCust = customers.find(c => c.name === selectedName);
+  const selectedCust = customers.find(c => (c.name || c.customerName || c.customer_name) === selectedName);
+  const selectedDisplayName = selectedCust 
+    ? (selectedCust.name || selectedCust.customerName || selectedCust.customer_name)
+    : selectedName;
+  const displayLabel = selectedCust
+    ? `${selectedDisplayName}${selectedCust.city ? ` (${selectedCust.city})` : ''}`
+    : (selectedName || '');
 
   return (
     <div className="relative" ref={triggerRef}>
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-brand-500/50 transition-all"
+        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-white flex items-center justify-between cursor-pointer border border-slate-300 hover:border-brand-500 transition-all shadow-xs"
       >
         <div className="flex items-center gap-2 truncate">
-          <User className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-          <span className="font-semibold text-white truncate">
-            {selectedCust ? `${selectedCust.name}${selectedCust.city ? ` (${selectedCust.city})` : ''}` : (selectedName || labelPlaceholder)}
+          <User className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+          <span className={`font-semibold truncate ${displayLabel ? 'text-slate-900' : 'text-slate-400'}`}>
+            {displayLabel || labelPlaceholder}
           </span>
         </div>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
       {isOpen && createPortal(
@@ -145,7 +154,7 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
             width: `${coords.width}px`,
             zIndex: 999999
           }}
-          className="glass-card rounded-2xl p-2.5 border border-slate-700 shadow-2xl bg-dark-900/98 backdrop-blur-xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+          className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-2xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="relative mb-1.5">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
@@ -155,31 +164,36 @@ const SearchableCustomerSelect = ({ customers = [], selectedName, onSelectCustom
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search customer name, GSTIN, city..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-white"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-slate-900 border border-slate-200"
             />
           </div>
 
           {filtered.length > 0 ? (
-            filtered.map((c) => (
-              <div
-                key={c.id || c.name}
-                onClick={() => {
-                  onSelectCustomer(c);
-                  setIsOpen(false);
-                  setSearchTerm('');
-                }}
-                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${selectedName === c.name ? 'bg-brand-600/30 text-white border border-brand-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            filtered.map((c) => {
+              const cName = c.name || c.customerName || c.customer_name || 'Customer';
+              const isSelected = selectedName === cName;
+              return (
+                <div
+                  key={c.id || cName}
+                  onClick={() => {
+                    onSelectCustomer(c);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                    isSelected ? 'bg-brand-50 text-brand-700 border border-brand-200 font-bold' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
-              >
-                <div>
-                  <div className="font-semibold text-slate-200">{c.name}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">{c.gstNumber || c.gst_number || 'No GSTIN'} • {c.city || 'TN'}</div>
+                >
+                  <div>
+                    <div className="font-semibold text-slate-800">{cName}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">{c.gstNumber || c.gst_number || 'No GSTIN'} • {c.city || 'TN'}</div>
+                  </div>
+                  {isSelected && <Check className="w-3.5 h-3.5 text-brand-600 shrink-0" />}
                 </div>
-                {selectedName === c.name && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0" />}
-              </div>
-            ))
+              );
+            })
           ) : (
-            <div className="p-3 text-center text-xs text-slate-400">No matching customers found</div>
+            <div className="p-3 text-center text-xs text-slate-500">No matching customers found</div>
           )}
         </div>,
         document.body
@@ -268,15 +282,15 @@ const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankM
     <div className="relative" ref={triggerRef}>
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-cyan-500/50 transition-all"
+        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-white flex items-center justify-between cursor-pointer border border-slate-300 hover:border-cyan-500 transition-all shadow-xs"
       >
         <div className="flex items-center gap-2 truncate">
-          <Building className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-          <span className="font-semibold text-cyan-300 truncate">
+          <Building className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
+          <span className={`font-semibold truncate ${selectedMethod ? 'text-slate-900' : 'text-slate-400'}`}>
             {selectedMethod || 'Search & Select Registered Bank Account...'}
           </span>
         </div>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
       {isOpen && createPortal(
@@ -289,7 +303,7 @@ const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankM
             width: `${coords.width}px`,
             zIndex: 999999
           }}
-          className="glass-card rounded-2xl p-2.5 border border-slate-700 shadow-2xl bg-dark-900/98 backdrop-blur-xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+          className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-2xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="relative mb-1.5">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
@@ -299,7 +313,7 @@ const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankM
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search bank name, A/C number, IFSC, ledger..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-white"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-slate-900 border border-slate-200"
             />
           </div>
 
@@ -315,23 +329,24 @@ const SearchableBankSelect = ({ bankAccounts = [], selectedMethod, onSelectBankM
                     setIsOpen(false);
                     setSearchTerm('');
                   }}
-                  className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${isSelected ? 'bg-cyan-600/30 text-white border border-cyan-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                    }`}
+                  className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                    isSelected ? 'bg-cyan-50 text-cyan-800 border border-cyan-200 font-bold' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
                 >
                   <div>
-                    <div className="font-semibold text-slate-200">{b.bankName || b.bank_name}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">
+                    <div className="font-semibold text-slate-800">{b.bankName || b.bank_name}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">
                       {b.accountName || b.account_name ? `${b.accountName || b.account_name} ` : ''}
                       {b.accountNumber || b.account_number ? `• A/C: ${b.accountNumber || b.account_number} ` : ''}
                       {b.ifscCode && b.ifscCode !== 'N/A' ? `• IFSC: ${b.ifscCode}` : ''}
                     </div>
                   </div>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                  {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 shrink-0" />}
                 </div>
               );
             })
           ) : (
-            <div className="p-3 text-center text-xs text-slate-400">No matching registered bank details found</div>
+            <div className="p-3 text-center text-xs text-slate-500">No matching registered bank details found</div>
           )}
         </div>,
         document.body
@@ -401,15 +416,15 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
     <div className="relative" ref={triggerRef}>
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 flex items-center justify-between cursor-pointer border border-slate-700/70 hover:border-indigo-500/50 transition-all"
+        className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-white flex items-center justify-between cursor-pointer border border-slate-300 hover:border-indigo-500 transition-all shadow-xs"
       >
         <div className="flex items-center gap-2 truncate">
-          <Package className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-          <span className="font-semibold text-slate-200 truncate">
+          <Package className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+          <span className={`font-semibold truncate ${selectedProd || selectedTitle ? 'text-slate-900' : 'text-slate-400'}`}>
             {selectedProd ? `${selectedProd.title}${selectedProd.rate ? ` (₹${selectedProd.rate})` : ''}` : (selectedTitle || 'Search & Select Item / Service...')}
           </span>
         </div>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
       {isOpen && createPortal(
@@ -422,7 +437,7 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
             width: `${coords.width}px`,
             zIndex: 999999
           }}
-          className="glass-card rounded-2xl p-2.5 border border-slate-700 shadow-2xl bg-dark-900/98 backdrop-blur-xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+          className="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-2xl max-h-64 overflow-y-auto space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="relative mb-1.5">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
@@ -438,7 +453,7 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
                 }
               }}
               placeholder="Search item, HSN/SAC or type custom..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-white"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs font-mono text-slate-900 border border-slate-200"
             />
           </div>
 
@@ -451,18 +466,19 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${selectedTitle === p.title ? 'bg-indigo-600/30 text-white border border-indigo-500/40 font-bold' : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                  }`}
+                className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                  selectedTitle === p.title ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                }`}
               >
                 <div>
-                  <div className="font-semibold text-slate-200">{p.title}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">HSN: {p.hsnSac || p.hsn_sac || 'N/A'}{p.rate ? ` • Rate: ₹${p.rate}` : ''}</div>
+                  <div className="font-semibold text-slate-800">{p.title}</div>
+                  <div className="text-[10px] text-slate-500 font-mono">HSN: {p.hsnSac || p.hsn_sac || 'N/A'}{p.rate ? ` • Rate: ₹${p.rate}` : ''}</div>
                 </div>
-                {selectedTitle === p.title && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                {selectedTitle === p.title && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
               </div>
             ))
           ) : (
-            <div className="p-2.5 text-center text-xs text-slate-400">
+            <div className="p-2.5 text-center text-xs text-slate-500">
               No matching catalog item.
               {searchTerm && (
                 <button
@@ -471,7 +487,7 @@ const SearchableProductSelect = ({ products = [], selectedTitle, onSelectProduct
                     if (onChangeCustomText) onChangeCustomText(searchTerm);
                     setIsOpen(false);
                   }}
-                  className="mt-1.5 block w-full text-center px-3 py-1.5 bg-indigo-600/30 border border-indigo-500/40 rounded-lg text-indigo-300 hover:bg-indigo-600/50 font-semibold text-xs cursor-pointer"
+                  className="mt-1.5 block w-full text-center px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-700 hover:bg-indigo-100 font-semibold text-xs cursor-pointer"
                 >
                   Use "{searchTerm}" as custom item
                 </button>
@@ -770,8 +786,9 @@ export const QuickCreateInvoiceModal = ({
         }
 
         if (customers && customers.length > 0) {
-          const found = customers.find(c => c.name === customerName) || customers[0];
-          setCustomerName(found.name);
+          const found = customers.find(c => (c.name || c.customerName || c.customer_name) === customerName) || customers[0];
+          const foundName = found.name || found.customerName || found.customer_name || '';
+          setCustomerName(foundName);
           const gstVal = found.gstNumber || found.gst_number || '';
           setCustomerGst(gstVal);
 
@@ -880,13 +897,14 @@ export const QuickCreateInvoiceModal = ({
   const clientStateName = user?.state || 'Tamil Nadu';
   const clientStateObj = detectStateFromGstOrName(clientGst, clientStateName);
 
-  const selectedCust = customers.find(c => c.name === customerName);
+  const selectedCust = customers.find(c => (c.name || c.customerName || c.customer_name) === customerName);
   const custStateName = selectedCust?.state || selectedCust?.city || '';
   const custStateObj = detectStateFromGstOrName(customerGst, custStateName);
 
   // 2 Conditions State Evaluation Handlers (Automated)
   const handleSelectCustomer = (c) => {
-    setCustomerName(c.name);
+    const cName = c.name || c.customerName || c.customer_name || '';
+    setCustomerName(cName);
     const gstVal = c.gstNumber || c.gst_number || '';
     setCustomerGst(gstVal);
     const isSame = checkIsSameState(user, c, gstVal);
@@ -896,7 +914,7 @@ export const QuickCreateInvoiceModal = ({
   const handleCustGstChange = (val) => {
     const uppercaseVal = val.toUpperCase();
     setCustomerGst(uppercaseVal);
-    const currentCust = customers.find(c => c.name === customerName);
+    const currentCust = customers.find(c => (c.name || c.customerName || c.customer_name) === customerName);
     const isSame = checkIsSameState(user, currentCust, uppercaseVal);
     setTaxType(isSame ? 'intrastate' : 'interstate');
   };
@@ -1016,7 +1034,7 @@ export const QuickCreateInvoiceModal = ({
       ? (editingInvoice.documentType || editingInvoice.document_type || documentType)
       : documentType;
 
-    const foundCustomer = customers.find(c => c.name === effectiveCustName);
+    const foundCustomer = customers.find(c => (c.name || c.customerName || c.customer_name) === effectiveCustName);
     const custAddress = foundCustomer?.address || '';
     const custCity = foundCustomer?.city || '';
     const custState = foundCustomer?.state || custStateObj.name || '';
@@ -1103,7 +1121,7 @@ export const QuickCreateInvoiceModal = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   {documentType === 'Receipt' ? 'Deposit Into (Registered Bank / Cash Account) *' : 'Payment Method (Registered Bank Details) *'}
                 </label>
                 <SearchableBankSelect
@@ -1116,7 +1134,7 @@ export const QuickCreateInvoiceModal = ({
 
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   {documentType === 'Receipt' ? 'Received From (Registered Customer) *' : 'Paid To (Registered Customer) *'}
                 </label>
                 <SearchableCustomerSelect
@@ -1124,8 +1142,9 @@ export const QuickCreateInvoiceModal = ({
                   selectedName={documentType === 'Receipt' ? customerName : paidTo}
                   labelPlaceholder={documentType === 'Receipt' ? 'Search & Select Customer Payer...' : 'Search & Select Registered Payee Customer...'}
                   onSelectCustomer={(c) => {
-                    setPaidTo(c.name);
-                    setCustomerName(c.name);
+                    const cName = c.name || c.customerName || c.customer_name || '';
+                    setPaidTo(cName);
+                    setCustomerName(cName);
                     setCustomerGst(c.gstNumber || c.gst_number || '');
                   }}
                 />
@@ -1193,7 +1212,7 @@ export const QuickCreateInvoiceModal = ({
             {/* Customer & State / Place of Supply Selection */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Select Customer Entity *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Customer Entity *</label>
                 <SearchableCustomerSelect
                   customers={customers}
                   selectedName={customerName}
@@ -1202,13 +1221,13 @@ export const QuickCreateInvoiceModal = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Customer GSTIN Number</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Customer GSTIN Number</label>
                 <input
                   type="text"
                   value={customerGst}
                   onChange={(e) => handleCustGstChange(e.target.value)}
                   placeholder="29AABCA1234B1Z2"
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase"
+                  className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-mono uppercase text-slate-900 border-slate-300 bg-white"
                 />
               </div>
             </div>
@@ -1262,11 +1281,11 @@ export const QuickCreateInvoiceModal = ({
             {/* Line Items Table */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-200 font-serif">Line Items & Services</label>
+                <label className="text-xs font-semibold text-slate-800 font-serif">Line Items & Services</label>
                 <button
                   type="button"
                   onClick={addItemRow}
-                  className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300 font-semibold cursor-pointer"
+                  className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-semibold cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Row
                 </button>
