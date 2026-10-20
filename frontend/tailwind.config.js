@@ -45,7 +45,7 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Outfit', 'sans-serif'],
+        sans: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
         serif: ['DM Serif Display', 'serif'],
         mono: ['DM Mono', 'monospace'],
       },
