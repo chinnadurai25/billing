@@ -77,7 +77,7 @@ router.get('/:gstin', async (req, res) => {
     // =========================================================================
     // Tier 1: Official Govt GST Verification via GSTINAPI (Real Government Records)
     // =========================================================================
-    const gstinApiKey = process.env.GSTINAPI_KEY;
+    const gstinApiKey = process.env.GSTINAPI_KEY || 'gak_2f25ba32044f48c180e02dcf9e983e6e';
     if (gstinApiKey && gstinApiKey.trim()) {
       try {
         const gstinRes = await fetch(`https://gstinapi.in/v1/gstin/${rawGstin}`, {
