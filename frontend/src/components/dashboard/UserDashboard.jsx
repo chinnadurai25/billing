@@ -191,10 +191,12 @@ export const UserDashboard = ({
 
     setIsFetchingGst(true);
     let d = null;
+    let source = '';
     try {
       const res = await api.lookupGst(targetGst);
       if (res && res.success && res.data) {
         d = res.data;
+        source = res.source || '';
       }
     } catch (e) {
       console.warn('Backend GST Lookup Notice:', e?.message || e);
@@ -245,7 +247,12 @@ export const UserDashboard = ({
     }
 
     setIsFetchingGst(false);
-    addToast(`GST Auto-Fill Complete for ${fetchedName}!`, 'success', 'All Customer Details Filled');
+    const toastCategory = source === 'official-govt-gst'
+      ? 'Official Govt GST Verified'
+      : source === 'groq-ai'
+      ? 'Auto-Filled via Groq AI'
+      : 'All Customer Details Filled';
+    addToast(`GST Auto-Fill Complete for ${fetchedName}!`, 'success', toastCategory);
   };
 
   const handleCustGstChange = (val) => {
