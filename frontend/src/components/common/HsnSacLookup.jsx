@@ -89,16 +89,16 @@ const HsnSacLookup = ({ type, value, selectedRecord, onCodeChange, onSelect }) =
       </div>
 
       {selectedRecord?.code === value ? (
-        <div className="mt-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-2.5 py-2 text-[11px]">
+        <div className="mt-1.5 box-border w-full min-w-0 max-w-full overflow-hidden break-words rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5 text-sm leading-5">
           <span className="font-semibold text-emerald-300">Verified: {selectedRecord.name}</span>
           {selectedRecord.description && selectedRecord.description !== selectedRecord.name && (
-            <span className="mt-0.5 block text-slate-400">{selectedRecord.description}</span>
+            <span className="mt-1 block text-sm leading-6 text-slate-400">{selectedRecord.description}</span>
           )}
         </div>
       ) : null}
 
       {isOpen && results.length > 0 && (
-        <div id={`hsn-sac-${type}-suggestions`} role="listbox" className="absolute z-[70] mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div id={`hsn-sac-${type}-suggestions`} role="listbox" className="absolute z-[70] mt-1 max-h-80 w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
           {results.map((record, index) => (
             <button
               key={`${record.code}-${index}`}
@@ -107,14 +107,14 @@ const HsnSacLookup = ({ type, value, selectedRecord, onCodeChange, onSelect }) =
               aria-selected="false"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectRecord(record)}
-              className="block w-full border-b border-slate-800 px-3 py-2.5 text-left last:border-0 hover:bg-slate-800 focus:bg-slate-800 focus:outline-none"
+              className="block w-full border-b border-slate-800 px-4 py-3.5 text-left last:border-0 hover:bg-slate-800 focus:bg-slate-800 focus:outline-none"
             >
               <span className="flex items-center justify-between gap-3">
-                <span className="font-mono font-bold text-cyan-300">{record.code}</span>
-                {record.gstRate !== null && record.gstRate !== undefined && <span className="shrink-0 text-[10px] text-emerald-300">GST {record.gstRate}%</span>}
+                <span className="font-mono text-lg font-bold text-cyan-300">{record.code}</span>
+                {record.gstRate !== null && record.gstRate !== undefined && <span className="shrink-0 text-xs text-emerald-300">GST {record.gstRate}%</span>}
               </span>
-              <span className="mt-0.5 block text-xs font-semibold text-white">{record.name}</span>
-              {record.description && record.description !== record.name && <span className="mt-0.5 block text-[11px] text-slate-400">{record.description}</span>}
+              <span className="mt-1 block text-sm font-semibold leading-5 text-white">{record.name}</span>
+              {record.description && record.description !== record.name && <span className="mt-1 block text-xs leading-5 text-slate-400">{record.description}</span>}
             </button>
           ))}
         </div>

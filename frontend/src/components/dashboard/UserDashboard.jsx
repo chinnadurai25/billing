@@ -3600,7 +3600,6 @@ export const UserDashboard = ({
                       setProductForm((current) => ({
                         ...current,
                         hsnCode: record.code,
-                        itemName: record.name || current.itemName,
                         taxPercent: record.gstRate === null ? current.taxPercent : String(record.gstRate)
                       }));
                     }}
@@ -3734,7 +3733,6 @@ export const UserDashboard = ({
                       setServiceForm((current) => ({
                         ...current,
                         hsnCode: record.code,
-                        serviceName: record.name || current.serviceName,
                         taxPercent: record.gstRate === null ? current.taxPercent : String(record.gstRate)
                       }));
                     }}
