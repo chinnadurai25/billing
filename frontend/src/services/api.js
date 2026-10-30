@@ -85,6 +85,7 @@ export const api = {
   registerSalesService: (itemData) => request('/products', { method: 'POST', body: JSON.stringify(itemData) }),
   updateProduct: (id, itemData) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(itemData) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+  lookupHsnSac: (type, query) => request(`/hsn-sac/lookup?type=${encodeURIComponent(type)}&query=${encodeURIComponent(query)}`),
 
   // Invoices
   getInvoices: (userId) => request(`/invoices${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`),

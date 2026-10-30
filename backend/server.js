@@ -13,6 +13,7 @@ import invoiceRoutes from './routes/invoices.js';
 import receiptRoutes from './routes/receipts.js';
 import adminRoutes from './routes/admin.js';
 import gstRoutes from './routes/gst.js';
+import hsnSacRoutes from './routes/hsnSac.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +54,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/gst-lookup', gstRoutes);
+app.use('/api/hsn-sac', hsnSacRoutes);
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
@@ -79,10 +81,10 @@ app.get('/api/db-diagnostics', (req, res) => {
 const rootDistPath = path.join(__dirname, '..', 'dist');
 const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
 const backendDistPath = path.join(__dirname, 'dist');
-const staticPath = existsSync(path.join(rootDistPath, 'index.html'))
-  ? rootDistPath
-  : existsSync(path.join(frontendDistPath, 'index.html'))
+const staticPath = existsSync(path.join(frontendDistPath, 'index.html'))
   ? frontendDistPath
+  : existsSync(path.join(rootDistPath, 'index.html'))
+  ? rootDistPath
   : backendDistPath;
 
 console.log(`📁 Serving static files from: ${staticPath}`);

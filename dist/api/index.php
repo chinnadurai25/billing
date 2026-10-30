@@ -61,6 +61,73 @@ if ($method === 'POST') {
     }
 }
 
+function lookup_hsn_sac_catalog($code, $type) {
+    $type = strtoupper(trim((string)$type));
+    $code = trim((string)$code);
+    $baseUrl = getenv('HSN_SAC_API_URL');
+    if (!in_array($type, ['HSN', 'SAC'], true) || !preg_match('/^\d{2,8}$/', $code)) {
+        return ['ok' => true, 'data' => []];
+    }
+    $headers = "Accept: application/json\r\n";
+    if ($baseUrl) {
+        $providerHost = parse_url($baseUrl, PHP_URL_HOST);
+        if (parse_url($baseUrl, PHP_URL_SCHEME) !== 'https' && !in_array($providerHost, ['localhost', '127.0.0.1'], true)) {
+            return ['ok' => false, 'status' => 502, 'message' => 'HSN/SAC catalog URL must use HTTPS.'];
+        }
+        $separator = strpos($baseUrl, '?') === false ? '?' : '&';
+        $url = $baseUrl . $separator . http_build_query(['type' => $type, 'query' => $code, 'limit' => 10]);
+        $apiKey = getenv('HSN_SAC_API_KEY');
+        if ($apiKey) $headers .= 'Authorization: Bearer ' . $apiKey . "\r\n";
+        $context = stream_context_create(['http' => ['method' => 'GET', 'header' => $headers, 'timeout' => 8, 'ignore_errors' => true]]);
+        $body = @file_get_contents($url, false, $context);
+        if ($body === false) return ['ok' => false, 'status' => 502, 'message' => 'Could not reach the HSN/SAC catalog provider.'];
+        $payload = json_decode($body, true);
+    } else {
+        $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'billson_hsn_sac_master.json';
+        $payload = null;
+        if (is_file($cacheFile) && filemtime($cacheFile) > time() - 21600) {
+            $payload = json_decode((string)file_get_contents($cacheFile), true);
+        }
+        if (!is_array($payload)) {
+            $catalogUrl = 'https://raw.githubusercontent.com/vikasrami/India-HSN-SAC-Master/main/India-HSN-SAC-Master.json';
+            $context = stream_context_create(['http' => ['method' => 'GET', 'header' => $headers, 'timeout' => 15, 'ignore_errors' => true]]);
+            $body = @file_get_contents($catalogUrl, false, $context);
+            if ($body === false) return ['ok' => false, 'status' => 502, 'message' => 'Could not reach the HSN/SAC master catalog. Check server outbound HTTPS access.'];
+            $payload = json_decode($body, true);
+            if (is_array($payload)) @file_put_contents($cacheFile, $body, LOCK_EX);
+        }
+    }
+    if (!is_array($payload)) return ['ok' => false, 'status' => 502, 'message' => 'HSN/SAC catalog returned an invalid response.'];
+
+    $records = $payload['results'] ?? ($payload['items'] ?? ($payload['data'] ?? ($payload['codes'] ?? $payload)));
+    if (!is_array($records)) $records = [];
+    if (isset($records['code']) || isset($records['hsn']) || isset($records['sac'])) $records = [$records];
+    $normalized = [];
+    foreach ($records as $record) {
+        if (!is_array($record)) continue;
+        $recordCode = trim((string)($record['code'] ?? $record['hsn'] ?? $record['hsnCode'] ?? $record['hsn_code'] ?? $record['sac'] ?? $record['sacCode'] ?? $record['sac_code'] ?? ''));
+        $name = trim((string)($record['name'] ?? $record['title'] ?? $record['productName'] ?? $record['serviceName'] ?? $record['label'] ?? $record['description'] ?? ''));
+        $description = trim((string)($record['description'] ?? $record['longDescription'] ?? $record['long_description'] ?? $record['details'] ?? $name));
+        $providerType = strtolower((string)($record['type'] ?? $record['kind'] ?? $record['classification'] ?? ''));
+        $recordType = (strpos($providerType, 'sac') !== false || strpos($providerType, 'service') !== false) ? 'SAC'
+            : ((strpos($providerType, 'hsn') !== false || strpos($providerType, 'good') !== false) ? 'HSN' : $type);
+        if ($recordCode === '' || $name === '' || $recordType !== $type) continue;
+        $rawRate = $record['gstRate'] ?? $record['gst_rate'] ?? $record['taxPercent'] ?? $record['tax_percent'] ?? $record['rate'] ?? $record['gst'] ?? null;
+        $rate = $rawRate === null ? null : floatval(str_replace('%', '', (string)$rawRate));
+        if ($rate !== null && ($rate < 0 || $rate > 100)) $rate = null;
+        $normalized[] = ['code' => $recordCode, 'name' => $name, 'description' => $description, 'gstRate' => $rate, 'type' => $type];
+    }
+    $normalized = array_values(array_filter($normalized, function ($record) use ($code) { return strpos($record['code'], $code) === 0; }));
+    return ['ok' => true, 'data' => array_slice($normalized, 0, 10)];
+}
+
+if ($resource === 'hsn-sac' && ($pathParts[1] ?? '') === 'lookup') {
+    $lookup = lookup_hsn_sac_catalog($_GET['query'] ?? '', $_GET['type'] ?? '');
+    if (!$lookup['ok']) http_response_code($lookup['status']);
+    echo json_encode($lookup['ok'] ? ['success' => true, 'data' => $lookup['data']] : ['success' => false, 'message' => $lookup['message']]);
+    exit();
+}
+
 // Health / Diagnostics
 if ($resource === 'health' || $resource === 'db-diagnostics') {
     echo json_encode([
@@ -411,12 +478,29 @@ try {
             $rate = floatval($input['rate'] ?? 0);
             $tax = floatval($input['taxPercent'] ?? ($input['tax_percent'] ?? 18));
             $cat = $input['category'] ?? 'Sales / Service Item';
+            $codeType = (stripos($cat, 'service') !== false || strtolower($unit) === 'service') ? 'SAC' : 'HSN';
+            $verification = lookup_hsn_sac_catalog($hsn, $codeType);
+            if (!$verification['ok']) {
+                http_response_code($verification['status']);
+                echo json_encode(['success' => false, 'message' => $verification['message']]);
+                exit();
+            }
+            $verifiedCode = null;
+            foreach ($verification['data'] as $candidate) if ($candidate['code'] === trim((string)$hsn)) { $verifiedCode = $candidate; break; }
+            if (!$verifiedCode) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => 'HSN/SAC code is invalid or has not been selected from verified suggestions.']);
+                exit();
+            }
+            $description = $input['description'] ?? $verifiedCode['description'];
+            if ($verifiedCode['gstRate'] !== null) $tax = $verifiedCode['gstRate'];
 
-            $sql = "INSERT INTO products_services (id, user_id, title, unit, hsn_sac, opening_stock, rate, tax_percent, category)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE title=VALUES(title), unit=VALUES(unit), hsn_sac=VALUES(hsn_sac), opening_stock=VALUES(opening_stock), rate=VALUES(rate), tax_percent=VALUES(tax_percent), category=VALUES(category)";
+            try { $pdo->exec('ALTER TABLE products_services ADD COLUMN description TEXT'); } catch (Exception $e) {}
+            $sql = "INSERT INTO products_services (id, user_id, title, description, unit, hsn_sac, opening_stock, rate, tax_percent, category)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE title=VALUES(title), description=VALUES(description), unit=VALUES(unit), hsn_sac=VALUES(hsn_sac), opening_stock=VALUES(opening_stock), rate=VALUES(rate), tax_percent=VALUES(tax_percent), category=VALUES(category)";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$id, $userId, $title, $unit, $hsn, $stock, $rate, $tax, $cat]);
+            $stmt->execute([$id, $userId, $title, $description, $unit, $hsn, $stock, $rate, $tax, $cat]);
 
             http_response_code(201);
             echo json_encode(['success' => true, 'message' => 'Product saved', 'product' => $input]);
@@ -430,10 +514,27 @@ try {
             $rate = floatval($input['rate'] ?? 0);
             $tax = floatval($input['taxPercent'] ?? ($input['tax_percent'] ?? 18));
             $cat = $input['category'] ?? 'Sales / Service Item';
+            $codeType = (stripos($cat, 'service') !== false || strtolower($unit) === 'service') ? 'SAC' : 'HSN';
+            $verification = lookup_hsn_sac_catalog($hsn, $codeType);
+            if (!$verification['ok']) {
+                http_response_code($verification['status']);
+                echo json_encode(['success' => false, 'message' => $verification['message']]);
+                exit();
+            }
+            $verifiedCode = null;
+            foreach ($verification['data'] as $candidate) if ($candidate['code'] === trim((string)$hsn)) { $verifiedCode = $candidate; break; }
+            if (!$verifiedCode) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => 'HSN/SAC code is invalid or has not been selected from verified suggestions.']);
+                exit();
+            }
+            $description = $input['description'] ?? $verifiedCode['description'];
+            if ($verifiedCode['gstRate'] !== null) $tax = $verifiedCode['gstRate'];
 
-            $sql = "UPDATE products_services SET title = ?, unit = ?, hsn_sac = ?, opening_stock = ?, rate = ?, tax_percent = ?, category = ? WHERE id = ?";
+            try { $pdo->exec('ALTER TABLE products_services ADD COLUMN description TEXT'); } catch (Exception $e) {}
+            $sql = "UPDATE products_services SET title = ?, description = ?, unit = ?, hsn_sac = ?, opening_stock = ?, rate = ?, tax_percent = ?, category = ? WHERE id = ?";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$title, $unit, $hsn, $stock, $rate, $tax, $cat, $resourceId]);
+            $stmt->execute([$title, $description, $unit, $hsn, $stock, $rate, $tax, $cat, $resourceId]);
             echo json_encode(['success' => true, 'message' => 'Product updated', 'product' => $input]);
             exit();
         }

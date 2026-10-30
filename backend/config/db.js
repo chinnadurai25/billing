@@ -200,6 +200,7 @@ export const initDB = async () => {
         id VARCHAR(50) PRIMARY KEY,
         user_id VARCHAR(100),
         title VARCHAR(200) NOT NULL,
+        description TEXT,
         unit VARCHAR(50) DEFAULT 'Pices',
         hsn_sac VARCHAR(20) NOT NULL,
         opening_stock INT DEFAULT 100,
@@ -209,6 +210,12 @@ export const initDB = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    try {
+      await connection.query('ALTER TABLE products_services ADD COLUMN description TEXT');
+    } catch (e) {
+      // Description already exists on upgraded databases.
+    }
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS invoices (

@@ -9,11 +9,15 @@ DirectoryIndex index.html
   RewriteRule ^api/(.*)$ api/index.php [QSA,L]
   RewriteRule ^api$ api/index.php [QSA,L]
 
+  # Serve the current Vite build for both Apache/PHP and Node deployments
+  RewriteRule ^assets/(.*)$ frontend/dist/assets/$1 [L]
+  RewriteRule ^$ frontend/dist/index.html [L]
+
   # Serve existing files and directories directly
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Fallback all other routes to React SPA index.html
-  RewriteRule ^ index.html [L]
+  # Fallback all other routes to the React SPA build
+  RewriteRule ^ frontend/dist/index.html [L]
 </IfModule>

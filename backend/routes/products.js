@@ -1,7 +1,34 @@
 import express from 'express';
 import { getDB, isConnected, fallbackStore } from '../config/db.js';
+import { verifyHsnSac } from '../services/hsnSacService.js';
 
 const router = express.Router();
+
+const getCodeType = ({ category, unit }) => {
+  if (String(category || '').toLowerCase().includes('service') || String(unit || '').toLowerCase() === 'service') return 'SAC';
+  return 'HSN';
+};
+
+const verifySubmittedCode = async (req, res) => {
+  const { hsnSac, hsn_sac: hsnSnake, category, unit } = req.body;
+  const code = String(hsnSac || hsnSnake || '').trim();
+  if (!code) {
+    res.status(400).json({ success: false, message: 'A verified HSN/SAC code is required.' });
+    return null;
+  }
+  try {
+    const record = await verifyHsnSac({ code, type: getCodeType({ category, unit }) });
+    if (!record) {
+      res.status(422).json({ success: false, message: 'HSN/SAC code is invalid or has not been selected from verified suggestions.' });
+      return null;
+    }
+    return record;
+  } catch (error) {
+    const status = error.code === 'HSN_SAC_NOT_CONFIGURED' ? 503 : 502;
+    res.status(status).json({ success: false, message: error.message });
+    return null;
+  }
+};
 
 // GET all sales & service items
 router.get('/', async (req, res) => {
@@ -34,11 +61,14 @@ router.get('/', async (req, res) => {
 // POST REGISTRATION ( SALES / SERVICES )
 router.post('/', async (req, res) => {
   try {
-    const { title, unit, hsnSac, openingStock, rate, date, taxPercent, category, userId } = req.body;
+    const { title, unit, hsnSac, openingStock, rate, date, taxPercent, category, userId, description } = req.body;
 
     if (!title || !hsnSac) {
       return res.status(400).json({ success: false, message: 'NAME OF THE ITEM and HSN CODE are required' });
     }
+
+    const verifiedCode = await verifySubmittedCode(req, res);
+    if (!verifiedCode) return;
 
     const prodId = req.body.id || `SRV-${Date.now().toString().slice(-6)}`;
     const effectiveUserId = userId || 'USR-901';
@@ -47,29 +77,31 @@ router.post('/', async (req, res) => {
       id: prodId,
       user_id: effectiveUserId,
       title,
+      description: description || verifiedCode.description,
       unit: unit || 'Pices',
       hsn_sac: hsnSac,
       opening_stock: parseInt(openingStock) || 0,
       rate: parseFloat(rate) || 0,
       date: date || new Date().toISOString().split('T')[0],
-      tax_percent: parseFloat(taxPercent) || 18.00,
+      tax_percent: verifiedCode.gstRate ?? (Number.isFinite(Number(taxPercent)) ? Number(taxPercent) : 18.00),
       category: category || 'Sales / Service Item'
     };
 
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `INSERT INTO products_services (id, user_id, title, unit, hsn_sac, opening_stock, rate, tax_percent, category)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO products_services (id, user_id, title, description, unit, hsn_sac, opening_stock, rate, tax_percent, category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            title = VALUES(title),
+           description = VALUES(description),
            unit = VALUES(unit),
            hsn_sac = VALUES(hsn_sac),
            opening_stock = VALUES(opening_stock),
            rate = VALUES(rate),
            tax_percent = VALUES(tax_percent),
            category = VALUES(category)`,
-        [prodId, effectiveUserId, title, newItem.unit, hsnSac, newItem.opening_stock, newItem.rate, newItem.tax_percent, newItem.category]
+        [prodId, effectiveUserId, title, newItem.description, newItem.unit, hsnSac, newItem.opening_stock, newItem.rate, newItem.tax_percent, newItem.category]
       );
     }
 
@@ -94,14 +126,16 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, unit, hsnSac, openingStock, rate, date, taxPercent, category } = req.body;
+    const { title, unit, hsnSac, openingStock, rate, date, taxPercent, category, description } = req.body;
+    const verifiedCode = await verifySubmittedCode(req, res);
+    if (!verifiedCode) return;
 
     if (isConnected()) {
       const db = getDB();
       await db.query(
-        `UPDATE products_services SET title = ?, unit = ?, hsn_sac = ?, opening_stock = ?, rate = ?, tax_percent = ?, category = ?
+        `UPDATE products_services SET title = ?, description = ?, unit = ?, hsn_sac = ?, opening_stock = ?, rate = ?, tax_percent = ?, category = ?
          WHERE id = ?`,
-        [title, unit, hsnSac, parseInt(openingStock) || 0, parseFloat(rate) || 0, parseFloat(taxPercent) || 0, category || 'Sales / Service Item', id]
+        [title, description || verifiedCode.description, unit, hsnSac, parseInt(openingStock) || 0, parseFloat(rate) || 0, verifiedCode.gstRate ?? (parseFloat(taxPercent) || 0), category || 'Sales / Service Item', id]
       );
     } else {
       const idx = fallbackStore.productsServices.findIndex(p => p.id === id);
@@ -109,6 +143,7 @@ router.put('/:id', async (req, res) => {
         fallbackStore.productsServices[idx] = {
           ...fallbackStore.productsServices[idx],
           title: title || fallbackStore.productsServices[idx].title,
+          description: description || verifiedCode.description,
           unit: unit || fallbackStore.productsServices[idx].unit,
           hsn_sac: hsnSac || fallbackStore.productsServices[idx].hsn_sac,
           hsnSac: hsnSac || fallbackStore.productsServices[idx].hsnSac,
@@ -116,8 +151,8 @@ router.put('/:id', async (req, res) => {
           openingStock: openingStock !== undefined ? parseInt(openingStock) : fallbackStore.productsServices[idx].openingStock,
           rate: rate !== undefined ? parseFloat(rate) : fallbackStore.productsServices[idx].rate,
           date: date || fallbackStore.productsServices[idx].date,
-          tax_percent: taxPercent !== undefined ? parseFloat(taxPercent) : fallbackStore.productsServices[idx].tax_percent,
-          taxPercent: taxPercent !== undefined ? parseFloat(taxPercent) : fallbackStore.productsServices[idx].taxPercent,
+          tax_percent: verifiedCode.gstRate ?? (taxPercent !== undefined ? parseFloat(taxPercent) : fallbackStore.productsServices[idx].tax_percent),
+          taxPercent: verifiedCode.gstRate ?? (taxPercent !== undefined ? parseFloat(taxPercent) : fallbackStore.productsServices[idx].taxPercent),
           category: category || fallbackStore.productsServices[idx].category
         };
       }

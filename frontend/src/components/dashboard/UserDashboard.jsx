@@ -16,6 +16,7 @@ import { generateInvoicePDF } from '../../utils/pdfGenerator';
 import { processGSTRData, downloadGSTRExcelReport } from '../../utils/gstrExcelGenerator';
 import { UserSettings } from './UserSettings';
 import SearchableDropdown from '../common/SearchableDropdown';
+import HsnSacLookup from '../common/HsnSacLookup';
 import { INDIAN_STATES, INDIA_STATES_CITIES, GST_STATE_CODES } from '../../data/indiaData';
 import { decodeGstinDetails } from '../../utils/gstDecoder';
 
@@ -157,6 +158,7 @@ export const UserDashboard = ({
     taxPercent: '18',
     category: 'Sales Item'
   });
+  const [selectedProductHsn, setSelectedProductHsn] = useState(null);
 
   // 3b. SERVICE REGISTRATION Form State
   const [serviceForm, setServiceForm] = useState({
@@ -166,6 +168,7 @@ export const UserDashboard = ({
     taxPercent: '18',
     category: 'Service Item'
   });
+  const [selectedServiceSac, setSelectedServiceSac] = useState(null);
 
   // Legacy itemForm compatibility
   const [itemForm, setItemForm] = useState({
@@ -710,6 +713,7 @@ export const UserDashboard = ({
   // ----------------------------------------------------
   const handleOpenNewProduct = () => {
     setEditingProduct(null);
+    setSelectedProductHsn(null);
     setProductForm({
       itemName: '',
       unit: 'Pices',
@@ -724,6 +728,7 @@ export const UserDashboard = ({
 
   const handleOpenEditProduct = (item) => {
     setEditingProduct(item);
+    setSelectedProductHsn(null);
     setProductForm({
       itemName: item.title || '',
       unit: item.unit || 'Pices',
@@ -746,10 +751,16 @@ export const UserDashboard = ({
       addToast('HSN CODE is required for Goods / Product', 'error');
       return;
     }
+    if (!selectedProductHsn || selectedProductHsn.code !== productForm.hsnCode.trim()) {
+      addToast('Select a verified HSN code from the suggestions before registering.', 'error');
+      return;
+    }
 
     const finalUnit = productForm.unit;
     const finalCategory = productForm.category || 'Sales Item';
-    const finalHsn = productForm.hsnCode.trim() || '847130';
+    const finalHsn = productForm.hsnCode.trim();
+    const finalDescription = selectedProductHsn.description || selectedProductHsn.name;
+    const finalTaxPercent = selectedProductHsn.gstRate ?? (parseFloat(productForm.taxPercent) || 18);
     const finalStock = parseInt(productForm.openingStock) || 0;
     const finalDate = productForm.date;
 
@@ -759,22 +770,29 @@ export const UserDashboard = ({
         title: productForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
+        description: finalDescription,
         openingStock: finalStock,
         date: finalDate,
-        taxPercent: parseFloat(productForm.taxPercent) || 18,
+        taxPercent: finalTaxPercent,
         category: finalCategory
       };
 
-      setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? updatedItem : p));
-      api.updateProduct(editingProduct.id, {
+      const response = await api.updateProduct(editingProduct.id, {
         title: productForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
+        description: finalDescription,
+        codeType: 'HSN',
         openingStock: finalStock,
         date: finalDate,
-        taxPercent: parseFloat(productForm.taxPercent) || 18,
+        taxPercent: finalTaxPercent,
         category: finalCategory
       });
+      if (!response?.success) {
+        addToast(response?.message || 'Product could not be updated. Please retry.', 'error');
+        return;
+      }
+      setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? updatedItem : p));
 
       addToast(`Product "${productForm.itemName}" updated successfully!`, 'success', 'Product Updated');
     } else {
@@ -784,30 +802,39 @@ export const UserDashboard = ({
         title: productForm.itemName,
         unit: finalUnit,
         hsnSac: finalHsn,
+        description: finalDescription,
         openingStock: finalStock,
         date: finalDate,
-        taxPercent: parseFloat(productForm.taxPercent) || 18,
+        taxPercent: finalTaxPercent,
         category: finalCategory
       };
 
-      setProducts([newItem, ...products]);
       try {
         const res = await api.registerSalesService({
           id: prodId,
           title: productForm.itemName,
           unit: finalUnit,
           hsnSac: finalHsn,
+          description: finalDescription,
+          codeType: 'HSN',
           openingStock: finalStock,
           date: finalDate,
-          taxPercent: parseFloat(productForm.taxPercent) || 18,
+          taxPercent: finalTaxPercent,
           category: finalCategory,
           userId: user?.id || 'USR-901'
         });
+        if (!res?.success) {
+          addToast(res?.message || 'Product could not be registered. Please retry.', 'error');
+          return;
+        }
+        setProducts([newItem, ...products]);
         if (res && res.product && res.product.id && res.product.id !== prodId) {
           setProducts((prev) => prev.map((p) => p.id === prodId ? { ...p, id: res.product.id } : p));
         }
       } catch (err) {
         console.error('Error saving product to backend:', err);
+        addToast('Product could not be registered. Please try again.', 'error');
+        return;
       }
 
       addToast(`Product "${productForm.itemName}" registered successfully!`, 'success', 'Product Registered');
@@ -823,6 +850,7 @@ export const UserDashboard = ({
   // ----------------------------------------------------
   const handleOpenNewService = () => {
     setEditingService(null);
+    setSelectedServiceSac(null);
     setServiceForm({
       serviceName: '',
       hsnCode: '',
@@ -835,6 +863,7 @@ export const UserDashboard = ({
 
   const handleOpenEditService = (item) => {
     setEditingService(item);
+    setSelectedServiceSac(null);
     setServiceForm({
       serviceName: item.title || '',
       hsnCode: item.hsnSac || item.hsn_sac || '',
@@ -851,10 +880,16 @@ export const UserDashboard = ({
       addToast('NAME OF THE SERVICE is required', 'error');
       return;
     }
+    if (!serviceForm.hsnCode.trim() || !selectedServiceSac || selectedServiceSac.code !== serviceForm.hsnCode.trim()) {
+      addToast('Select a verified SAC code from the suggestions before registering.', 'error');
+      return;
+    }
 
     const finalUnit = 'Service';
     const finalCategory = serviceForm.category || 'Service Item';
-    const finalHsn = serviceForm.hsnCode.trim() || '998222';
+    const finalHsn = serviceForm.hsnCode.trim();
+    const finalDescription = selectedServiceSac.description || selectedServiceSac.name;
+    const finalTaxPercent = selectedServiceSac.gstRate ?? (parseFloat(serviceForm.taxPercent) || 18);
     const finalDate = serviceForm.date || new Date().toISOString().split('T')[0];
 
     if (editingService) {
@@ -863,22 +898,29 @@ export const UserDashboard = ({
         title: serviceForm.serviceName,
         unit: finalUnit,
         hsnSac: finalHsn,
+        description: finalDescription,
         openingStock: 0,
         date: finalDate,
-        taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+        taxPercent: finalTaxPercent,
         category: finalCategory
       };
 
-      setProducts((prev) => prev.map((p) => p.id === editingService.id ? updatedItem : p));
-      api.updateProduct(editingService.id, {
+      const response = await api.updateProduct(editingService.id, {
         title: serviceForm.serviceName,
         unit: finalUnit,
         hsnSac: finalHsn,
+        description: finalDescription,
+        codeType: 'SAC',
         openingStock: 0,
         date: finalDate,
-        taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+        taxPercent: finalTaxPercent,
         category: finalCategory
       });
+      if (!response?.success) {
+        addToast(response?.message || 'Service could not be updated. Please retry.', 'error');
+        return;
+      }
+      setProducts((prev) => prev.map((p) => p.id === editingService.id ? updatedItem : p));
 
       addToast(`Service "${serviceForm.serviceName}" updated successfully!`, 'success', 'Service Updated');
     } else {
@@ -888,30 +930,39 @@ export const UserDashboard = ({
         title: serviceForm.serviceName,
         unit: finalUnit,
         hsnSac: finalHsn,
+        description: finalDescription,
         openingStock: 0,
         date: finalDate,
-        taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+        taxPercent: finalTaxPercent,
         category: finalCategory
       };
 
-      setProducts([newItem, ...products]);
       try {
         const res = await api.registerSalesService({
           id: srvId,
           title: serviceForm.serviceName,
           unit: finalUnit,
           hsnSac: finalHsn,
+          description: finalDescription,
+          codeType: 'SAC',
           openingStock: 0,
           date: finalDate,
-          taxPercent: parseFloat(serviceForm.taxPercent) || 18,
+          taxPercent: finalTaxPercent,
           category: finalCategory,
           userId: user?.id || 'USR-901'
         });
+        if (!res?.success) {
+          addToast(res?.message || 'Service could not be registered. Please retry.', 'error');
+          return;
+        }
+        setProducts([newItem, ...products]);
         if (res && res.product && res.product.id && res.product.id !== srvId) {
           setProducts((prev) => prev.map((p) => p.id === srvId ? { ...p, id: res.product.id } : p));
         }
       } catch (err) {
         console.error('Error saving service to backend:', err);
+        addToast('Service could not be registered. Please try again.', 'error');
+        return;
       }
 
       addToast(`Service "${serviceForm.serviceName}" registered successfully!`, 'success', 'Service Registered');
@@ -3536,13 +3587,23 @@ export const UserDashboard = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-200 mb-1">HSN CODE *</label>
-                  <input
-                    type="text"
+                  <HsnSacLookup
+                    type="HSN"
                     value={productForm.hsnCode}
-                    onChange={(e) => setProductForm({ ...productForm, hsnCode: e.target.value })}
-                    placeholder="847130"
-                    className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
-                    required
+                    selectedRecord={selectedProductHsn}
+                    onCodeChange={(hsnCode) => {
+                      setProductForm((current) => ({ ...current, hsnCode }));
+                      setSelectedProductHsn(null);
+                    }}
+                    onSelect={(record) => {
+                      setSelectedProductHsn(record);
+                      setProductForm((current) => ({
+                        ...current,
+                        hsnCode: record.code,
+                        itemName: record.name || current.itemName,
+                        taxPercent: record.gstRate === null ? current.taxPercent : String(record.gstRate)
+                      }));
+                    }}
                   />
                 </div>
 
@@ -3575,6 +3636,7 @@ export const UserDashboard = ({
                   <select
                     value={productForm.taxPercent}
                     onChange={(e) => setProductForm({ ...productForm, taxPercent: e.target.value })}
+                    disabled={Boolean(selectedProductHsn && selectedProductHsn.gstRate !== null)}
                     className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
                   >
                     {(() => {
@@ -3597,6 +3659,9 @@ export const UserDashboard = ({
                       ));
                     })()}
                   </select>
+                  {selectedProductHsn?.gstRate !== null && selectedProductHsn?.gstRate !== undefined && (
+                    <p className="mt-1 text-[10px] text-emerald-300">GST rate supplied by the verified HSN catalog.</p>
+                  )}
                 </div>
               </div>
 
@@ -3610,7 +3675,8 @@ export const UserDashboard = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 cursor-pointer"
+                  disabled={!selectedProductHsn || selectedProductHsn.code !== productForm.hsnCode.trim()}
+                  className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {editingProduct ? 'Update Product' : 'Register Product'}
                 </button>
@@ -3655,12 +3721,23 @@ export const UserDashboard = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-200 mb-1">SAC / HSN CODE</label>
-                <input
-                  type="text"
-                  value={serviceForm.hsnCode}
-                  onChange={(e) => setServiceForm({ ...serviceForm, hsnCode: e.target.value })}
-                  placeholder="998222"
-                  className="w-full px-3.5 py-2 rounded-xl glass-input text-xs font-mono"
+                  <HsnSacLookup
+                    type="SAC"
+                    value={serviceForm.hsnCode}
+                    selectedRecord={selectedServiceSac}
+                    onCodeChange={(hsnCode) => {
+                      setServiceForm((current) => ({ ...current, hsnCode }));
+                      setSelectedServiceSac(null);
+                    }}
+                    onSelect={(record) => {
+                      setSelectedServiceSac(record);
+                      setServiceForm((current) => ({
+                        ...current,
+                        hsnCode: record.code,
+                        serviceName: record.name || current.serviceName,
+                        taxPercent: record.gstRate === null ? current.taxPercent : String(record.gstRate)
+                      }));
+                    }}
                 />
               </div>
 
@@ -3681,6 +3758,7 @@ export const UserDashboard = ({
                   <select
                     value={serviceForm.taxPercent}
                     onChange={(e) => setServiceForm({ ...serviceForm, taxPercent: e.target.value })}
+                    disabled={Boolean(selectedServiceSac && selectedServiceSac.gstRate !== null)}
                     className="w-full px-3 py-2 rounded-xl glass-input text-xs bg-dark-900 font-semibold"
                   >
                     {(() => {
@@ -3703,6 +3781,9 @@ export const UserDashboard = ({
                       ));
                     })()}
                   </select>
+                  {selectedServiceSac?.gstRate !== null && selectedServiceSac?.gstRate !== undefined && (
+                    <p className="mt-1 text-[10px] text-emerald-300">GST rate supplied by the verified SAC catalog.</p>
+                  )}
                 </div>
               </div>
 
@@ -3716,7 +3797,8 @@ export const UserDashboard = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30 cursor-pointer"
+                  disabled={!selectedServiceSac || selectedServiceSac.code !== serviceForm.hsnCode.trim()}
+                  className="px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/30 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {editingService ? 'Update Service' : 'Register Service'}
                 </button>
