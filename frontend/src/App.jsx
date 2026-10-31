@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ToastProvider } from './context/ToastContext';
 import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
@@ -136,12 +136,13 @@ function AppContent() {
       return null;
     }
   });
+  const authenticatedUserRef = useRef(savedUser);
 
   const [currentView, setCurrentViewInternal] = useState(() => {
     const fromPath = resolveViewFromPath(window.location.pathname);
-    if (fromPath) return fromPath;
+    if (fromPath) return fromPath === 'user-dashboard' && !savedUser ? 'landing' : fromPath;
     const fromHash = resolveViewFromPath(window.location.hash);
-    if (fromHash) return fromHash;
+    if (fromHash) return fromHash === 'user-dashboard' && !savedUser ? 'landing' : fromHash;
     return savedUser ? 'user-dashboard' : 'landing';
   });
   
@@ -390,21 +391,26 @@ function AppContent() {
   useEffect(() => {
     const getInitialView = () => {
       const fromPath = resolveViewFromPath(window.location.pathname);
-      if (fromPath) return fromPath;
+      if (fromPath) return fromPath === 'user-dashboard' && !savedUser ? 'landing' : fromPath;
       const fromHash = resolveViewFromPath(window.location.hash);
-      if (fromHash) return fromHash;
+      if (fromHash) return fromHash === 'user-dashboard' && !savedUser ? 'landing' : fromHash;
       return savedUser ? 'user-dashboard' : 'landing';
     };
     const initialV = getInitialView();
     window.history.replaceState({ view: initialV }, '', getViewPath(initialV));
 
     const handlePopState = (e) => {
-      if (e.state && e.state.view) {
-        setCurrentViewInternal(e.state.view);
-      } else {
-        const fromPath = resolveViewFromPath(window.location.pathname);
-        setCurrentViewInternal(fromPath || (savedUser ? 'user-dashboard' : 'landing'));
+      const requestedView = e.state?.view ||
+        resolveViewFromPath(window.location.pathname) ||
+        (authenticatedUserRef.current ? 'user-dashboard' : 'landing');
+      const nextView = requestedView === 'user-dashboard' && !authenticatedUserRef.current
+        ? 'landing'
+        : requestedView;
+
+      if (nextView !== requestedView) {
+        window.history.replaceState({ view: nextView }, '', getViewPath(nextView));
       }
+      setCurrentViewInternal(nextView);
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -486,6 +492,7 @@ function AppContent() {
       setProductsState(cachedProds);
       setInvoicesState(cachedInvs);
 
+      authenticatedUserRef.current = completeUser;
       setUserData(completeUser);
       fetchUserData(completeUser.id);
     }
@@ -550,6 +557,7 @@ function AppContent() {
   };
 
   const handleLogout = useCallback(() => {
+    authenticatedUserRef.current = null;
     try {
       localStorage.removeItem('billson_active_user');
       localStorage.removeItem('billson_token');
@@ -562,7 +570,8 @@ function AppContent() {
     setBankAccountsState([]);
     setProductsState([]);
     setInvoicesState([]);
-    setCurrentView('landing');
+    window.history.replaceState({ view: 'landing' }, '', getViewPath('landing'));
+    setCurrentView('landing', true);
   }, [setCurrentView]);
 
   // Active Watchdog: Instantly evict user if their account gets suspended while logged in
